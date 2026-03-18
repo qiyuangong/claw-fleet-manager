@@ -7,12 +7,13 @@ export class FleetConfigService {
 
   readFleetConfig(): FleetConfig {
     const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
+    const composeCount = this.readComposeInstanceCount();
 
     return {
       baseUrl: vars.BASE_URL ?? '',
       apiKey: vars.API_KEY ? FleetConfigService.maskToken(vars.API_KEY) : '',
       modelId: vars.MODEL_ID ?? '',
-      count: parseInt(vars.COUNT ?? '2', 10),
+      count: parseInt(vars.COUNT ?? String(composeCount ?? 2), 10),
       cpuLimit: vars.CPU_LIMIT ?? '4',
       memLimit: vars.MEM_LIMIT ?? '8G',
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),
@@ -59,6 +60,11 @@ export class FleetConfigService {
     return vars.CONFIG_BASE ?? join(process.env.HOME ?? '', 'openclaw-instances');
   }
 
+  getWorkspaceBase(): string {
+    const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
+    return vars.WORKSPACE_BASE ?? join(process.env.HOME ?? '', 'openclaw-workspaces');
+  }
+
   readInstanceConfig(index: number): unknown {
     const configBase = this.getConfigBase();
     const path = join(configBase, String(index), 'openclaw.json');
@@ -100,5 +106,15 @@ export class FleetConfigService {
     const tmpPath = `${path}.tmp`;
     writeFileSync(tmpPath, content, 'utf-8');
     renameSync(tmpPath, path);
+  }
+
+  private readComposeInstanceCount(): number | null {
+    try {
+      const compose = readFileSync(join(this.fleetDir, 'docker-compose.yml'), 'utf-8');
+      const matches = compose.match(/^\s{2}openclaw-\d+:/gm);
+      return matches?.length ?? null;
+    } catch {
+      return null;
+    }
   }
 }

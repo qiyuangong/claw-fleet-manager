@@ -1,7 +1,31 @@
 import type { FastifyInstance } from 'fastify';
 
-function frameToLine(chunk: Buffer): string {
-  return chunk.toString('utf-8').replace(/^.{8}/, '').trim();
+function demuxDockerChunk(chunk: Buffer): string[] {
+  const lines: string[] = [];
+  let offset = 0;
+
+  while (offset + 8 <= chunk.length) {
+    const size = chunk.readUInt32BE(offset + 4);
+    const start = offset + 8;
+    const end = start + size;
+    if (end > chunk.length) break;
+
+    const text = chunk.toString('utf-8', start, end).trim();
+    if (text) {
+      lines.push(...text.split('\n').map((line) => line.trim()).filter(Boolean));
+    }
+
+    offset = end;
+  }
+
+  if (lines.length === 0) {
+    const fallback = chunk.toString('utf-8').trim();
+    if (fallback) {
+      lines.push(...fallback.split('\n').map((line) => line.trim()).filter(Boolean));
+    }
+  }
+
+  return lines;
 }
 
 export async function logRoutes(app: FastifyInstance) {
@@ -21,8 +45,7 @@ export async function logRoutes(app: FastifyInstance) {
       }
 
       logStream.on('data', (chunk: Buffer) => {
-        const line = frameToLine(chunk);
-        if (line) {
+        for (const line of demuxDockerChunk(chunk)) {
           socket.send(JSON.stringify({ id, line, ts: Date.now() }));
         }
       });
@@ -51,8 +74,7 @@ export async function logRoutes(app: FastifyInstance) {
         ) as any;
         streams.push(logStream);
         logStream.on('data', (chunk: Buffer) => {
-          const line = frameToLine(chunk);
-          if (line) {
+          for (const line of demuxDockerChunk(chunk)) {
             socket.send(JSON.stringify({ id: container.name, line, ts: Date.now() }));
           }
         });

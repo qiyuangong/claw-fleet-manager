@@ -21,11 +21,15 @@ export class ComposeGenerator {
     const workspaceBase = vars.WORKSPACE_BASE ?? join(process.env.HOME ?? '', 'openclaw-workspaces');
     const existingTokens = this.fleetConfig.readTokens();
     const tokens: Record<number, string> = {};
+    const maxExistingIndex = Math.max(0, ...Object.keys(existingTokens).map((key) => parseInt(key, 10)));
+    const tokenCount = Math.max(count, maxExistingIndex);
 
-    for (let i = 1; i <= count; i += 1) {
+    for (let i = 1; i <= tokenCount; i += 1) {
       tokens[i] = existingTokens[i] ?? randomBytes(32).toString('hex');
-      mkdirSync(join(configBase, String(i)), { recursive: true });
-      mkdirSync(join(workspaceBase, String(i)), { recursive: true });
+      if (i <= count) {
+        mkdirSync(join(configBase, String(i)), { recursive: true });
+        mkdirSync(join(workspaceBase, String(i)), { recursive: true });
+      }
     }
 
     const envLines = Object.entries(tokens).map(([idx, token]) => `TOKEN_${idx}=${token}`);

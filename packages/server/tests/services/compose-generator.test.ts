@@ -55,4 +55,19 @@ describe('ComposeGenerator', () => {
     expect(envContent).toContain('TOKEN_2=othertoken456');
     expect(envContent).toContain('TOKEN_3=');
   });
+
+  it('keeps tokens for scaled-down instances so scale-up restores them', () => {
+    writeFileSync(
+      join(dir, '.env'),
+      'TOKEN_1=existingtoken123\nTOKEN_2=othertoken456\nTOKEN_3=keepme789\n',
+    );
+
+    const gen = new ComposeGenerator(dir);
+    gen.generate(2);
+
+    const envContent = readFileSync(join(dir, '.env'), 'utf-8');
+    expect(envContent).toContain('TOKEN_1=existingtoken123');
+    expect(envContent).toContain('TOKEN_2=othertoken456');
+    expect(envContent).toContain('TOKEN_3=keepme789');
+  });
 });

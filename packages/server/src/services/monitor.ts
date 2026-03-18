@@ -1,3 +1,5 @@
+import { statSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import type { FleetInstance, FleetStatus } from '../types.js';
 import { FleetConfigService } from './fleet-config.js';
 import type { DockerService } from './docker.js';
@@ -35,6 +37,8 @@ export class MonitorService {
     const containers = await this.docker.listFleetContainers();
     const tokens = this.fleetConfig.readTokens();
     const config = this.fleetConfig.readFleetConfig();
+    const configBase = this.fleetConfig.getConfigBase();
+    const workspaceBase = this.fleetConfig.getWorkspaceBase();
     const instances: FleetInstance[] = await Promise.all(
       containers.map(async (container) => {
         const index = parseInt(container.name.replace('openclaw-', ''), 10);
@@ -60,7 +64,10 @@ export class MonitorService {
           uptime: inspection.uptime,
           cpu: stats.cpu,
           memory: stats.memory,
-          disk: { config: 0, workspace: 0 },
+          disk: {
+            config: this.getDirectorySize(join(configBase, String(index))),
+            workspace: this.getDirectorySize(join(workspaceBase, String(index))),
+          },
           health: this.mapHealth(inspection.health),
           image: inspection.image,
         };
@@ -106,5 +113,20 @@ export class MonitorService {
     if (health === 'unhealthy') return 'unhealthy';
     if (health === 'starting') return 'starting';
     return 'none';
+  }
+
+  private getDirectorySize(path: string): number {
+    try {
+      const stats = statSync(path);
+      if (!stats.isDirectory()) {
+        return stats.size;
+      }
+
+      return readdirSync(path).reduce((total, entry) => {
+        return total + this.getDirectorySize(join(path, entry));
+      }, 0);
+    } catch {
+      return 0;
+    }
   }
 }

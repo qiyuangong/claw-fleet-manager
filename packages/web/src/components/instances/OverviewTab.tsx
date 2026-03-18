@@ -1,0 +1,110 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { restartInstance, revealToken, startInstance, stopInstance } from '../../api/fleet';
+import type { FleetInstance } from '../../types';
+import { MaskedValue } from '../common/MaskedValue';
+import { StatusBadge } from '../common/StatusBadge';
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** index).toFixed(1)} ${units[index]}`;
+}
+
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+export function OverviewTab({ instance }: { instance: FleetInstance }) {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['fleet'] });
+  };
+
+  const start = useMutation({ mutationFn: () => startInstance(instance.id), onSuccess: invalidate });
+  const stop = useMutation({ mutationFn: () => stopInstance(instance.id), onSuccess: invalidate });
+  const restart = useMutation({ mutationFn: () => restartInstance(instance.id), onSuccess: invalidate });
+
+  const cpuPercent = Math.max(0, Math.min(instance.cpu, 100));
+  const memPercent = instance.memory.limit > 0
+    ? Math.max(0, Math.min((instance.memory.used / instance.memory.limit) * 100, 100))
+    : 0;
+
+  return (
+    <div className="field-grid">
+      <section className="panel-card">
+        <div className="panel-header">
+          <div>
+            <h3 style={{ margin: 0 }}>Runtime</h3>
+            <p className="muted">Lifecycle, port binding, health, and gateway token.</p>
+          </div>
+          <div className="pill">
+            <StatusBadge status={instance.status} />
+            <span>{instance.status}</span>
+          </div>
+        </div>
+
+        <div className="action-row" style={{ marginBottom: '1rem' }}>
+          <button className="primary-button" onClick={() => start.mutate()} disabled={instance.status === 'running' || start.isPending}>
+            Start
+          </button>
+          <button className="danger-button" onClick={() => stop.mutate()} disabled={instance.status === 'stopped' || stop.isPending}>
+            Stop
+          </button>
+          <button className="secondary-button" onClick={() => restart.mutate()} disabled={instance.status === 'stopped' || restart.isPending}>
+            Restart
+          </button>
+        </div>
+
+        <div className="section-grid">
+          <div className="metric-card">
+            <p className="metric-label">Port</p>
+            <p className="metric-value mono">:{instance.port}</p>
+          </div>
+          <div className="metric-card">
+            <p className="metric-label">Uptime</p>
+            <p className="metric-value">{formatUptime(instance.uptime)}</p>
+          </div>
+          <div className="metric-card">
+            <p className="metric-label">Image</p>
+            <p className="metric-value mono">{instance.image}</p>
+          </div>
+          <div className="metric-card">
+            <p className="metric-label">Health</p>
+            <p className="metric-value">{instance.health}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="section-grid">
+        <div className="metric-card">
+          <p className="metric-label">CPU</p>
+          <p className="metric-value">{instance.cpu.toFixed(1)}%</p>
+          <div className="progress-track">
+            <div className="progress-bar" style={{ width: `${cpuPercent}%` }} />
+          </div>
+        </div>
+        <div className="metric-card">
+          <p className="metric-label">Memory</p>
+          <p className="metric-value">{formatBytes(instance.memory.used)} / {formatBytes(instance.memory.limit)}</p>
+          <div className="progress-track">
+            <div className="progress-bar" style={{ width: `${memPercent}%` }} />
+          </div>
+        </div>
+      </section>
+
+      <section className="panel-card">
+        <p className="metric-label">Gateway Token</p>
+        <MaskedValue
+          masked={instance.token}
+          onReveal={async () => (await revealToken(instance.id)).token}
+        />
+      </section>
+    </div>
+  );
+}

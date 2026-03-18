@@ -1,0 +1,69 @@
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import Fastify from 'fastify';
+import { configRoutes } from '../../src/routes/config.js';
+
+const mockFleetConfig = {
+  readFleetConfig: vi.fn().mockReturnValue({
+    baseUrl: 'https://api.example.com',
+    apiKey: 'sk-***123',
+    modelId: 'gpt-4',
+    count: 3,
+    cpuLimit: '4',
+    memLimit: '8G',
+    portStep: 20,
+    configBase: '/tmp/instances',
+    workspaceBase: '/tmp/workspaces',
+    tz: 'UTC',
+  }),
+  readFleetEnvRaw: vi.fn().mockReturnValue({
+    BASE_URL: 'https://api.example.com',
+    API_KEY: 'sk-test123',
+  }),
+  writeFleetConfig: vi.fn(),
+  readInstanceConfig: vi.fn().mockReturnValue({ gateway: { mode: 'token' } }),
+  writeInstanceConfig: vi.fn(),
+};
+
+describe('Config routes', () => {
+  const app = Fastify();
+
+  beforeAll(async () => {
+    app.decorate('fleetConfig', mockFleetConfig);
+    await app.register(configRoutes);
+    await app.ready();
+  });
+
+  afterAll(() => app.close());
+
+  it('GET /api/config/fleet returns masked fleet config', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/config/fleet' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().apiKey).toBe('sk-***123');
+  });
+
+  it('PUT /api/config/fleet writes config', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/config/fleet',
+      payload: { BASE_URL: 'https://new.api.com', API_KEY: 'sk-new' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalled();
+  });
+
+  it('GET /api/fleet/:id/config returns instance config', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/openclaw-1/config' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().gateway.mode).toBe('token');
+  });
+
+  it('PUT /api/fleet/:id/config writes instance config', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/fleet/openclaw-1/config',
+      payload: { gateway: { mode: 'local' } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockFleetConfig.writeInstanceConfig).toHaveBeenCalledWith(1, { gateway: { mode: 'local' } });
+  });
+});

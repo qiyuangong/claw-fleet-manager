@@ -10,6 +10,7 @@ import { fleetRoutes } from './routes/fleet.js';
 import { healthRoutes } from './routes/health.js';
 import { instanceRoutes } from './routes/instances.js';
 import { logRoutes } from './routes/logs.js';
+import { proxyRoutes } from './routes/proxy.js';
 import { ComposeGenerator } from './services/compose-generator.js';
 import { DockerService } from './services/docker.js';
 import { FleetConfigService } from './services/fleet-config.js';
@@ -36,12 +37,17 @@ await app.register(configRoutes);
 await app.register(fleetRoutes);
 await app.register(instanceRoutes);
 await app.register(logRoutes);
+await app.register(proxyRoutes);
 
 const webDist = resolve(import.meta.dirname, '..', '..', 'web', 'dist');
 if (existsSync(webDist)) {
   await app.register(fastifyStatic, { root: webDist, prefix: '/' });
   app.setNotFoundHandler((request, reply) => {
-    if (request.url.startsWith('/api/') || request.url.startsWith('/ws/')) {
+    if (
+      request.url.startsWith('/api/') ||
+      request.url.startsWith('/ws/') ||
+      request.url.startsWith('/proxy/')
+    ) {
       return reply.status(404).send({ error: 'Not found', code: 'NOT_FOUND' });
     }
     return reply.sendFile('index.html');

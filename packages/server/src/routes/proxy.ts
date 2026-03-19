@@ -47,6 +47,7 @@ function findInstance(app: FastifyInstance, id: string) {
 
 function toProxyPath(request: FastifyRequest<ProxyParams>): string {
   const rawUrl = new URL(request.raw.url ?? '/', 'http://localhost');
+  rawUrl.searchParams.delete('auth');
   const suffix = request.params['*'] ? `/${request.params['*']}` : '/';
   return `${suffix}${rawUrl.search}`;
 }
@@ -64,6 +65,7 @@ function parseProxyWildcardPath(request: FastifyRequest<ProxyWildcardParams>) {
   const [id, ...rest] = raw.split('/').filter(Boolean);
   if (!id) return null;
   const rawUrl = new URL(request.raw.url ?? '/', 'http://localhost');
+  rawUrl.searchParams.delete('auth');
   const suffix = rest.length > 0 ? `/${rest.join('/')}` : '/';
   return { id, path: `${suffix}${rawUrl.search}` };
 }

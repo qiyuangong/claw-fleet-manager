@@ -29,6 +29,10 @@ app.decorate('fleetConfig', fleetConfig);
 app.decorate('monitor', monitor);
 app.decorate('composeGenerator', composeGenerator);
 app.decorate('fleetDir', config.fleetDir);
+app.decorate('proxyAuth', Buffer.from(
+  `${config.auth.username}:${config.auth.password}`,
+  'utf-8',
+).toString('base64'));
 
 await registerAuth(app, config);
 await app.register(fastifyWebsocket);
@@ -46,7 +50,8 @@ if (existsSync(webDist)) {
     if (
       request.url.startsWith('/api/') ||
       request.url.startsWith('/ws/') ||
-      request.url.startsWith('/proxy/')
+      request.url.startsWith('/proxy/') ||
+      request.url.startsWith('/proxy-ws/')
     ) {
       return reply.status(404).send({ error: 'Not found', code: 'NOT_FOUND' });
     }

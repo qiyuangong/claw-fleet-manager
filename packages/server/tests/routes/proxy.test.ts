@@ -75,4 +75,10 @@ describe('Proxy routes', () => {
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toContain('not found');
   });
+
+  it('matches the instance root path without a trailing slash', async () => {
+    const res = await app.inject({ method: 'GET', url: '/proxy/openclaw-99' });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().code).toBe('INSTANCE_NOT_FOUND');
+  });
 });

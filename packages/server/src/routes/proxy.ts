@@ -37,7 +37,8 @@ export function stripFrameHeaders(
   return out;
 }
 
-type ProxyParams = { Params: { id: string; '*': string } };
+type ProxyParams = { Params: { id: string; '*': string | undefined } };
+type ProxyWildcardParams = { Params: { '*': string } };
 
 function findInstance(app: FastifyInstance, id: string) {
   return app.monitor.getStatus()?.instances.find((instance) => instance.id === id);
@@ -57,7 +58,52 @@ function toRequestBody(request: FastifyRequest): string | Buffer | undefined {
   return JSON.stringify(request.body);
 }
 
+function parseProxyWildcardPath(request: FastifyRequest<ProxyWildcardParams>) {
+  const raw = request.params['*'] ?? '';
+  const [id, ...rest] = raw.split('/').filter(Boolean);
+  if (!id) return null;
+  const rawUrl = new URL(request.raw.url ?? '/', 'http://localhost');
+  const suffix = rest.length > 0 ? `/${rest.join('/')}` : '/';
+  return { id, path: `${suffix}${rawUrl.search}` };
+}
+
+function buildInjectedScript(token: string, proxyAuth: string): string {
+  return (
+    `<script>(function(){` +
+    `var t=${JSON.stringify(token)};` +
+    `var a=${JSON.stringify(proxyAuth)};` +
+    `var p='openclaw.control.token.v1:';` +
+    `var o=sessionStorage.getItem.bind(sessionStorage);` +
+    `sessionStorage.getItem=function(k){var v=o(k);if(v!==null)return v;if(k.startsWith(p))return t;return null};` +
+    `var W=window.WebSocket;` +
+    `function withAuth(url){` +
+    `try{var u=new URL(url,window.location.href);` +
+    `if(u.pathname.startsWith('/proxy/')){` +
+    `u.pathname=u.pathname.replace(/^\\/proxy\\//,'/proxy-ws/');` +
+    `u.searchParams.set('auth',a);}` +
+    `return u.toString();}catch{return url;}}` +
+    `function P(url,protocols){` +
+    `var next=withAuth(url);` +
+    `return protocols===undefined?new W(next):new W(next,protocols);}` +
+    `P.prototype=W.prototype;` +
+    `Object.defineProperties(P,{` +
+    `CONNECTING:{value:W.CONNECTING},OPEN:{value:W.OPEN},` +
+    `CLOSING:{value:W.CLOSING},CLOSED:{value:W.CLOSED}` +
+    `});` +
+    `window.WebSocket=P;` +
+    `})();</script>`
+  );
+}
+
 export async function proxyRoutes(app: FastifyInstance) {
+  app.addHook('onRequest', async (request) => {
+    const rawUrl = request.raw.url ?? '/';
+    const isWebSocketUpgrade = request.headers.upgrade?.toLowerCase() === 'websocket';
+    if (isWebSocketUpgrade && rawUrl.startsWith('/proxy/')) {
+      request.raw.url = rawUrl.replace(/^\/proxy\//, '/proxy-ws/');
+    }
+  });
+
   async function httpProxy(request: FastifyRequest<ProxyParams>, reply: FastifyReply) {
     const instance = findInstance(app, request.params.id);
     if (!instance) {
@@ -105,16 +151,9 @@ export async function proxyRoutes(app: FastifyInstance) {
           chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
         }
         const html = Buffer.concat(chunks).toString('utf-8');
-        // Intercept sessionStorage.getItem to return the token for any
-        // "openclaw.control.token.v1:*" key — only when no token is already stored,
-        // so user-set tokens always take precedence.
-        const script =
-          `<script>(function(){` +
-          `var t=${JSON.stringify(token)};` +
-          `var p='openclaw.control.token.v1:';` +
-          `var o=sessionStorage.getItem.bind(sessionStorage);` +
-          `sessionStorage.getItem=function(k){var v=o(k);if(v!==null)return v;if(k.startsWith(p))return t;return null};` +
-          `})();</script>`;
+        // The embedded Control UI needs both the gateway token and the manager's
+        // Basic Auth credentials for its proxied websocket bootstrap.
+        const script = buildInjectedScript(token, app.proxyAuth);
         const injected = html.includes('</head>')
           ? html.replace('</head>', script + '</head>')
           : script + html;
@@ -129,25 +168,37 @@ export async function proxyRoutes(app: FastifyInstance) {
     return reply.send(response.body);
   }
 
-  app.route<ProxyParams>({
-    method: 'GET',
-    url: '/proxy/:id/*',
-    handler: httpProxy,
-    wsHandler: (socket: any, request: FastifyRequest<ProxyParams>) => {
-      const instance = findInstance(app, request.params.id);
+  const wsProxy = (socket: any, request: FastifyRequest<ProxyWildcardParams>) => {
+      const parsed = parseProxyWildcardPath(request);
+      if (!parsed) {
+        socket.close(1008, 'Invalid proxy path');
+        return;
+      }
+
+      const instance = findInstance(app, parsed.id);
       if (!instance) {
         socket.close(1011, 'Instance not found');
         return;
       }
 
+      socket._socket?.on('error', () => {
+        // Ignore raw socket resets from browser disconnects or failed upgrades.
+      });
+
       const upstream = new WebSocket(
-        `ws://127.0.0.1:${instance.port}${toProxyPath(request)}`,
+        `ws://127.0.0.1:${instance.port}${parsed.path}`,
         {
           headers: {
             origin: `http://localhost:${instance.port}`,
           },
         },
       );
+
+      upstream.on('open', () => {
+        (upstream as any)._socket?.on('error', () => {
+          // Ignore raw socket resets after the upstream handshake.
+        });
+      });
 
       socket.on('message', (message: WebSocket.RawData) => {
         if (upstream.readyState === WebSocket.OPEN) {
@@ -186,12 +237,21 @@ export async function proxyRoutes(app: FastifyInstance) {
           // socket already closed
         }
       });
-    },
-  });
+    };
 
-  app.route<ProxyParams>({
-    method: ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    url: '/proxy/:id/*',
-    handler: httpProxy,
-  });
+  for (const url of ['/proxy/:id', '/proxy/:id/*']) {
+    app.route<ProxyParams>({
+      method: 'GET',
+      url,
+      handler: httpProxy,
+    });
+
+    app.route<ProxyParams>({
+      method: ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      url,
+      handler: httpProxy,
+    });
+  }
+
+  app.get<ProxyWildcardParams>('/proxy-ws/*', { websocket: true }, wsProxy);
 }

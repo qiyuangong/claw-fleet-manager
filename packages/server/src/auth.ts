@@ -64,14 +64,24 @@ export async function registerAuth(app: FastifyInstance, config: ServerConfig) {
     }
 
     const rawUrl = request.raw.url ?? '/';
-    if (rawUrl.startsWith('/ws/')) {
+    if (
+      rawUrl.startsWith('/ws/')
+      || rawUrl.startsWith('/proxy/')
+      || rawUrl.startsWith('/proxy-ws/')
+    ) {
       const queryCredentials = parseWebSocketQueryAuth(rawUrl);
       if (isAuthorized(queryCredentials, config)) {
         return;
       }
     }
 
-    reply.header('www-authenticate', 'Basic realm="Claw Fleet Manager"');
+    const suppressBrowserPrompt =
+      rawUrl.startsWith('/proxy/')
+      || rawUrl.startsWith('/proxy-ws/');
+
+    if (!suppressBrowserPrompt) {
+      reply.header('www-authenticate', 'Basic realm="Claw Fleet Manager"');
+    }
     return reply.status(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
   });
 }

@@ -10,5 +10,6 @@ declare module 'fastify' {
     fleetConfig: FleetConfigService;
     composeGenerator: ComposeGenerator;
     fleetDir: string;
+    proxyAuth: string;
   }
 }

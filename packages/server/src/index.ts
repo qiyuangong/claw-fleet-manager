@@ -59,6 +59,11 @@ if (existsSync(webDist)) {
   });
 }
 
+// Suppress ECONNRESET on raw TCP sockets (e.g. abrupt WS disconnects after 401).
+app.server.on('connection', (socket) => {
+  socket.on('error', () => {});
+});
+
 monitor.start();
 await app.listen({ port: config.port, host: '0.0.0.0' });
 console.log(`Claw Fleet Manager running at http://0.0.0.0:${config.port}`);

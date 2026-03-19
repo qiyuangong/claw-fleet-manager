@@ -27,7 +27,8 @@ export function stripFrameHeaders(
     if (lowerKey === 'x-frame-options') continue;
 
     if (lowerKey === 'content-security-policy') {
-      out[key] = String(value).replace(/frame-ancestors\s+[^;]+/, "frame-ancestors 'self'");
+      // Drop the upstream CSP entirely — we inject an inline script and the
+      // proxy origin already provides its own security boundary.
       continue;
     }
 

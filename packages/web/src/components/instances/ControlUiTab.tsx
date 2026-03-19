@@ -6,58 +6,18 @@ interface Props {
   instance: FleetInstance;
 }
 
-function fleetAuth(): string {
-  const user = import.meta.env.VITE_BASIC_AUTH_USER;
-  const pass = import.meta.env.VITE_BASIC_AUTH_PASSWORD;
-  return (user && pass) ? btoa(`${user}:${pass}`) : '';
-}
-
-async function copyText(value: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return true;
-    }
-  } catch {
-    // fall through to execCommand
-  }
-  try {
-    const el = document.createElement('textarea');
-    el.value = value;
-    el.setAttribute('readonly', '');
-    el.style.cssText = 'position:fixed;opacity:0';
-    document.body.appendChild(el);
-    el.focus();
-    el.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(el);
-    return ok;
-  } catch {
-    return false;
-  }
-}
-
 export function ControlUiTab({ instance }: Props) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Build the proxy launch URL:
-  //   ?auth=      — fleet manager Basic Auth (initial HTML + cookie for sub-resources)
-  //   ?gatewayUrl — tells Control UI to connect WS through the proxy (auth embedded)
-  //   #token=     — gateway token read natively by Control UI from URL hash
-  async function buildLaunchUrl(): Promise<string> {
-    const { token: gatewayToken } = await revealToken(instance.id);
-    const auth = fleetAuth();
+  const host = window.location.hostname || 'localhost';
+  const baseUrl = `http://${host}:${instance.port}/`;
 
-    // gatewayUrl is NOT passed as a URL param — doing so triggers the Control UI's
-    // "malicious URL" warning. Instead, the proxy's injected script sets it in
-    // localStorage before the Control UI module runs, so no prompt appears.
-    const url = new URL(`${window.location.origin}/proxy/${instance.id}/`);
-    if (auth) url.searchParams.set('auth', auth);
-    url.hash = `token=${gatewayToken}`;
-    return url.toString();
-  }
+  const buildLaunchUrl = async (): Promise<string> => {
+    const { token } = await revealToken(instance.id);
+    return `${baseUrl}#token=${token}`;
+  };
 
   const handleOpen = async () => {
     setLoading(true);
@@ -68,7 +28,7 @@ export function ControlUiTab({ instance }: Props) {
       window.open(url, '_blank', 'noreferrer');
       setStatus('Opened Control UI in a new tab.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Failed to build launch URL');
+      setError(cause instanceof Error ? cause.message : 'Failed to open Control UI');
     } finally {
       setLoading(false);
     }
@@ -80,13 +40,13 @@ export function ControlUiTab({ instance }: Props) {
     setStatus(null);
     try {
       const url = await buildLaunchUrl();
-      const copied = await copyText(url);
-      if (!copied) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setStatus('Launch URL copied to clipboard.');
+      } catch {
         window.prompt('Copy launch URL:', url);
         setStatus('Launch URL prepared. Copy it from the prompt.');
-        return;
       }
-      setStatus('Launch URL copied to clipboard.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Failed to build launch URL');
     } finally {
@@ -98,17 +58,15 @@ export function ControlUiTab({ instance }: Props) {
     <section className="panel-card">
       <div className="panel-header">
         <div>
-          <h3 style={{ margin: 0 }}>Control UI Launch</h3>
-          <p className="muted">
-            Opens the gateway Control UI through the fleet proxy with auto-auth.
-          </p>
+          <h3 style={{ margin: 0 }}>Control UI</h3>
+          <p className="muted">Open the gateway Control UI with a one-time token.</p>
         </div>
       </div>
 
       <div className="section-grid">
         <div className="metric-card">
-          <p className="metric-label">Proxy URL</p>
-          <p className="metric-value mono">{`/proxy/${instance.id}/`}</p>
+          <p className="metric-label">Gateway URL</p>
+          <p className="metric-value mono">{baseUrl}</p>
         </div>
         <div className="metric-card">
           <p className="metric-label">Instance</p>

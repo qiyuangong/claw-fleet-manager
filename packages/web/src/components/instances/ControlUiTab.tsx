@@ -65,16 +65,14 @@ export function ControlUiTab({ instance }: Props) {
   }
 
   const handleOpen = async () => {
-    const popup = window.open('', '_blank', 'noopener,noreferrer');
     setLoading(true);
     setError(null);
     setStatus(null);
     try {
       const url = await buildLaunchUrl();
-      if (popup) popup.location.href = url;
+      window.open(url, '_blank', 'noreferrer');
       setStatus('Opened Control UI in a new tab.');
     } catch (cause) {
-      popup?.close();
       setError(cause instanceof Error ? cause.message : 'Failed to build launch URL');
     } finally {
       setLoading(false);

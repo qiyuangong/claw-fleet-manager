@@ -10,7 +10,7 @@ export async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> 
   const response = await fetch(path, {
     ...opts,
     headers: {
-      'Content-Type': 'application/json',
+      ...(opts?.body != null ? { 'Content-Type': 'application/json' } : {}),
       ...basicAuthHeaders(),
       ...opts?.headers,
     },

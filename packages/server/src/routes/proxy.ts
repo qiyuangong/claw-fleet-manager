@@ -143,6 +143,10 @@ export async function proxyRoutes(app: FastifyInstance) {
         }
       });
 
+      socket.on('error', () => {
+        upstream.close();
+      });
+
       upstream.on('error', () => {
         try {
           socket.close(1011, 'Upstream WS error');

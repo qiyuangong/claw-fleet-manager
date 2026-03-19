@@ -40,7 +40,7 @@ export function ControlUiTab({ instanceId, port }: Props) {
         <div
           style={{
             position: 'absolute',
-            inset: 0,
+            inset: '37px 0 0 0',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

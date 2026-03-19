@@ -90,10 +90,42 @@ export async function proxyRoutes(app: FastifyInstance) {
       return reply.status(502).send({ error: 'Upstream unreachable', code: 'UPSTREAM_ERROR' });
     }
 
-    reply.status(response.statusCode).headers(
-      stripFrameHeaders(response.headers as Record<string, string | string[] | undefined>),
+    const safeHeaders = stripFrameHeaders(
+      response.headers as Record<string, string | string[] | undefined>,
     );
 
+    // For HTML responses, inject a sessionStorage interceptor so the Control UI
+    // finds the gateway token automatically (the UI stores it in sessionStorage keyed
+    // by gatewayUrl, which differs between the direct port and the proxy URL).
+    if (String(safeHeaders['content-type'] ?? '').toLowerCase().includes('text/html')) {
+      const token = app.fleetConfig.readTokens()[instance.index] ?? '';
+      if (token) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of response.body) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
+        }
+        const html = Buffer.concat(chunks).toString('utf-8');
+        // Intercept sessionStorage.getItem to return the token for any
+        // "openclaw.control.token.v1:*" key — only when no token is already stored,
+        // so user-set tokens always take precedence.
+        const script =
+          `<script>(function(){` +
+          `var t=${JSON.stringify(token)};` +
+          `var p='openclaw.control.token.v1:';` +
+          `var o=sessionStorage.getItem.bind(sessionStorage);` +
+          `sessionStorage.getItem=function(k){var v=o(k);if(v!==null)return v;if(k.startsWith(p))return t;return null};` +
+          `})();</script>`;
+        const injected = html.includes('</head>')
+          ? html.replace('</head>', script + '</head>')
+          : script + html;
+        const buf = Buffer.from(injected, 'utf-8');
+        delete safeHeaders['content-length'];
+        reply.status(response.statusCode).headers(safeHeaders);
+        return reply.send(buf);
+      }
+    }
+
+    reply.status(response.statusCode).headers(safeHeaders);
     return reply.send(response.body);
   }
 

@@ -9,7 +9,7 @@ interface Props {
 function fleetAuth(): string {
   const user = import.meta.env.VITE_BASIC_AUTH_USER;
   const pass = import.meta.env.VITE_BASIC_AUTH_PASSWORD;
-  return user && pass ? btoa(`${user}:${pass}`) : '';
+  return (user && pass) ? btoa(`${user}:${pass}`) : '';
 }
 
 async function copyText(value: string): Promise<boolean> {
@@ -49,17 +49,12 @@ export function ControlUiTab({ instance }: Props) {
   async function buildLaunchUrl(): Promise<string> {
     const { token: gatewayToken } = await revealToken(instance.id);
     const auth = fleetAuth();
-    const origin = window.location.origin;
-    const wsOrigin = origin.replace(/^http/, 'ws');
 
-    // The WS gateway URL the Control UI should connect to — includes fleet auth.
-    const wsProxyUrl = auth
-      ? `${wsOrigin}/proxy/${instance.id}?auth=${auth}`
-      : `${wsOrigin}/proxy/${instance.id}`;
-
-    const url = new URL(`${origin}/proxy/${instance.id}/`);
+    // gatewayUrl is NOT passed as a URL param — doing so triggers the Control UI's
+    // "malicious URL" warning. Instead, the proxy's injected script sets it in
+    // localStorage before the Control UI module runs, so no prompt appears.
+    const url = new URL(`${window.location.origin}/proxy/${instance.id}/`);
     if (auth) url.searchParams.set('auth', auth);
-    url.searchParams.set('gatewayUrl', wsProxyUrl);
     url.hash = `token=${gatewayToken}`;
     return url.toString();
   }

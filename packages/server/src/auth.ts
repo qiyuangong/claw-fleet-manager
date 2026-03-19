@@ -57,6 +57,27 @@ export async function registerAuth(app: FastifyInstance, config: ServerConfig) {
     authenticate: { realm: 'Claw Fleet Manager' },
   });
 
+  const proxyCookieName = 'x-fleet-proxy-auth';
+
+  function parseProxyCookie(cookieHeader: string | undefined): { username: string; password: string } | null {
+    if (!cookieHeader) return null;
+    for (const part of cookieHeader.split(';')) {
+      const trimmed = part.trim();
+      if (trimmed.startsWith(`${proxyCookieName}=`)) {
+        const encoded = trimmed.slice(proxyCookieName.length + 1);
+        try {
+          const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
+          const separator = decoded.indexOf(':');
+          if (separator < 0) return null;
+          return { username: decoded.slice(0, separator), password: decoded.slice(separator + 1) };
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
   app.addHook('onRequest', async (request, reply) => {
     const headerCredentials = parseBasicAuth(request.headers.authorization);
     if (isAuthorized(headerCredentials, config)) {
@@ -64,13 +85,27 @@ export async function registerAuth(app: FastifyInstance, config: ServerConfig) {
     }
 
     const rawUrl = request.raw.url ?? '/';
-    if (
+    const isProxyPath =
       rawUrl.startsWith('/ws/')
       || rawUrl.startsWith('/proxy/')
-      || rawUrl.startsWith('/proxy-ws/')
-    ) {
+      || rawUrl.startsWith('/proxy-ws/');
+
+    if (isProxyPath) {
+      const cookieCredentials = parseProxyCookie(request.headers.cookie);
+      if (isAuthorized(cookieCredentials, config)) {
+        return;
+      }
+
       const queryCredentials = parseWebSocketQueryAuth(rawUrl);
       if (isAuthorized(queryCredentials, config)) {
+        // Set a cookie so sub-resources on the proxied page don't need ?auth=
+        const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
+        if (encoded) {
+          reply.header(
+            'set-cookie',
+            `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
+          );
+        }
         return;
       }
     }

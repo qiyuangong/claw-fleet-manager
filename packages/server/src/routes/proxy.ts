@@ -67,20 +67,47 @@ function parseProxyWildcardPath(request: FastifyRequest<ProxyWildcardParams>) {
   return { id, path: `${suffix}${rawUrl.search}` };
 }
 
+function findWildcardInstance(app: FastifyInstance, request: FastifyRequest<ProxyWildcardParams>) {
+  const parsed = parseProxyWildcardPath(request);
+  if (!parsed) return null;
+  const instance = findInstance(app, parsed.id);
+  if (!instance) return { parsed, instance: null };
+  return { parsed, instance };
+}
+
 function buildInjectedScript(token: string, proxyAuth: string): string {
   return (
     `<script>(function(){` +
     `var t=${JSON.stringify(token)};` +
     `var a=${JSON.stringify(proxyAuth)};` +
+    `var s='openclaw.control.settings.v1';` +
     `var p='openclaw.control.token.v1:';` +
+    `function n(u){` +
+    `var v=(u||'').trim();` +
+    `if(!v)return'default';` +
+    `try{var w=new URL(v,window.location.href);` +
+    `var x=w.pathname==='/'?'':(w.pathname.replace(/\\/+$/,'')||w.pathname);` +
+    `return w.protocol+'//'+w.host+x;}catch{return v;}}` +
+    `function g(){` +
+    `var u=window.location.protocol==='https:'?'wss':'ws';` +
+    `var v=(window.location.pathname||'/').replace(/\\/+$/,'');` +
+    `return u+'//'+window.location.host+(v&&v!=='/'?v:'');}` +
+    `function h(){` +
+    `var u=g();` +
+    `try{sessionStorage.removeItem('openclaw.control.token.v1');` +
+    `sessionStorage.setItem(p+n(u),t);}catch{}` +
+    `try{var v={};` +
+    `try{v=JSON.parse(localStorage.getItem(s)||'{}')||{};}catch{}` +
+    `v.gatewayUrl=u;` +
+    `localStorage.setItem(s,JSON.stringify(v));}catch{}` +
+    `return u;}` +
+    `var k=h();` +
     `var o=sessionStorage.getItem.bind(sessionStorage);` +
-    `sessionStorage.getItem=function(k){var v=o(k);if(v!==null)return v;if(k.startsWith(p))return t;return null};` +
+    `sessionStorage.getItem=function(u){var v=o(u);if(v!==null)return v;if(u===p+n(k)||u.startsWith(p))return t;return null};` +
     `var W=window.WebSocket;` +
     `function withAuth(url){` +
     `try{var u=new URL(url,window.location.href);` +
-    `if(u.pathname.startsWith('/proxy/')){` +
-    `u.pathname=u.pathname.replace(/^\\/proxy\\//,'/proxy-ws/');` +
-    `u.searchParams.set('auth',a);}` +
+    `if(u.pathname.startsWith('/proxy/'))u.searchParams.set('auth',a);` +
     `return u.toString();}catch{return url;}}` +
     `function P(url,protocols){` +
     `var next=withAuth(url);` +
@@ -96,14 +123,6 @@ function buildInjectedScript(token: string, proxyAuth: string): string {
 }
 
 export async function proxyRoutes(app: FastifyInstance) {
-  app.addHook('onRequest', async (request) => {
-    const rawUrl = request.raw.url ?? '/';
-    const isWebSocketUpgrade = request.headers.upgrade?.toLowerCase() === 'websocket';
-    if (isWebSocketUpgrade && rawUrl.startsWith('/proxy/')) {
-      request.raw.url = rawUrl.replace(/^\/proxy\//, '/proxy-ws/');
-    }
-  });
-
   async function httpProxy(request: FastifyRequest<ProxyParams>, reply: FastifyReply) {
     const instance = findInstance(app, request.params.id);
     if (!instance) {
@@ -166,6 +185,32 @@ export async function proxyRoutes(app: FastifyInstance) {
 
     reply.status(response.statusCode).headers(safeHeaders);
     return reply.send(response.body);
+  }
+
+  async function httpWildcardProxy(
+    request: FastifyRequest<ProxyWildcardParams>,
+    reply: FastifyReply,
+  ) {
+    const resolved = findWildcardInstance(app, request);
+    if (!resolved) {
+      return reply.status(400).send({ error: 'Invalid proxy path', code: 'INVALID_PROXY_PATH' });
+    }
+
+    if (!resolved.instance) {
+      return reply.status(404).send({
+        error: `Instance ${resolved.parsed.id} not found`,
+        code: 'INSTANCE_NOT_FOUND',
+      });
+    }
+
+    const nextUrl = `/proxy/${resolved.parsed.id}${resolved.parsed.path}`;
+    request.raw.url = nextUrl;
+    (request.params as any) = {
+      id: resolved.parsed.id,
+      '*': resolved.parsed.path === '/' ? undefined : resolved.parsed.path.slice(1).split('?')[0],
+    };
+
+    return httpProxy(request as unknown as FastifyRequest<ProxyParams>, reply);
   }
 
   const wsProxy = (socket: any, request: FastifyRequest<ProxyWildcardParams>) => {
@@ -239,19 +284,44 @@ export async function proxyRoutes(app: FastifyInstance) {
       });
     };
 
-  for (const url of ['/proxy/:id', '/proxy/:id/*']) {
-    app.route<ProxyParams>({
-      method: 'GET',
-      url,
-      handler: httpProxy,
-    });
+  const wsProxyById = (
+    socket: any,
+    request: FastifyRequest<{ Params: { id: string } }>,
+  ) => {
+    request.raw.url = `/proxy/${request.params.id}/`;
+    (request.params as any) = { '*': request.params.id };
+    wsProxy(socket, request as unknown as FastifyRequest<ProxyWildcardParams>);
+  };
 
+  app.route<{ Params: { id: string } }>({
+    method: 'GET',
+    url: '/proxy/:id',
+    handler: async (request, reply) => {
+      const instance = findInstance(app, request.params.id);
+      if (!instance) {
+        return reply.status(404).send({
+          error: `Instance ${request.params.id} not found`,
+          code: 'INSTANCE_NOT_FOUND',
+        });
+      }
+
+      return reply.redirect(`/proxy/${request.params.id}/`);
+    },
+    wsHandler: wsProxyById,
+  });
+
+  app.route<ProxyWildcardParams>({
+    method: 'GET',
+    url: '/proxy/*',
+    handler: httpWildcardProxy,
+    wsHandler: wsProxy,
+  });
+
+  for (const url of ['/proxy/:id', '/proxy/:id/*']) {
     app.route<ProxyParams>({
       method: ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       url,
       handler: httpProxy,
     });
   }
-
-  app.get<ProxyWildcardParams>('/proxy-ws/*', { websocket: true }, wsProxy);
 }

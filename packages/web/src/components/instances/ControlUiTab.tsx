@@ -1,69 +1,108 @@
 import { useState } from 'react';
+import type { FleetInstance } from '../../types';
 
 interface Props {
-  instanceId: string;
+  instance: FleetInstance;
 }
 
-export function ControlUiTab({ instanceId }: Props) {
-  const [loaded, setLoaded] = useState(false);
-  const proxyUrl = `/proxy/${instanceId}/`;
+function buildProxyUrl(instanceId: string): string {
+  const path = `/proxy/${instanceId}/`;
+  const user = import.meta.env.VITE_BASIC_AUTH_USER;
+  const pass = import.meta.env.VITE_BASIC_AUTH_PASSWORD;
+  if (user && pass) {
+    return `${path}?auth=${btoa(`${user}:${pass}`)}`;
+  }
+  return path;
+}
+
+async function copyText(value: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fall back to execCommand below.
+  }
+
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = value;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+export function ControlUiTab({ instance }: Props) {
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const proxyPath = buildProxyUrl(instance.id);
+  const fullUrl = `${window.location.origin}${proxyPath}`;
+
+  const handleOpen = () => {
+    window.open(proxyPath, '_blank', 'noreferrer');
+    setStatus('Opened Control UI in a new tab.');
+  };
+
+  const handleCopy = async () => {
+    setError(null);
+    setStatus(null);
+    try {
+      const copied = await copyText(fullUrl);
+      if (!copied) {
+        window.prompt('Copy launch URL:', fullUrl);
+        setStatus('Launch URL prepared. Copy it from the prompt.');
+        return;
+      }
+      setStatus('Launch URL copied to clipboard.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Failed to copy launch URL');
+    }
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)', minHeight: '500px', position: 'relative' }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '6px 12px',
-          borderBottom: '1px solid var(--border, #e2e8f0)',
-          fontSize: '13px',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ color: 'var(--muted-foreground, #64748b)' }}>
-          OpenClaw Control UI - {instanceId}
-        </span>
-        <a
-          href={proxyUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: 'var(--primary, #3b82f6)', textDecoration: 'none' }}
-        >
-          Open in new tab ↗
-        </a>
+    <section className="panel-card">
+      <div className="panel-header">
+        <div>
+          <h3 style={{ margin: 0 }}>Control UI Launch</h3>
+          <p className="muted">
+            Open the gateway&apos;s Control UI through the fleet manager proxy with auto-auth.
+          </p>
+        </div>
       </div>
 
-      {!loaded ? (
-        <div
-          style={{
-            position: 'absolute',
-            inset: '37px 0 0 0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--background, #fff)',
-            color: 'var(--muted-foreground, #64748b)',
-            fontSize: '14px',
-            zIndex: 1,
-          }}
-        >
-          Loading control UI...
+      <div className="section-grid">
+        <div className="metric-card">
+          <p className="metric-label">Proxy URL</p>
+          <p className="metric-value mono">{`/proxy/${instance.id}/`}</p>
         </div>
-      ) : null}
+        <div className="metric-card">
+          <p className="metric-label">Instance</p>
+          <p className="metric-value mono">{instance.id}</p>
+        </div>
+      </div>
 
-      <iframe
-        src={proxyUrl}
-        title={`OpenClaw Control UI - ${instanceId}`}
-        onLoad={() => setLoaded(true)}
-        style={{
-          flex: 1,
-          border: 'none',
-          width: '100%',
-          background: 'var(--background, #fff)',
-        }}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-      />
-    </div>
+      <div className="action-row" style={{ marginTop: '1rem' }}>
+        <button className="primary-button" onClick={handleOpen}>
+          Open Control UI
+        </button>
+        <button className="secondary-button" onClick={() => void handleCopy()}>
+          Copy launch URL
+        </button>
+      </div>
+
+      {status ? <p className="token-status success-text">{status}</p> : null}
+      {error ? <p className="token-status error-text">{error}</p> : null}
+    </section>
   );
 }

@@ -313,6 +313,11 @@ button {
   min-width: 20rem;
 }
 
+.token-status {
+  margin: 0.6rem 0 0;
+  font-size: 0.92rem;
+}
+
 .log-shell {
   display: grid;
   gap: 1rem;

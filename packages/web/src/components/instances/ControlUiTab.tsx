@@ -1,18 +1,15 @@
 import { useState } from 'react';
+import { revealToken } from '../../api/fleet';
 import type { FleetInstance } from '../../types';
 
 interface Props {
   instance: FleetInstance;
 }
 
-function buildProxyUrl(instanceId: string): string {
-  const path = `/proxy/${instanceId}/`;
+function fleetAuth(): string {
   const user = import.meta.env.VITE_BASIC_AUTH_USER;
   const pass = import.meta.env.VITE_BASIC_AUTH_PASSWORD;
-  if (user && pass) {
-    return `${path}?auth=${btoa(`${user}:${pass}`)}`;
-  }
-  return path;
+  return user && pass ? btoa(`${user}:${pass}`) : '';
 }
 
 async function copyText(value: string): Promise<boolean> {
@@ -22,20 +19,18 @@ async function copyText(value: string): Promise<boolean> {
       return true;
     }
   } catch {
-    // Fall back to execCommand below.
+    // fall through to execCommand
   }
-
   try {
-    const textArea = document.createElement('textarea');
-    textArea.value = value;
-    textArea.setAttribute('readonly', '');
-    textArea.style.position = 'fixed';
-    textArea.style.opacity = '0';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
+    const el = document.createElement('textarea');
+    el.value = value;
+    el.setAttribute('readonly', '');
+    el.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
     const ok = document.execCommand('copy');
-    document.body.removeChild(textArea);
+    document.body.removeChild(el);
     return ok;
   } catch {
     return false;
@@ -43,30 +38,66 @@ async function copyText(value: string): Promise<boolean> {
 }
 
 export function ControlUiTab({ instance }: Props) {
+  const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const proxyPath = buildProxyUrl(instance.id);
-  const fullUrl = `${window.location.origin}${proxyPath}`;
+  // Build the proxy launch URL:
+  //   ?auth=      — fleet manager Basic Auth (initial HTML + cookie for sub-resources)
+  //   ?gatewayUrl — tells Control UI to connect WS through the proxy (auth embedded)
+  //   #token=     — gateway token read natively by Control UI from URL hash
+  async function buildLaunchUrl(): Promise<string> {
+    const { token: gatewayToken } = await revealToken(instance.id);
+    const auth = fleetAuth();
+    const origin = window.location.origin;
+    const wsOrigin = origin.replace(/^http/, 'ws');
 
-  const handleOpen = () => {
-    window.open(proxyPath, '_blank', 'noreferrer');
-    setStatus('Opened Control UI in a new tab.');
-  };
+    // The WS gateway URL the Control UI should connect to — includes fleet auth.
+    const wsProxyUrl = auth
+      ? `${wsOrigin}/proxy/${instance.id}?auth=${auth}`
+      : `${wsOrigin}/proxy/${instance.id}`;
 
-  const handleCopy = async () => {
+    const url = new URL(`${origin}/proxy/${instance.id}/`);
+    if (auth) url.searchParams.set('auth', auth);
+    url.searchParams.set('gatewayUrl', wsProxyUrl);
+    url.hash = `token=${gatewayToken}`;
+    return url.toString();
+  }
+
+  const handleOpen = async () => {
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
+    setLoading(true);
     setError(null);
     setStatus(null);
     try {
-      const copied = await copyText(fullUrl);
+      const url = await buildLaunchUrl();
+      if (popup) popup.location.href = url;
+      setStatus('Opened Control UI in a new tab.');
+    } catch (cause) {
+      popup?.close();
+      setError(cause instanceof Error ? cause.message : 'Failed to build launch URL');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    setLoading(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const url = await buildLaunchUrl();
+      const copied = await copyText(url);
       if (!copied) {
-        window.prompt('Copy launch URL:', fullUrl);
+        window.prompt('Copy launch URL:', url);
         setStatus('Launch URL prepared. Copy it from the prompt.');
         return;
       }
       setStatus('Launch URL copied to clipboard.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Failed to copy launch URL');
+      setError(cause instanceof Error ? cause.message : 'Failed to build launch URL');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -76,7 +107,7 @@ export function ControlUiTab({ instance }: Props) {
         <div>
           <h3 style={{ margin: 0 }}>Control UI Launch</h3>
           <p className="muted">
-            Open the gateway&apos;s Control UI through the fleet manager proxy with auto-auth.
+            Opens the gateway Control UI through the fleet proxy with auto-auth.
           </p>
         </div>
       </div>
@@ -93,10 +124,10 @@ export function ControlUiTab({ instance }: Props) {
       </div>
 
       <div className="action-row" style={{ marginTop: '1rem' }}>
-        <button className="primary-button" onClick={handleOpen}>
-          Open Control UI
+        <button className="primary-button" onClick={() => void handleOpen()} disabled={loading}>
+          {loading ? 'Preparing...' : 'Open Control UI'}
         </button>
-        <button className="secondary-button" onClick={() => void handleCopy()}>
+        <button className="secondary-button" onClick={() => void handleCopy()} disabled={loading}>
           Copy launch URL
         </button>
       </div>

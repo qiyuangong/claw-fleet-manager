@@ -9,6 +9,11 @@ export default defineConfig({
         target: 'ws://localhost:3001',
         ws: true,
       },
+      '/proxy': {
+        target: 'http://localhost:3001',
+        ws: true,
+        changeOrigin: false,
+      },
     },
   },
   plugins: [react()],

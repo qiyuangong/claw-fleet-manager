@@ -6,8 +6,9 @@ import { OverviewTab } from './OverviewTab';
 const LogsTab = lazy(async () => ({ default: (await import('./LogsTab')).LogsTab }));
 const ConfigTab = lazy(async () => ({ default: (await import('./ConfigTab')).ConfigTab }));
 const MetricsTab = lazy(async () => ({ default: (await import('./MetricsTab')).MetricsTab }));
+const ControlUiTab = lazy(async () => ({ default: (await import('./ControlUiTab')).ControlUiTab }));
 
-const tabs = ['overview', 'logs', 'config', 'metrics'] as const;
+const tabs = ['overview', 'logs', 'config', 'metrics', 'controlui'] as const;
 
 export function InstancePanel({ instanceId }: { instanceId: string }) {
   const { data } = useFleet();
@@ -43,7 +44,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
             className={`tab-button ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setTab(tab)}
           >
-            {tab}
+            {tab === 'controlui' ? 'control ui' : tab}
           </button>
         ))}
       </div>
@@ -54,6 +55,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
           {activeTab === 'logs' ? <LogsTab instanceId={instanceId} /> : null}
           {activeTab === 'config' ? <ConfigTab instanceId={instanceId} /> : null}
           {activeTab === 'metrics' ? <MetricsTab instance={instance} /> : null}
+          {activeTab === 'controlui' ? <ControlUiTab instanceId={instanceId} port={instance.port} /> : null}
         </Suspense>
       ) : null}
     </section>

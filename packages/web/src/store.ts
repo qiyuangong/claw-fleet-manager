@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type Tab = 'overview' | 'logs' | 'config' | 'metrics';
+type Tab = 'overview' | 'logs' | 'config' | 'metrics' | 'controlui';
 
 interface AppState {
   selectedInstanceId: string | null;

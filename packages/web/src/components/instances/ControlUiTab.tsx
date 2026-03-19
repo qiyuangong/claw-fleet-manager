@@ -2,16 +2,14 @@ import { useState } from 'react';
 
 interface Props {
   instanceId: string;
-  port: number;
 }
 
-export function ControlUiTab({ instanceId, port }: Props) {
+export function ControlUiTab({ instanceId }: Props) {
   const [loaded, setLoaded] = useState(false);
   const proxyUrl = `/proxy/${instanceId}/`;
-  const directUrl = `http://localhost:${port}/`;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 260px)', minHeight: '500px', position: 'relative' }}>
       <div
         style={{
           display: 'flex',
@@ -27,7 +25,7 @@ export function ControlUiTab({ instanceId, port }: Props) {
           OpenClaw Control UI - {instanceId}
         </span>
         <a
-          href={directUrl}
+          href={proxyUrl}
           target="_blank"
           rel="noreferrer"
           style={{ color: 'var(--primary, #3b82f6)', textDecoration: 'none' }}

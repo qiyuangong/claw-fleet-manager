@@ -55,7 +55,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
           {activeTab === 'logs' ? <LogsTab instanceId={instanceId} /> : null}
           {activeTab === 'config' ? <ConfigTab instanceId={instanceId} /> : null}
           {activeTab === 'metrics' ? <MetricsTab instance={instance} /> : null}
-          {activeTab === 'controlui' ? <ControlUiTab instanceId={instanceId} port={instance.port} /> : null}
+          {activeTab === 'controlui' ? <ControlUiTab instanceId={instanceId} /> : null}
         </Suspense>
       ) : null}
     </section>

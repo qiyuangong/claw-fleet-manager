@@ -31,6 +31,14 @@ const mockDocker = {
   stopContainer: vi.fn(),
   listFleetContainers: vi.fn().mockResolvedValue([]),
 };
+const mockTailscale = {
+  allocatePorts: vi.fn().mockReturnValue(new Map()),
+  teardown: vi.fn().mockResolvedValue(undefined),
+  setup: vi.fn().mockResolvedValue('https://machine.tailnet.ts.net:8800'),
+};
+const mockFleetConfig = {
+  readFleetConfig: vi.fn().mockReturnValue({ portStep: 20 }),
+};
 
 describe('Fleet routes', () => {
   const app = Fastify();
@@ -40,6 +48,9 @@ describe('Fleet routes', () => {
     app.decorate('composeGenerator', mockComposeGen);
     app.decorate('docker', mockDocker);
     app.decorate('fleetDir', '/tmp');
+    app.decorate('tailscale', mockTailscale);
+    app.decorate('tailscaleHostname', null);
+    app.decorate('fleetConfig', mockFleetConfig);
     await app.register(fleetRoutes);
     await app.ready();
   });
@@ -69,6 +80,6 @@ describe('Fleet routes', () => {
       payload: { count: 3 },
     });
     expect([200, 500]).toContain(res.statusCode);
-    expect(mockComposeGen.generate).toHaveBeenCalledWith(3);
+    expect(mockComposeGen.generate).toHaveBeenCalledWith(3, undefined);
   });
 });

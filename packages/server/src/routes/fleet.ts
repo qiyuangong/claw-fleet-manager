@@ -23,12 +23,19 @@ export async function fleetRoutes(app: FastifyInstance) {
 
     const { count } = parsed.data;
     const currentContainers = await app.docker.listFleetContainers();
-    const toRemove = currentContainers.filter((container) => {
-      const idx = parseInt(container.name.replace('openclaw-', ''), 10);
-      return idx > count;
-    });
+    const currentIndices = currentContainers.map((c) =>
+      parseInt(c.name.replace('openclaw-', ''), 10),
+    );
+    const newIndices = Array.from({ length: count }, (_, i) => i + 1).filter(
+      (i) => !currentIndices.includes(i),
+    );
+    const removedIndices = currentIndices.filter((i) => i > count);
 
-    for (const container of toRemove) {
+    // Stop removed containers
+    for (const container of currentContainers.filter((c) => {
+      const idx = parseInt(c.name.replace('openclaw-', ''), 10);
+      return idx > count;
+    })) {
       try {
         await app.docker.stopContainer(container.name);
       } catch {
@@ -36,14 +43,35 @@ export async function fleetRoutes(app: FastifyInstance) {
       }
     }
 
-    app.composeGenerator.generate(count);
+    // Teardown Tailscale for removed instances (non-fatal)
+    for (const idx of removedIndices) {
+      await app.tailscale?.teardown(idx);
+    }
+
+    // Allocate Tailscale ports for new instances before generating compose
+    const portMap = app.tailscale?.allocatePorts(newIndices) ?? new Map<number, number>();
+
+    // Generate compose + openclaw.json
+    app.composeGenerator.generate(
+      count,
+      app.tailscaleHostname ? { hostname: app.tailscaleHostname, portMap } : undefined,
+    );
 
     try {
-      await execFileAsync('docker', ['compose', 'up', '-d'], {
-        cwd: app.fleetDir,
-      });
+      await execFileAsync('docker', ['compose', 'up', '-d'], { cwd: app.fleetDir });
     } catch (error: any) {
       return reply.status(500).send({ error: error.message, code: 'COMPOSE_FAILED' });
+    }
+
+    // Setup Tailscale serve for new instances (non-fatal per instance)
+    const portStep = app.fleetConfig.readFleetConfig().portStep;
+    for (const idx of newIndices) {
+      const gwPort = 18789 + (idx - 1) * portStep;
+      try {
+        await app.tailscale?.setup(idx, gwPort);
+      } catch (err) {
+        app.log.error({ err, idx }, 'Tailscale setup failed for instance');
+      }
     }
 
     const status = await app.monitor.refresh();

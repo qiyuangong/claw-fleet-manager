@@ -99,6 +99,7 @@ export function ControlUiTab({ instance }: Props) {
           className="secondary-button"
           onClick={() => void handleCopy()}
           disabled={loading || isDisabled}
+          title={isDisabled ? 'Tailscale not configured — Control UI is only accessible on localhost' : undefined}
         >
           Copy launch URL
         </button>

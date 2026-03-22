@@ -37,6 +37,62 @@ npm run dev
 
 The Vite app runs on `http://localhost:5173` and proxies API and WebSocket traffic to the server on `http://localhost:3001`.
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Browser (:5173)                      │
+│                                                             │
+│  Sidebar ── Shell ── InstancePanel                          │
+│                      ├─ OverviewTab    (status, controls)   │
+│                      ├─ LogsTab        (WebSocket stream)   │
+│                      ├─ ConfigTab      (Monaco editor)      │
+│                      ├─ MetricsTab     (Recharts)           │
+│                      └─ ControlUiTab   (device pairing)     │
+│                                                             │
+│  Zustand (UI state)   React Query (server state, 5s poll)   │
+│  apiFetch (Basic Auth)                                      │
+└──────────────┬──────────────────────┬───────────────────────┘
+               │ HTTP /api/*          │ WS /ws/*, /proxy/*
+               ▼                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Fastify Server (:3001)                     │
+│                                                             │
+│  Auth ─── Basic Auth / Cookie / HMAC proxyToken             │
+│  Validate ─── /^openclaw-\d+$/                              │
+│                                                             │
+│  Routes                                                     │
+│  ├─ /api/health                                             │
+│  ├─ /api/fleet          GET status, POST scale (mutex)      │
+│  ├─ /api/fleet/:id/*    start/stop/restart/token/devices    │
+│  ├─ /api/config/*       fleet.env + openclaw.json (Zod)     │
+│  ├─ /ws/logs            WebSocket log streaming             │
+│  └─ /proxy/*            reverse proxy + token injection     │
+│                                                             │
+│  Services                                                   │
+│  ├─ DockerService        container lifecycle & stats        │
+│  ├─ FleetConfigService   fleet.env / openclaw.json I/O     │
+│  ├─ MonitorService       5s async poll → FleetStatus cache  │
+│  ├─ ComposeGenerator     docker-compose.yml generation      │
+│  └─ TailscaleService     per-instance serve rules           │
+└─────┬──────────┬─────────────┬──────────────────────────────┘
+      │          │             │
+      ▼          ▼             ▼
+┌──────────┐ ┌──────────┐ ┌──────────────┐
+│  Docker  │ │   Files   │ │  Tailscale   │
+│  Daemon  │ │           │ │     CLI      │
+│          │ │ fleet.env │ │              │
+│ openclaw │ │ .env      │ │ tailscale-   │
+│ -1 -2 -N │ │ openclaw  │ │ ports.json   │
+│          │ │  .json    │ │              │
+│          │ │ docker-   │ │ serve rules  │
+│          │ │ compose   │ │ per instance │
+│          │ │  .yml     │ │              │
+└──────────┘ └──────────┘ └──────────────┘
+```
+
+For detailed architecture documentation, see [docs/arch/README.md](docs/arch/README.md).
+
 ## Build
 
 ```bash

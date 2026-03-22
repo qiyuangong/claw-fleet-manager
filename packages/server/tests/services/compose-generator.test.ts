@@ -97,6 +97,18 @@ describe('ComposeGenerator', () => {
     expect(existsSync(join(dir, 'instances', '1', 'openclaw.json'))).toBe(false);
   });
 
+  it('skips writing openclaw.json when portMap does not contain the instance index', () => {
+    const gen = new ComposeGenerator(dir);
+    // portMap only covers index 1, not index 2
+    gen.generate(2, {
+      hostname: 'machine.tailnet.ts.net',
+      portMap: new Map([[1, 8800]]),
+    });
+    expect(existsSync(join(dir, 'instances', '2', 'openclaw.json'))).toBe(false);
+    // index 1 should still get its config
+    expect(existsSync(join(dir, 'instances', '1', 'openclaw.json'))).toBe(true);
+  });
+
   it('does not overwrite existing openclaw.json on re-scale', () => {
     const gen = new ComposeGenerator(dir);
     gen.generate(1, {

@@ -6,6 +6,10 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 const BASE_TS_PORT = 8800;
+
+interface TailscaleServeStatus {
+  Web?: Record<string, { Handlers?: Record<string, unknown> } | undefined>;
+}
 const PORT_FILE = 'tailscale-ports.json';
 
 export class TailscaleService {
@@ -52,9 +56,9 @@ export class TailscaleService {
 
     // Verify via: tailscale serve status --json
     const { stdout } = await execFileAsync('tailscale', ['serve', 'status', '--json'], {});
-    let status: any;
+    let status: TailscaleServeStatus;
     try {
-      status = JSON.parse(stdout);
+      status = JSON.parse(stdout) as TailscaleServeStatus;
     } catch {
       status = {};
     }
@@ -109,10 +113,10 @@ export class TailscaleService {
     }
 
     // Check status for all instances
-    let status: any = {};
+    let statusJson: TailscaleServeStatus = {};
     try {
       const { stdout } = await execFileAsync('tailscale', ['serve', 'status', '--json'], {});
-      status = JSON.parse(stdout);
+      statusJson = JSON.parse(stdout) as TailscaleServeStatus;
     } catch (err) {
       console.error('TailscaleService.syncAll: failed to get serve status:', err);
     }
@@ -123,7 +127,7 @@ export class TailscaleService {
       if (tsPort === undefined) continue;
 
       const key = `${this.hostname}:${tsPort}`;
-      const hasRule = !!status?.Web?.[key]?.Handlers;
+      const hasRule = !!statusJson?.Web?.[key]?.Handlers;
 
       if (!hasRule) {
         try {

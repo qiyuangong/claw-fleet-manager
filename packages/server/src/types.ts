@@ -1,4 +1,9 @@
 // packages/server/src/types.ts
+export interface TailscaleConfig {
+  hostname: string;
+  portMap: Map<number, number>;
+}
+
 export interface ServerConfig {
   port: number;
   auth: { username: string; password: string };

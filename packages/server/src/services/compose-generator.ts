@@ -2,13 +2,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { FleetConfigService } from './fleet-config.js';
+import type { TailscaleConfig } from '../types.js';
 
 const BASE_GW_PORT = 18789;
-
-export interface TailscaleConfig {
-  hostname: string;
-  portMap: Map<number, number>; // index → tsPort
-}
 
 export class ComposeGenerator {
   private fleetConfig: FleetConfigService;
@@ -40,6 +36,7 @@ export class ComposeGenerator {
           const configFile = join(configBase, String(i), 'openclaw.json');
           if (!existsSync(configFile)) {
             const tsPort = tailscaleConfig.portMap.get(i);
+            if (tsPort === undefined) continue;
             const openclawConfig = {
               gateway: {
                 auth: { allowTailscale: true },

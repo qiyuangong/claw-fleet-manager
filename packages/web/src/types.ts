@@ -4,6 +4,7 @@ export interface FleetInstance {
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;
   token: string;
+  tailscaleUrl?: string;
   uptime: number;
   cpu: number;
   memory: { used: number; limit: number };

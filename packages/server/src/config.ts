@@ -11,6 +11,7 @@ const schema = z.object({
     password: z.string().min(1),
   }),
   fleetDir: z.string().min(1),
+  tailscale: z.object({ hostname: z.string().min(1) }).optional(),
 });
 
 export function loadConfig(): ServerConfig {

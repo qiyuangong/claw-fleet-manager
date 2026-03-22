@@ -3,6 +3,7 @@ export interface ServerConfig {
   port: number;
   auth: { username: string; password: string };
   fleetDir: string;
+  tailscale?: { hostname: string };
 }
 
 export interface FleetInstance {
@@ -11,6 +12,7 @@ export interface FleetInstance {
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;
   token: string; // always masked
+  tailscaleUrl?: string;
   uptime: number;
   cpu: number;
   memory: { used: number; limit: number };

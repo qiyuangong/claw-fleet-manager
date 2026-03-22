@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -69,5 +69,47 @@ describe('ComposeGenerator', () => {
     expect(envContent).toContain('TOKEN_1=existingtoken123');
     expect(envContent).toContain('TOKEN_2=othertoken456');
     expect(envContent).toContain('TOKEN_3=keepme789');
+  });
+
+  it('writes openclaw.json with tailscale auth config for new instances', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(2, {
+      hostname: 'machine.tailnet.ts.net',
+      portMap: new Map([[1, 8800], [2, 8801]]),
+    });
+
+    const config1 = JSON.parse(
+      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+    );
+    expect(config1.gateway.auth.allowTailscale).toBe(true);
+    expect(config1.gateway.controlUi.allowInsecureAuth).toBe(true);
+    expect(config1.allowedOrigins).toContain('https://machine.tailnet.ts.net:8800');
+
+    const config2 = JSON.parse(
+      readFileSync(join(dir, 'instances', '2', 'openclaw.json'), 'utf-8'),
+    );
+    expect(config2.allowedOrigins).toContain('https://machine.tailnet.ts.net:8801');
+  });
+
+  it('does not write openclaw.json when tailscaleConfig is absent', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(2);
+    expect(existsSync(join(dir, 'instances', '1', 'openclaw.json'))).toBe(false);
+  });
+
+  it('does not overwrite existing openclaw.json on re-scale', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(1, {
+      hostname: 'machine.tailnet.ts.net',
+      portMap: new Map([[1, 8800]]),
+    });
+    // Simulate user customisation
+    writeFileSync(join(dir, 'instances', '1', 'openclaw.json'), '{"custom":true}');
+    gen.generate(2, {
+      hostname: 'machine.tailnet.ts.net',
+      portMap: new Map([[1, 8800], [2, 8801]]),
+    });
+    const content = JSON.parse(readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'));
+    expect(content.custom).toBe(true);
   });
 });

@@ -1,9 +1,14 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { FleetConfigService } from './fleet-config.js';
 
 const BASE_GW_PORT = 18789;
+
+export interface TailscaleConfig {
+  hostname: string;
+  portMap: Map<number, number>; // index → tsPort
+}
 
 export class ComposeGenerator {
   private fleetConfig: FleetConfigService;
@@ -12,7 +17,7 @@ export class ComposeGenerator {
     this.fleetConfig = new FleetConfigService(fleetDir);
   }
 
-  generate(count: number): void {
+  generate(count: number, tailscaleConfig?: TailscaleConfig): void {
     const vars = this.fleetConfig.readFleetEnvRaw();
     const portStep = parseInt(vars.PORT_STEP ?? '20', 10);
     const cpuLimit = vars.CPU_LIMIT ?? '4';
@@ -29,6 +34,22 @@ export class ComposeGenerator {
       if (i <= count) {
         mkdirSync(join(configBase, String(i)), { recursive: true });
         mkdirSync(join(workspaceBase, String(i)), { recursive: true });
+
+        // Write openclaw.json for new instances only (skip if file exists)
+        if (tailscaleConfig) {
+          const configFile = join(configBase, String(i), 'openclaw.json');
+          if (!existsSync(configFile)) {
+            const tsPort = tailscaleConfig.portMap.get(i);
+            const openclawConfig = {
+              gateway: {
+                auth: { allowTailscale: true },
+                controlUi: { allowInsecureAuth: true },
+              },
+              allowedOrigins: [`https://${tailscaleConfig.hostname}:${tsPort}`],
+            };
+            writeFileSync(configFile, JSON.stringify(openclawConfig, null, 2));
+          }
+        }
       }
     }
 

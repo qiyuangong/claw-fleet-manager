@@ -1,8 +1,10 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { loadConfig } from './config.js';
 import { registerAuth } from './auth.js';
 import { configRoutes } from './routes/config.js';
@@ -14,14 +16,31 @@ import { proxyRoutes } from './routes/proxy.js';
 import { ComposeGenerator } from './services/compose-generator.js';
 import { DockerService } from './services/docker.js';
 import { FleetConfigService } from './services/fleet-config.js';
-import { MonitorService } from './services/monitor.js';
+import { MonitorService, BASE_GW_PORT } from './services/monitor.js';
+import { TailscaleService } from './services/tailscale.js';
 
 const config = loadConfig();
+const execFileAsync = promisify(execFile);
+
+let tailscale: TailscaleService | null = null;
+if (config.tailscale) {
+  try {
+    await execFileAsync('tailscale', ['version']);
+  } catch {
+    console.error(
+      'ERROR: tailscale.hostname is configured but the tailscale CLI is not available.\n' +
+      'Install and authenticate Tailscale before starting the fleet manager.',
+    );
+    process.exit(1);
+  }
+  tailscale = new TailscaleService(config.fleetDir, config.tailscale.hostname);
+}
+
 const app = Fastify({ logger: true });
 
 const docker = new DockerService();
 const fleetConfig = new FleetConfigService(config.fleetDir);
-const monitor = new MonitorService(docker, fleetConfig);
+const monitor = new MonitorService(docker, fleetConfig, tailscale);
 const composeGenerator = new ComposeGenerator(config.fleetDir);
 
 app.decorate('docker', docker);
@@ -33,6 +52,8 @@ app.decorate('proxyAuth', Buffer.from(
   `${config.auth.username}:${config.auth.password}`,
   'utf-8',
 ).toString('base64'));
+app.decorate('tailscale', tailscale);
+app.decorate('tailscaleHostname', config.tailscale?.hostname ?? null);
 
 await registerAuth(app, config);
 await app.register(fastifyWebsocket);
@@ -65,5 +86,17 @@ app.server.on('connection', (socket) => {
 });
 
 monitor.start();
+
+if (tailscale) {
+  const containers = await docker.listFleetContainers().catch(() => []);
+  const portStep = fleetConfig.readFleetConfig().portStep;
+  const instances = containers.map((c) => {
+    const index = parseInt(c.name.replace('openclaw-', ''), 10);
+    const gwPort = BASE_GW_PORT + (index - 1) * portStep;
+    return { index, gwPort };
+  });
+  await tailscale.syncAll(instances);
+}
+
 await app.listen({ port: config.port, host: '0.0.0.0' });
 console.log(`Claw Fleet Manager running at http://0.0.0.0:${config.port}`);

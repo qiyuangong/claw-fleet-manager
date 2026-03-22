@@ -5,7 +5,7 @@ import { FleetConfigService } from './fleet-config.js';
 import type { DockerService } from './docker.js';
 import type { TailscaleService } from './tailscale.js';
 
-const BASE_GW_PORT = 18789;
+export const BASE_GW_PORT = 18789;
 
 export class MonitorService {
   private cache: FleetStatus | null = null;

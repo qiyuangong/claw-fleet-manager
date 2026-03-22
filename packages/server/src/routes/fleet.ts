@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { BASE_GW_PORT } from '../services/monitor.js';
 
 const execFileAsync = promisify(execFile);
 const scaleSchema = z.object({ count: z.number().int().positive() });
@@ -45,11 +46,7 @@ export async function fleetRoutes(app: FastifyInstance) {
 
     // Teardown Tailscale for removed instances (non-fatal)
     for (const idx of removedIndices) {
-      try {
-        await app.tailscale?.teardown(idx);
-      } catch (err) {
-        app.log.error({ err, idx }, 'Tailscale teardown failed for instance');
-      }
+      await app.tailscale?.teardown(idx);
     }
 
     // Allocate Tailscale ports for new instances before generating compose
@@ -70,7 +67,7 @@ export async function fleetRoutes(app: FastifyInstance) {
     // Setup Tailscale serve for new instances (non-fatal per instance)
     const portStep = app.fleetConfig.readFleetConfig().portStep;
     for (const idx of newIndices) {
-      const gwPort = 18789 + (idx - 1) * portStep;
+      const gwPort = BASE_GW_PORT + (idx - 1) * portStep;
       try {
         await app.tailscale?.setup(idx, gwPort);
       } catch (err) {

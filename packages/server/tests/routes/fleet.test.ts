@@ -82,4 +82,41 @@ describe('Fleet routes', () => {
     expect([200, 500]).toContain(res.statusCode);
     expect(mockComposeGen.generate).toHaveBeenCalledWith(3, undefined);
   });
+
+  describe('with Tailscale enabled', () => {
+    const appTs = Fastify();
+    const mockComposeGenTs = { generate: vi.fn() };
+    const mockTailscaleTs = {
+      allocatePorts: vi.fn().mockReturnValue(new Map([[1, 8800], [2, 8801], [3, 8802]])),
+      teardown: vi.fn().mockResolvedValue(undefined),
+      setup: vi.fn().mockResolvedValue('https://machine.ts.net:8800'),
+    };
+
+    beforeAll(async () => {
+      appTs.decorate('monitor', { getStatus: vi.fn().mockReturnValue(mockStatus), refresh: vi.fn().mockResolvedValue(mockStatus) });
+      appTs.decorate('composeGenerator', mockComposeGenTs);
+      appTs.decorate('docker', { stopContainer: vi.fn(), listFleetContainers: vi.fn().mockResolvedValue([]) });
+      appTs.decorate('fleetDir', '/tmp');
+      appTs.decorate('tailscale', mockTailscaleTs);
+      appTs.decorate('tailscaleHostname', 'machine.ts.net');
+      appTs.decorate('fleetConfig', { readFleetConfig: vi.fn().mockReturnValue({ portStep: 20 }) });
+      await appTs.register(fleetRoutes);
+      await appTs.ready();
+    });
+
+    afterAll(() => appTs.close());
+
+    it('POST /api/fleet/scale passes tailscaleConfig to generate when Tailscale is enabled', async () => {
+      const res = await appTs.inject({
+        method: 'POST',
+        url: '/api/fleet/scale',
+        payload: { count: 3 },
+      });
+      expect([200, 500]).toContain(res.statusCode);
+      expect(mockComposeGenTs.generate).toHaveBeenCalledWith(
+        3,
+        expect.objectContaining({ hostname: 'machine.ts.net' }),
+      );
+    });
+  });
 });

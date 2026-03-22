@@ -31,6 +31,17 @@ export const saveFleetConfig = (vars: Record<string, string>) =>
     body: JSON.stringify(vars),
   });
 
+export interface PendingDevice {
+  requestId: string;
+  ip: string;
+}
+
+export const getPendingDevices = (id: string) =>
+  apiFetch<{ pending: PendingDevice[] }>(`/api/fleet/${id}/devices/pending`);
+
+export const approveDevice = (id: string, requestId: string) =>
+  apiFetch<{ ok: boolean }>(`/api/fleet/${id}/devices/${requestId}/approve`, { method: 'POST' });
+
 export const scaleFleet = (count: number) =>
   apiFetch<{ ok: boolean; fleet: FleetStatus }>('/api/fleet/scale', {
     method: 'POST',

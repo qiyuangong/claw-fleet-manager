@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { revealToken } from '../../api/fleet';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { revealToken, getPendingDevices, approveDevice } from '../../api/fleet';
 import type { FleetInstance } from '../../types';
 
 interface Props {
@@ -10,6 +11,28 @@ export function ControlUiTab({ instance }: Props) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const queryClient = useQueryClient();
+  const { data: devicesData } = useQuery({
+    queryKey: ['devices', instance.id],
+    queryFn: () => getPendingDevices(instance.id),
+    refetchInterval: 5000,
+  });
+  const pendingDevices = devicesData?.pending ?? [];
+
+  const approveMutation = useMutation({
+    mutationFn: ({ requestId }: { requestId: string }) =>
+      approveDevice(instance.id, requestId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['devices', instance.id] });
+    },
+  });
+
+  const handleApproveAll = () => {
+    for (const device of pendingDevices) {
+      approveMutation.mutate({ requestId: device.requestId });
+    }
+  };
 
   const isRemote = window.location.hostname !== 'localhost' &&
                    window.location.hostname !== '127.0.0.1';
@@ -84,6 +107,29 @@ export function ControlUiTab({ instance }: Props) {
         <p className="muted" style={{ marginTop: '0.75rem' }}>
           Tailscale is not configured — Control UI is only accessible on localhost.
         </p>
+      )}
+
+      {pendingDevices.length > 0 && (
+        <div className="metric-card" style={{ marginTop: '1rem', borderColor: 'var(--warning, #f59e0b)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p className="metric-label" style={{ margin: 0 }}>
+              Pairing required — {pendingDevices.length} pending {pendingDevices.length === 1 ? 'request' : 'requests'}
+            </p>
+            <button
+              className="primary-button"
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}
+              onClick={handleApproveAll}
+              disabled={approveMutation.isPending}
+            >
+              {approveMutation.isPending ? 'Approving…' : 'Approve All'}
+            </button>
+          </div>
+          {pendingDevices.map((device) => (
+            <p key={device.requestId} className="muted mono" style={{ margin: '0.25rem 0 0', fontSize: '0.75rem' }}>
+              {device.ip} — {device.requestId}
+            </p>
+          ))}
+        </div>
       )}
 
       <div className="action-row" style={{ marginTop: '1rem' }}>

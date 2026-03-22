@@ -71,4 +71,22 @@ describe('Instance routes', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().token).toBe('full-token-abc123def456');
   });
+
+  it('rejects invalid instance id on start', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/evil-container/start' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_ID');
+  });
+
+  it('rejects invalid instance id on stop', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/my-redis-container/stop' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_ID');
+  });
+
+  it('rejects invalid instance id on token reveal', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/my-container/token/reveal' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_ID');
+  });
 });

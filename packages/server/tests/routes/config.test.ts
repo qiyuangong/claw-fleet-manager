@@ -66,4 +66,30 @@ describe('Config routes', () => {
     expect(res.statusCode).toBe(200);
     expect(mockFleetConfig.writeInstanceConfig).toHaveBeenCalledWith(1, { gateway: { mode: 'local' } });
   });
+
+  it('PUT /api/config/fleet rejects non-string values', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/config/fleet',
+      payload: { COUNT: 5 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_BODY');
+  });
+
+  it('rejects invalid instance id on GET config', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/evil-container/config' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_ID');
+  });
+
+  it('rejects invalid instance id on PUT config', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/fleet/evil-container/config',
+      payload: { key: 'value' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_ID');
+  });
 });

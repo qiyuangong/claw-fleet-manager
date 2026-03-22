@@ -32,18 +32,18 @@ describe('stripFrameHeaders', () => {
     expect(result['content-type']).toBe('text/html');
   });
 
-  it('rewrites frame-ancestors none to self in CSP', () => {
+  it('drops CSP entirely', () => {
     const result = stripFrameHeaders({
       'content-security-policy': "default-src 'self'; frame-ancestors 'none'",
     });
-    expect(result['content-security-policy']).toBe("default-src 'self'; frame-ancestors 'self'");
+    expect(result['content-security-policy']).toBeUndefined();
   });
 
-  it('preserves CSP directives that do not mention frame-ancestors', () => {
+  it('drops CSP even without frame-ancestors', () => {
     const result = stripFrameHeaders({
       'content-security-policy': "default-src 'self'",
     });
-    expect(result['content-security-policy']).toBe("default-src 'self'");
+    expect(result['content-security-policy']).toBeUndefined();
   });
 
   it('strips hop-by-hop headers', () => {

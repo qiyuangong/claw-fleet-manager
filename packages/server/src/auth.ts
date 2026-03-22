@@ -1,7 +1,31 @@
 import { URL } from 'node:url';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import fastifyBasicAuth from '@fastify/basic-auth';
 import type { ServerConfig } from './types.js';
+
+const PROXY_TOKEN_SECRET = randomBytes(32);
+const PROXY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export function generateProxyToken(): string {
+  const expires = Date.now() + PROXY_TOKEN_TTL_MS;
+  const payload = String(expires);
+  const sig = createHmac('sha256', PROXY_TOKEN_SECRET).update(payload).digest('hex');
+  return `${payload}.${sig}`;
+}
+
+export function validateProxyToken(token: string): boolean {
+  const [payload, sig] = token.split('.');
+  if (!payload || !sig) return false;
+  const expires = parseInt(payload, 10);
+  if (isNaN(expires) || Date.now() > expires) return false;
+  const expected = createHmac('sha256', PROXY_TOKEN_SECRET).update(payload).digest('hex');
+  try {
+    return timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
+  } catch {
+    return false;
+  }
+}
 
 function parseBasicAuth(header?: string): { username: string; password: string } | null {
   if (!header?.startsWith('Basic ')) return null;
@@ -40,11 +64,20 @@ function isAuthorized(
   credentials: { username: string; password: string } | null,
   config: ServerConfig,
 ): boolean {
-  return Boolean(
-    credentials
-    && credentials.username === config.auth.username
-    && credentials.password === config.auth.password,
-  );
+  if (!credentials) return false;
+  try {
+    const userMatch = timingSafeEqual(
+      Buffer.from(credentials.username),
+      Buffer.from(config.auth.username),
+    );
+    const passMatch = timingSafeEqual(
+      Buffer.from(credentials.password),
+      Buffer.from(config.auth.password),
+    );
+    return userMatch && passMatch;
+  } catch {
+    return false; // length mismatch throws
+  }
 }
 
 export async function registerAuth(app: FastifyInstance, config: ServerConfig) {
@@ -93,6 +126,11 @@ export async function registerAuth(app: FastifyInstance, config: ServerConfig) {
     if (isProxyPath) {
       const cookieCredentials = parseProxyCookie(request.headers.cookie);
       if (isAuthorized(cookieCredentials, config)) {
+        return;
+      }
+
+      const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
+      if (proxyToken && validateProxyToken(proxyToken)) {
         return;
       }
 

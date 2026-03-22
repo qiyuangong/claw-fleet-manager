@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { validateInstanceId } from '../validate.js';
 
 function demuxDockerChunk(chunk: Buffer): string[] {
   const lines: string[] = [];
@@ -34,6 +35,12 @@ export async function logRoutes(app: FastifyInstance) {
     { websocket: true },
     async (socket: any, request) => {
       const { id } = request.params;
+
+      if (!validateInstanceId(id)) {
+        socket.send(JSON.stringify({ error: 'Invalid instance id' }));
+        socket.close();
+        return;
+      }
 
       let logStream: any;
       try {

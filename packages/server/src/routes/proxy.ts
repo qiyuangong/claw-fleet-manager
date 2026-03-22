@@ -2,6 +2,7 @@ import { URL } from 'node:url';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { request as undiciRequest } from 'undici';
 import WebSocket from 'ws';
+import { generateProxyToken } from '../auth.js';
 
 const HOP_BY_HOP = new Set([
   'connection',
@@ -78,11 +79,11 @@ function findWildcardInstance(app: FastifyInstance, request: FastifyRequest<Prox
   return { parsed, instance };
 }
 
-function buildInjectedScript(token: string, proxyAuth: string): string {
+function buildInjectedScript(token: string, proxyToken: string): string {
   return (
     `<script>(function(){` +
     `var t=${JSON.stringify(token)};` +
-    `var a=${JSON.stringify(proxyAuth)};` +
+    `var a=${JSON.stringify(proxyToken)};` +
     `var s='openclaw.control.settings.v1';` +
     `var p='openclaw.control.token.v1:';` +
     `function n(u){` +
@@ -110,7 +111,7 @@ function buildInjectedScript(token: string, proxyAuth: string): string {
     `var W=window.WebSocket;` +
     `function withAuth(url){` +
     `try{var u=new URL(url,window.location.href);` +
-    `if(u.pathname.startsWith('/proxy/'))u.searchParams.set('auth',a);` +
+    `if(u.pathname.startsWith('/proxy/'))u.searchParams.set('proxyToken',a);` +
     `return u.toString();}catch{return url;}}` +
     `function P(url,protocols){` +
     `var next=withAuth(url);` +
@@ -175,7 +176,7 @@ export async function proxyRoutes(app: FastifyInstance) {
         const html = Buffer.concat(chunks).toString('utf-8');
         // The embedded Control UI needs both the gateway token and the manager's
         // Basic Auth credentials for its proxied websocket bootstrap.
-        const script = buildInjectedScript(token, app.proxyAuth);
+        const script = buildInjectedScript(token, generateProxyToken());
         const injected = html.includes('</head>')
           ? html.replace('</head>', script + '</head>')
           : script + html;

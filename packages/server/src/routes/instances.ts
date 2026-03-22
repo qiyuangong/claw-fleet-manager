@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
+import { validateInstanceId } from '../validate.js';
 
 const execFileAsync = promisify(execFile);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -21,6 +22,9 @@ function parsePendingDevices(output: string): { requestId: string; ip: string }[
 export async function instanceRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>('/api/fleet/:id/start', async (request, reply) => {
     const { id } = request.params;
+    if (!validateInstanceId(id)) {
+      return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+    }
     try {
       await app.docker.startContainer(id);
       const status = await app.monitor.refresh();
@@ -33,6 +37,9 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>('/api/fleet/:id/stop', async (request, reply) => {
     const { id } = request.params;
+    if (!validateInstanceId(id)) {
+      return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+    }
     try {
       await app.docker.stopContainer(id);
       const status = await app.monitor.refresh();
@@ -45,6 +52,9 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>('/api/fleet/:id/restart', async (request, reply) => {
     const { id } = request.params;
+    if (!validateInstanceId(id)) {
+      return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+    }
     try {
       await app.docker.restartContainer(id);
       const status = await app.monitor.refresh();
@@ -57,6 +67,9 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>('/api/fleet/:id/devices/pending', async (request, reply) => {
     const { id } = request.params;
+    if (!validateInstanceId(id)) {
+      return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+    }
     try {
       const { stdout } = await execFileAsync('docker', [
         'exec', id, 'node', 'dist/index.js', 'devices', 'list',
@@ -71,6 +84,9 @@ export async function instanceRoutes(app: FastifyInstance) {
     '/api/fleet/:id/devices/:requestId/approve',
     async (request, reply) => {
       const { id, requestId } = request.params;
+      if (!validateInstanceId(id)) {
+        return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+      }
       if (!UUID_RE.test(requestId)) {
         return reply.status(400).send({ error: 'Invalid requestId', code: 'INVALID_REQUEST_ID' });
       }
@@ -87,6 +103,9 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>('/api/fleet/:id/token/reveal', async (request, reply) => {
     const { id } = request.params;
+    if (!validateInstanceId(id)) {
+      return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+    }
     const index = parseInt(id.replace('openclaw-', ''), 10);
     const token = app.fleetConfig.readTokens()[index];
     if (!token) {

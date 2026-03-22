@@ -1,4 +1,4 @@
-import { statSync, readdirSync } from 'node:fs';
+import { stat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FleetInstance, FleetStatus } from '../types.js';
 import { FleetConfigService } from './fleet-config.js';
@@ -68,8 +68,8 @@ export class MonitorService {
           cpu: stats.cpu,
           memory: stats.memory,
           disk: {
-            config: this.getDirectorySize(join(configBase, String(index))),
-            workspace: this.getDirectorySize(join(workspaceBase, String(index))),
+            config: await this.getDirectorySize(join(configBase, String(index))),
+            workspace: await this.getDirectorySize(join(workspaceBase, String(index))),
           },
           health: this.mapHealth(inspection.health),
           image: inspection.image,
@@ -118,16 +118,18 @@ export class MonitorService {
     return 'none';
   }
 
-  private getDirectorySize(path: string): number {
+  private async getDirectorySize(path: string): Promise<number> {
     try {
-      const stats = statSync(path);
+      const stats = await stat(path);
       if (!stats.isDirectory()) {
         return stats.size;
       }
 
-      return readdirSync(path).reduce((total, entry) => {
-        return total + this.getDirectorySize(join(path, entry));
-      }, 0);
+      const entries = await readdir(path);
+      const sizes = await Promise.all(
+        entries.map((entry) => this.getDirectorySize(join(path, entry))),
+      );
+      return sizes.reduce((total, size) => total + size, 0);
     } catch {
       return 0;
     }

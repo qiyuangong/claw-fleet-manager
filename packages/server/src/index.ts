@@ -87,6 +87,16 @@ app.server.on('connection', (socket) => {
 
 monitor.start();
 
+async function shutdown(signal: string) {
+  console.log(`Received ${signal}, shutting down...`);
+  monitor.stop();
+  await app.close();
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
 if (tailscale) {
   const containers = await docker.listFleetContainers().catch(() => []);
   const portStep = fleetConfig.readFleetConfig().portStep;

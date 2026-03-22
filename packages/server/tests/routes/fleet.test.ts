@@ -64,6 +64,18 @@ describe('Fleet routes', () => {
     expect(res.json().totalRunning).toBe(1);
   });
 
+  it('POST /api/fleet/scale rejects concurrent requests with 409', async () => {
+    // Both requests will attempt docker compose (which fails in test),
+    // but the mutex should cause one to get 409
+    const [res1, res2] = await Promise.all([
+      app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 2 } }),
+      app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 3 } }),
+    ]);
+    const codes = [res1.statusCode, res2.statusCode].sort();
+    // One should succeed or fail with 500 (docker compose), the other should be 409
+    expect(codes).toContain(409);
+  });
+
   it('POST /api/fleet/scale validates count', async () => {
     const res = await app.inject({
       method: 'POST',

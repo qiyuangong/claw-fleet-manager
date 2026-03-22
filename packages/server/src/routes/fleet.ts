@@ -45,7 +45,11 @@ export async function fleetRoutes(app: FastifyInstance) {
 
     // Teardown Tailscale for removed instances (non-fatal)
     for (const idx of removedIndices) {
-      await app.tailscale?.teardown(idx);
+      try {
+        await app.tailscale?.teardown(idx);
+      } catch (err) {
+        app.log.error({ err, idx }, 'Tailscale teardown failed for instance');
+      }
     }
 
     // Allocate Tailscale ports for new instances before generating compose

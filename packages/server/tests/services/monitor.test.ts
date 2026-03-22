@@ -54,4 +54,23 @@ describe('MonitorService', () => {
     expect(cached).not.toBeNull();
     expect(cached?.instances).toHaveLength(1);
   });
+
+  it('populates tailscaleUrl from TailscaleService when provided', async () => {
+    const mockTailscale = {
+      getUrl: vi.fn().mockReturnValue('https://machine.tailnet.ts.net:8800'),
+    };
+    const svcWithTs = new MonitorService(
+      mockDocker as any,
+      mockFleetConfig as any,
+      mockTailscale as any,
+    );
+    const status = await svcWithTs.refresh();
+    expect(status.instances[0].tailscaleUrl).toBe('https://machine.tailnet.ts.net:8800');
+    svcWithTs.stop();
+  });
+
+  it('omits tailscaleUrl when TailscaleService is null', async () => {
+    const status = await svc.refresh(); // svc constructed without TailscaleService
+    expect(status.instances[0].tailscaleUrl).toBeUndefined();
+  });
 });

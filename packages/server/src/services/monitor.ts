@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { FleetInstance, FleetStatus } from '../types.js';
 import { FleetConfigService } from './fleet-config.js';
 import type { DockerService } from './docker.js';
+import type { TailscaleService } from './tailscale.js';
 
 const BASE_GW_PORT = 18789;
 
@@ -13,6 +14,7 @@ export class MonitorService {
   constructor(
     private docker: DockerService,
     private fleetConfig: FleetConfigService,
+    private tailscale: TailscaleService | null = null,
   ) {}
 
   start(intervalMs = 5000): void {
@@ -61,6 +63,7 @@ export class MonitorService {
           status: this.mapStatus(inspection.status),
           port: BASE_GW_PORT + (index - 1) * config.portStep,
           token: FleetConfigService.maskToken(tokens[index] ?? ''),
+          tailscaleUrl: this.tailscale?.getUrl(index) ?? undefined,
           uptime: inspection.uptime,
           cpu: stats.cpu,
           memory: stats.memory,

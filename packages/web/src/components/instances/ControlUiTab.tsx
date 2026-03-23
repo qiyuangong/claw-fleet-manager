@@ -123,9 +123,19 @@ export function ControlUiTab({ instance }: Props) {
             </button>
           </div>
           {pendingDevices.map((device) => (
-            <p key={device.requestId} className="muted mono" style={{ margin: '0.25rem 0 0', fontSize: '0.75rem' }}>
-              {device.ip} — {device.requestId}
-            </p>
+            <div key={device.requestId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0.25rem 0 0' }}>
+              <p className="muted mono" style={{ margin: 0, fontSize: '0.75rem' }}>
+                {device.ip} — {device.requestId}
+              </p>
+              <button
+                className="primary-button"
+                style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', marginLeft: '0.5rem' }}
+                onClick={() => approveMutation.mutate({ requestId: device.requestId })}
+                disabled={approveMutation.isPending}
+              >
+                Approve
+              </button>
+            </div>
           ))}
         </div>
       )}

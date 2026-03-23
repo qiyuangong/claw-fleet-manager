@@ -9,6 +9,7 @@ export interface ServerConfig {
   auth: { username: string; password: string };
   fleetDir: string;
   tailscale?: { hostname: string };
+  tls?: { cert: string; key: string };
 }
 
 export interface FleetInstance {

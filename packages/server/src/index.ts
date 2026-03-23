@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { loadConfig } from './config.js';
@@ -36,7 +36,10 @@ if (config.tailscale) {
   tailscale = new TailscaleService(config.fleetDir, config.tailscale.hostname);
 }
 
-const app = Fastify({ logger: true });
+const httpsOptions = config.tls
+  ? { key: readFileSync(resolve(config.tls.key)), cert: readFileSync(resolve(config.tls.cert)) }
+  : undefined;
+const app = Fastify({ logger: true, ...(httpsOptions ? { https: httpsOptions } : {}) });
 
 const docker = new DockerService();
 const fleetConfig = new FleetConfigService(config.fleetDir);
@@ -109,4 +112,5 @@ if (tailscale) {
 }
 
 await app.listen({ port: config.port, host: '0.0.0.0' });
-console.log(`Claw Fleet Manager running at http://0.0.0.0:${config.port}`);
+const proto = config.tls ? 'https' : 'http';
+console.log(`Claw Fleet Manager running at ${proto}://0.0.0.0:${config.port}`);

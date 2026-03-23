@@ -12,6 +12,10 @@ const schema = z.object({
   }),
   fleetDir: z.string().min(1),
   tailscale: z.object({ hostname: z.string().min(1) }).optional(),
+  tls: z.object({
+    cert: z.string().min(1),
+    key: z.string().min(1),
+  }).optional(),
 });
 
 export function loadConfig(): ServerConfig {

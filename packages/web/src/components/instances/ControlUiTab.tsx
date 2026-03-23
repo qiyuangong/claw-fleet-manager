@@ -36,12 +36,18 @@ export function ControlUiTab({ instance }: Props) {
 
   const isRemote = window.location.hostname !== 'localhost' &&
                    window.location.hostname !== '127.0.0.1';
+  const useProxy = !instance.tailscaleUrl && isRemote;
   const baseUrl = instance.tailscaleUrl
     ? `${instance.tailscaleUrl}/`
-    : `http://${window.location.hostname}:${instance.port}/`;
-  const isDisabled = !instance.tailscaleUrl && isRemote;
+    : useProxy
+      ? `${window.location.origin}/proxy/${instance.id}/`
+      : `http://${window.location.hostname}:${instance.port}/`;
 
   const buildLaunchUrl = async (): Promise<string> => {
+    if (useProxy) {
+      // Proxy route injects the token automatically via server-side script
+      return baseUrl;
+    }
     const { token } = await revealToken(instance.id);
     return `${baseUrl}#token=${token}`;
   };
@@ -91,23 +97,15 @@ export function ControlUiTab({ instance }: Props) {
       </div>
 
       <div className="section-grid">
-        {!isDisabled && (
-          <div className="metric-card">
-            <p className="metric-label">Gateway URL</p>
-            <p className="metric-value mono">{baseUrl}</p>
-          </div>
-        )}
+        <div className="metric-card">
+          <p className="metric-label">Gateway URL{useProxy ? ' (proxied)' : ''}</p>
+          <p className="metric-value mono">{baseUrl}</p>
+        </div>
         <div className="metric-card">
           <p className="metric-label">Instance</p>
           <p className="metric-value mono">{instance.id}</p>
         </div>
       </div>
-
-      {isDisabled && (
-        <p className="muted" style={{ marginTop: '0.75rem' }}>
-          Tailscale is not configured — Control UI is only accessible on localhost.
-        </p>
-      )}
 
       {pendingDevices.length > 0 && (
         <div className="metric-card" style={{ marginTop: '1rem', borderColor: 'var(--warning, #f59e0b)' }}>
@@ -136,16 +134,14 @@ export function ControlUiTab({ instance }: Props) {
         <button
           className="primary-button"
           onClick={() => void handleOpen()}
-          disabled={loading || isDisabled}
-          title={isDisabled ? 'Tailscale not configured — Control UI is only accessible on localhost' : undefined}
+          disabled={loading}
         >
           {loading ? 'Preparing...' : 'Open Control UI'}
         </button>
         <button
           className="secondary-button"
           onClick={() => void handleCopy()}
-          disabled={loading || isDisabled}
-          title={isDisabled ? 'Tailscale not configured — Control UI is only accessible on localhost' : undefined}
+          disabled={loading}
         >
           Copy launch URL
         </button>

@@ -95,7 +95,7 @@ function buildInjectedScript(token: string, proxyToken: string): string {
     `function g(){` +
     `var u=window.location.protocol==='https:'?'wss':'ws';` +
     `var v=(window.location.pathname||'/').replace(/\\/+$/,'');` +
-    `return u+'//'+window.location.host+(v&&v!=='/'?v:'');}` +
+    `return u+'://'+window.location.host+(v&&v!=='/'?v:'');}` +
     `function h(){` +
     `var u=g();` +
     `try{sessionStorage.removeItem('openclaw.control.token.v1');` +
@@ -249,15 +249,15 @@ export async function proxyRoutes(app: FastifyInstance) {
         });
       });
 
-      socket.on('message', (message: WebSocket.RawData) => {
+      socket.on('message', (message: WebSocket.RawData, isBinary: boolean) => {
         if (upstream.readyState === WebSocket.OPEN) {
-          upstream.send(message);
+          upstream.send(message, { binary: isBinary });
         }
       });
 
-      upstream.on('message', (message) => {
+      upstream.on('message', (message: WebSocket.RawData, isBinary: boolean) => {
         try {
-          socket.send(message);
+          socket.send(message, { binary: isBinary });
         } catch {
           // socket already closed
         }

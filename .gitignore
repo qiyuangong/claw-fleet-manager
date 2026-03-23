@@ -3,6 +3,7 @@ dist/
 .turbo/
 *.tsbuildinfo
 server.config.json
+certs/
 .superpowers/
 .env.local
 .worktrees/

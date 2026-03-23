@@ -1,17 +1,24 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const backendTarget = 'https://localhost:3001';
+
 export default defineConfig({
   server: {
     proxy: {
-      '/api': 'http://localhost:3001',
+      '/api': {
+        target: backendTarget,
+        secure: false,
+      },
       '/ws': {
-        target: 'ws://localhost:3001',
+        target: backendTarget,
         ws: true,
+        secure: false,
       },
       '/proxy': {
-        target: 'http://localhost:3001',
+        target: backendTarget,
         ws: true,
+        secure: false,
         changeOrigin: false,
       },
     },

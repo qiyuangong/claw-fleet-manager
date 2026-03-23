@@ -1,6 +1,32 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { fleetRoutes } from '../../src/routes/fleet.js';
+
+const { execFileMock } = vi.hoisted(() => ({
+  execFileMock: vi.fn((
+    _file: string,
+    _args: string[],
+    _opts: unknown,
+    callback?: (error: Error | null, result?: { stdout: string; stderr: string }) => void,
+  ) => {
+    callback?.(null, { stdout: '', stderr: '' });
+  }),
+}));
+
+function installExecFileSuccessMock() {
+  execFileMock.mockImplementation((
+    _file: string,
+    _args: string[],
+    _opts: unknown,
+    callback?: (error: Error | null, result?: { stdout: string; stderr: string }) => void,
+  ) => {
+    callback?.(null, { stdout: '', stderr: '' });
+  });
+}
+
+vi.mock('node:child_process', () => ({
+  execFile: execFileMock,
+}));
 
 const mockStatus = {
   instances: [
@@ -43,6 +69,17 @@ const mockFleetConfig = {
 describe('Fleet routes', () => {
   const app = Fastify();
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+    execFileMock.mockReset();
+    installExecFileSuccessMock();
+    mockMonitor.getStatus.mockReturnValue(mockStatus);
+    mockMonitor.refresh.mockResolvedValue(mockStatus);
+    mockDocker.listFleetContainers.mockResolvedValue([]);
+    mockTailscale.allocatePorts.mockReturnValue(new Map());
+    mockFleetConfig.readFleetConfig.mockReturnValue({ portStep: 20 });
+  });
+
   beforeAll(async () => {
     app.decorate('monitor', mockMonitor);
     app.decorate('composeGenerator', mockComposeGen);
@@ -65,15 +102,30 @@ describe('Fleet routes', () => {
   });
 
   it('POST /api/fleet/scale rejects concurrent requests with 409', async () => {
-    // Both requests will attempt docker compose (which fails in test),
-    // but the mutex should cause one to get 409
-    const [res1, res2] = await Promise.all([
-      app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 2 } }),
-      app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 3 } }),
-    ]);
-    const codes = [res1.statusCode, res2.statusCode].sort();
-    // One should succeed or fail with 500 (docker compose), the other should be 409
-    expect(codes).toContain(409);
+    let releaseCompose: (() => void) | null = null;
+    let resolveComposeStarted: (() => void) | null = null;
+    const composeStarted = new Promise<void>((resolve) => {
+      resolveComposeStarted = resolve;
+    });
+
+    execFileMock.mockImplementationOnce((
+      _file: string,
+      _args: string[],
+      _opts: unknown,
+      callback?: (error: Error | null, result?: { stdout: string; stderr: string }) => void,
+    ) => {
+      resolveComposeStarted?.();
+      releaseCompose = () => callback?.(null, { stdout: '', stderr: '' });
+    });
+
+    const first = app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 2 } });
+    await composeStarted;
+    const second = await app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 3 } });
+    releaseCompose?.();
+    const firstRes = await first;
+
+    expect(second.statusCode).toBe(409);
+    expect(firstRes.statusCode).toBe(200);
   });
 
   it('POST /api/fleet/scale validates count', async () => {
@@ -93,6 +145,29 @@ describe('Fleet routes', () => {
     });
     expect([200, 500]).toContain(res.statusCode);
     expect(mockComposeGen.generate).toHaveBeenCalledWith(3, undefined);
+  });
+
+  it('POST /api/fleet/scale removes compose orphans when scaling down', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: '1', state: 'running' },
+      { name: 'openclaw-2', id: '2', state: 'running' },
+      { name: 'openclaw-3', id: '3', state: 'exited' },
+    ]);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/scale',
+      payload: { count: 2 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockDocker.stopContainer).toHaveBeenCalledWith('openclaw-3');
+    expect(execFileMock).toHaveBeenCalledWith(
+      'docker',
+      ['compose', 'up', '-d', '--remove-orphans'],
+      { cwd: '/tmp' },
+      expect.any(Function),
+    );
   });
 
   describe('with Tailscale enabled', () => {

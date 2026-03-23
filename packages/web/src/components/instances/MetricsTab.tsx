@@ -1,5 +1,4 @@
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useEffect, useState } from 'react';
 import type { FleetInstance } from '../../types';
 
 interface DataPoint {
@@ -7,6 +6,16 @@ interface DataPoint {
   cpu: number;
   memory: number;
 }
+
+interface HistoryCacheEntry {
+  lastUpdatedAt: number;
+  points: DataPoint[];
+  sampleKey: string;
+}
+
+const MAX_POINTS = 120;
+const MAX_CACHED_INSTANCES = 24;
+const historyByInstance = new Map<string, HistoryCacheEntry>();
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -16,20 +25,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function MetricsTab({ instance }: { instance: FleetInstance }) {
-  const [history, setHistory] = useState<DataPoint[]>([]);
-
-  useEffect(() => {
-    const point: DataPoint = {
-      time: new Date().toLocaleTimeString(),
-      cpu: instance.cpu,
-      memory: instance.memory.used / (1024 * 1024),
-    };
-
-    setHistory((prev) => {
-      const next = [...prev, point];
-      return next.length > 120 ? next.slice(-120) : next;
-    });
-  }, [instance.cpu, instance.memory.used]);
+  const history = getHistory(instance);
 
   return (
     <div className="field-grid">
@@ -73,4 +69,40 @@ export function MetricsTab({ instance }: { instance: FleetInstance }) {
       </section>
     </div>
   );
+}
+
+function getHistory(instance: FleetInstance): DataPoint[] {
+  const sampleKey = `${instance.cpu}:${instance.memory.used}`;
+  const cached = historyByInstance.get(instance.id);
+  if (cached?.sampleKey === sampleKey) {
+    cached.lastUpdatedAt = Date.now();
+    return cached.points;
+  }
+
+  const point: DataPoint = {
+    time: new Date().toLocaleTimeString(),
+    cpu: instance.cpu,
+    memory: instance.memory.used / (1024 * 1024),
+  };
+  const points = [...(cached?.points ?? []), point].slice(-MAX_POINTS);
+  historyByInstance.set(instance.id, {
+    lastUpdatedAt: Date.now(),
+    sampleKey,
+    points,
+  });
+  pruneHistoryCache();
+  return points;
+}
+
+function pruneHistoryCache() {
+  if (historyByInstance.size <= MAX_CACHED_INSTANCES) {
+    return;
+  }
+
+  const oldestInstanceId = [...historyByInstance.entries()]
+    .sort(([, left], [, right]) => left.lastUpdatedAt - right.lastUpdatedAt)[0]?.[0];
+
+  if (oldestInstanceId) {
+    historyByInstance.delete(oldestInstanceId);
+  }
 }

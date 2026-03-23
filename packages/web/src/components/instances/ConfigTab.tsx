@@ -1,35 +1,50 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { useInstanceConfig } from '../../hooks/useInstanceConfig';
 
 export function ConfigTab({ instanceId }: { instanceId: string }) {
   const { data, isLoading, save, saving } = useInstanceConfig(instanceId);
-  const [value, setValue] = useState('');
+  const initialValue = JSON.stringify(data ?? {}, null, 2);
+
+  if (isLoading) {
+    return <div className="panel-card muted">Loading config...</div>;
+  }
+
+  return (
+    <ConfigEditor
+      key={`${instanceId}:${initialValue}`}
+      initialValue={initialValue}
+      onSave={save}
+      saving={saving}
+    />
+  );
+}
+
+function ConfigEditor({
+  initialValue,
+  onSave,
+  saving,
+}: {
+  initialValue: string;
+  onSave: (config: unknown) => Promise<unknown>;
+  saving: boolean;
+}) {
+  const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (data) {
-      setValue(JSON.stringify(data, null, 2));
-    }
-  }, [data]);
 
   const handleSave = async () => {
     setError(null);
     setSaved(false);
     try {
       const parsed = JSON.parse(value);
-      await save(parsed);
+      await onSave(parsed);
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1600);
-    } catch (saveError: any) {
-      setError(saveError.message);
+    } catch (saveError: unknown) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save config');
     }
   };
-
-  if (isLoading) {
-    return <div className="panel-card muted">Loading config...</div>;
-  }
 
   return (
     <div className="panel-card">

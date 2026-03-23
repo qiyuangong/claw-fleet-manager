@@ -66,7 +66,7 @@ export async function fleetRoutes(app: FastifyInstance) {
       );
 
       try {
-        await execFileAsync('docker', ['compose', 'up', '-d'], { cwd: app.fleetDir });
+        await execFileAsync('docker', ['compose', 'up', '-d', '--remove-orphans'], { cwd: app.fleetDir });
       } catch (error: any) {
         return reply.status(500).send({ error: error.message, code: 'COMPOSE_FAILED' });
       }

@@ -47,9 +47,9 @@ This is an npm workspaces monorepo (Turbo build) with two packages:
 - `instances.ts` → `POST /api/fleet/:id/{start,stop,restart}`, `POST /api/fleet/:id/token/reveal`, `GET /api/fleet/:id/devices/pending`, `POST /api/fleet/:id/devices/:requestId/approve`
 - `config.ts` → `GET|PUT /api/config/fleet`, `GET|PUT /api/fleet/:id/config`
 - `logs.ts` → `WS /ws/logs/:id`, `WS /ws/logs` (real-time streaming)
-- `proxy.ts` → `* /proxy/*`, `WS /proxy-ws/*` (reverse proxy to instances; injects gateway token + Tailscale URL into HTML via script; strips upstream CSP/X-Frame-Options)
+- `proxy.ts` → `* /proxy/*`, `WS /proxy-ws/*` (reverse proxy to instances; injects gateway token + gateway URL into HTML via script; strips upstream CSP/X-Frame-Options; preserves WS text/binary frame type)
 
-**Auth** (`auth.ts`): Basic Auth for HTTP; `?auth=base64` query param for WebSocket; cookie for proxy.
+**Auth** (`auth.ts`): Basic Auth for HTTP; `?auth=base64` query param for WebSocket; cookie for proxy. Optional TLS via `tls` config (required for remote Control UI — secure context needed for device identity).
 
 ### Web (`packages/web/src/`)
 
@@ -59,7 +59,7 @@ This is an npm workspaces monorepo (Turbo build) with two packages:
 
 **Data fetching**: React Query hooks — `useFleet()`, `useFleetConfig()`, `useInstanceConfig()`, `useLogs()`.
 
-**Key component**: `InstancePanel` renders per-instance tabs: Overview, Logs (WebSocket), Config (Monaco editor), Metrics (Recharts), ControlUI (gateway URL display, token reveal, device pairing with approve-all, Tailscale-aware launch).
+**Key component**: `InstancePanel` renders per-instance tabs: Overview, Logs (WebSocket), Config (Monaco editor), Metrics (Recharts), ControlUI (gateway URL display, token reveal, device pairing with approve-all, Tailscale-aware launch; routes through `/proxy/:id/` for remote access over HTTPS).
 
 **Vite dev proxy**: `/api/*` → `http://localhost:3001`, `/ws/*` → `ws://localhost:3001`, `/proxy/*` → `http://localhost:3001`.
 
@@ -78,7 +78,7 @@ The server also serves the built web assets from `web/dist/` in production (sing
 - **`FleetInstance`**: `{ id, index, status, port, token, uptime, cpu, memory, disk, health, image, tailscaleUrl? }`
 - **`FleetStatus`**: `{ instances: FleetInstance[], totalRunning: number, updatedAt: string }`
 - **`FleetConfig`**: `{ baseUrl, apiKey, modelId, count, cpuLimit, memLimit, portStep, configBase, workspaceBase, tz }`
-- **`ServerConfig`**: `{ port, auth: {username, password}, fleetDir, tailscale?: {hostname} }`
+- **`ServerConfig`**: `{ port, auth: {username, password}, fleetDir, tailscale?: {hostname}, tls?: {cert, key} }`
 
 ## Key Constants
 

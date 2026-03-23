@@ -52,7 +52,7 @@ graph TB
     end
 
     subgraph Server["packages/server — Fastify :3001"]
-        Index[index.ts<br/>bootstrap, decorators,<br/>graceful shutdown]
+        Index[index.ts<br/>bootstrap, decorators,<br/>graceful shutdown, optional TLS]
         Auth[auth.ts<br/>Basic Auth · Cookie<br/>HMAC proxyToken<br/>timingSafeEqual]
         Validate[validate.ts<br/>INSTANCE_ID_RE]
         Config[config.ts<br/>Zod ServerConfig]
@@ -63,7 +63,7 @@ graph TB
             RInstances["instances.ts<br/>POST /:id/start·stop·restart<br/>POST /:id/token/reveal<br/>GET /:id/devices/pending<br/>POST /:id/devices/:rid/approve"]
             RConfig["config.ts<br/>GET·PUT /api/config/fleet<br/>GET·PUT /api/fleet/:id/config<br/>⚡ Zod validated"]
             RLogs["logs.ts<br/>WS /ws/logs/:id<br/>WS /ws/logs"]
-            RProxy["proxy.ts<br/>HTTP·WS /proxy/*<br/>HTML token injection<br/>CSP + X-Frame strip"]
+            RProxy["proxy.ts<br/>HTTP·WS /proxy/*<br/>HTML token injection<br/>CSP + X-Frame strip<br/>text/binary frame preserve"]
         end
 
         subgraph Services["Services"]
@@ -241,6 +241,16 @@ When the reverse proxy serves an HTML page from an openclaw instance, it injects
 
 Upstream `Content-Security-Policy` and `X-Frame-Options` headers are stripped to allow the injected script and iframe embedding.
 
+WebSocket messages are forwarded preserving their text/binary frame type (`isBinary` flag), which is required for the openclaw Control UI to correctly parse challenge nonces for device identity signing.
+
+### TLS / HTTPS
+
+The server supports optional TLS via the `tls` config field (`cert` and `key` file paths). HTTPS is required for remote Control UI access because the openclaw gateway requires a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) (HTTPS or localhost) to generate device identity keys via `crypto.subtle`.
+
+### Remote Control UI Access
+
+When the fleet manager is accessed from a non-localhost address without Tailscale, the **ControlUiTab** routes users through the built-in reverse proxy (`/proxy/:id/`) instead of the direct gateway port. The proxy injects the gateway token and patches WebSocket connections with HMAC auth tokens, enabling full Control UI functionality from any remote machine over HTTPS.
+
 ### Port Allocation
 
 ```
@@ -298,7 +308,7 @@ App (React Query Provider)
         ├── LogsTab — WebSocket stream, filter, download, auto-scroll
         ├── ConfigTab — Monaco JSON editor for openclaw.json
         ├── MetricsTab — Recharts line graphs (120 data points max)
-        └── ControlUiTab — gateway URL, token reveal, device pairing, launch
+        └── ControlUiTab — gateway URL (proxied for remote), token reveal, device pairing, launch
 ```
 
 Tab components are **lazy-loaded** via `React.lazy()` to reduce initial bundle size.
@@ -342,6 +352,7 @@ interface ServerConfig {
   auth: { username: string; password: string };
   fleetDir: string;
   tailscale?: { hostname: string };
+  tls?: { cert: string; key: string };
 }
 ```
 

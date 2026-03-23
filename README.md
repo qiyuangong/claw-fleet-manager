@@ -48,7 +48,7 @@ The Vite app runs on `http://localhost:5173` and proxies API and WebSocket traff
 │                      ├─ LogsTab        (WebSocket stream)   │
 │                      ├─ ConfigTab      (Monaco editor)      │
 │                      ├─ MetricsTab     (Recharts)           │
-│                      └─ ControlUiTab   (device pairing)     │
+│                      └─ ControlUiTab   (proxy access, pairing)│
 │                                                             │
 │  Zustand (UI state)   React Query (server state, 5s poll)   │
 │  apiFetch (Basic Auth)                                      │
@@ -59,6 +59,7 @@ The Vite app runs on `http://localhost:5173` and proxies API and WebSocket traff
 │                   Fastify Server (:3001)                     │
 │                                                             │
 │  Auth ─── Basic Auth / Cookie / HMAC proxyToken             │
+│  TLS  ─── Optional HTTPS via tls config (cert + key)        │
 │  Validate ─── /^openclaw-\d+$/                              │
 │                                                             │
 │  Routes                                                     │

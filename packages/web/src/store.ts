@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type Tab = 'overview' | 'logs' | 'config' | 'metrics' | 'controlui';
+type Tab = 'overview' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu';
 
 interface AppState {
   selectedInstanceId: string | null;

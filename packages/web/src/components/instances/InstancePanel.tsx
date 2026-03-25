@@ -7,8 +7,9 @@ const LogsTab = lazy(async () => ({ default: (await import('./LogsTab')).LogsTab
 const ConfigTab = lazy(async () => ({ default: (await import('./ConfigTab')).ConfigTab }));
 const MetricsTab = lazy(async () => ({ default: (await import('./MetricsTab')).MetricsTab }));
 const ControlUiTab = lazy(async () => ({ default: (await import('./ControlUiTab')).ControlUiTab }));
+const FeishuTab = lazy(async () => ({ default: (await import('./FeishuTab')).FeishuTab }));
 
-const tabs = ['overview', 'logs', 'config', 'metrics', 'controlui'] as const;
+const tabs = ['overview', 'logs', 'config', 'metrics', 'controlui', 'feishu'] as const;
 
 export function InstancePanel({ instanceId }: { instanceId: string }) {
   const { data } = useFleet();
@@ -56,6 +57,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
           {activeTab === 'config' ? <ConfigTab instanceId={instanceId} /> : null}
           {activeTab === 'metrics' ? <MetricsTab instance={instance} /> : null}
           {activeTab === 'controlui' ? <ControlUiTab instance={instance} /> : null}
+          {activeTab === 'feishu' ? <FeishuTab instanceId={instanceId} /> : null}
         </Suspense>
       ) : null}
     </section>

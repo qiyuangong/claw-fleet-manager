@@ -42,6 +42,17 @@ export const getPendingDevices = (id: string) =>
 export const approveDevice = (id: string, requestId: string) =>
   apiFetch<{ ok: boolean }>(`/api/fleet/${id}/devices/${requestId}/approve`, { method: 'POST' });
 
+export interface PendingFeishuPairing {
+  code: string;
+  userId?: string;
+}
+
+export const getFeishuPairing = (id: string) =>
+  apiFetch<{ pending: PendingFeishuPairing[]; raw: string }>(`/api/fleet/${id}/feishu/pairing`);
+
+export const approveFeishuPairing = (id: string, code: string) =>
+  apiFetch<{ ok: boolean }>(`/api/fleet/${id}/feishu/pairing/${code}/approve`, { method: 'POST' });
+
 export const scaleFleet = (count: number) =>
   apiFetch<{ ok: boolean; fleet: FleetStatus }>('/api/fleet/scale', {
     method: 'POST',

@@ -1,28 +1,20 @@
 // packages/web/src/components/layout/Sidebar.tsx
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useFleet } from '../../hooks/useFleet';
 import { useAppStore } from '../../store';
 import { SidebarItem } from './SidebarItem';
 import { AddProfileDialog } from '../instances/AddProfileDialog';
-import { deleteProfile } from '../../api/fleet';
 
 export function Sidebar() {
   const { data, isLoading, error } = useFleet();
   const selectedInstanceId = useAppStore((state) => state.selectedInstanceId);
   const selectInstance = useAppStore((state) => state.selectInstance);
-  const queryClient = useQueryClient();
   const [showAddProfile, setShowAddProfile] = useState(false);
 
   useEffect(() => {
     if (!data?.instances.length || selectedInstanceId) return;
     selectInstance(data.instances[0].id);
   }, [data, selectInstance, selectedInstanceId]);
-
-  const removeProfile = useMutation({
-    mutationFn: (name: string) => deleteProfile(name),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ['fleet'] }); },
-  });
 
   const isProfileMode = data?.mode === 'profiles';
 

@@ -1,7 +1,22 @@
 {
+  "_comment_docker_mode": "Default mode — requires Docker",
   "port": 3001,
-  "auth": { "username": "admin", "password": "changeme" },
-  "fleetDir": "/path/to/claw-fleet/openclaw",
-  "tailscale": { "hostname": "machine.tailnet.ts.net" },
-  "tls": { "cert": "certs/cert.pem", "key": "certs/key.pem" }
+  "auth": { "username": "admin", "password": "change-me" },
+  "fleetDir": "/path/to/your/openclaw-fleet",
+  "deploymentMode": "docker",
+
+  "_comment_profile_mode": "Uncomment deploymentMode and profiles block to use native profiles",
+  "_deploymentMode": "profiles",
+  "_profiles": {
+    "openclawBinary": "openclaw",
+    "basePort": 18789,
+    "portStep": 20,
+    "stateBaseDir": "~/.openclaw-states",
+    "configBaseDir": "~/.openclaw-configs",
+    "autoRestart": true,
+    "stopTimeoutMs": 10000
+  },
+
+  "tailscale": { "hostname": "your-machine.tailnet.ts.net" },
+  "tls": { "cert": "/path/to/cert.pem", "key": "/path/to/key.pem" }
 }

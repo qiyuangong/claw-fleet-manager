@@ -23,7 +23,7 @@ const mockStatus = {
   updatedAt: Date.now(),
 };
 
-const mockMonitor = { getStatus: vi.fn().mockReturnValue(mockStatus) };
+const mockBackend = { getCachedStatus: vi.fn().mockReturnValue(mockStatus) };
 
 describe('stripFrameHeaders', () => {
   it('removes X-Frame-Options entirely', () => {
@@ -62,7 +62,7 @@ describe('Proxy routes', () => {
   const app = Fastify();
 
   beforeAll(async () => {
-    app.decorate('monitor', mockMonitor as any);
+    app.decorate('backend', mockBackend as any);
     await app.register(fastifyWebsocket);
     await app.register(proxyRoutes);
     await app.ready();

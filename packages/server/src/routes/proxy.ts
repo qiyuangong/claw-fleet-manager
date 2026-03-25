@@ -43,7 +43,7 @@ type ProxyParams = { Params: { id: string; '*': string | undefined } };
 type ProxyWildcardParams = { Params: { '*': string } };
 
 function findInstance(app: FastifyInstance, id: string) {
-  return app.monitor.getStatus()?.instances.find((instance) => instance.id === id);
+  return app.backend.getCachedStatus()?.instances.find((instance) => instance.id === id);
 }
 
 function toProxyPath(request: FastifyRequest<ProxyParams>): string {
@@ -167,7 +167,7 @@ export async function proxyRoutes(app: FastifyInstance) {
     // finds the gateway token automatically (the UI stores it in sessionStorage keyed
     // by gatewayUrl, which differs between the direct port and the proxy URL).
     if (String(safeHeaders['content-type'] ?? '').toLowerCase().includes('text/html')) {
-      const token = app.fleetConfig.readTokens()[instance.index] ?? '';
+      const token = (instance.index !== undefined ? app.fleetConfig.readTokens()[instance.index] : undefined) ?? '';
       if (token) {
         const chunks: Buffer[] = [];
         for await (const chunk of response.body) {

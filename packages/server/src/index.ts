@@ -21,9 +21,6 @@ import { FleetConfigService } from './services/fleet-config.js';
 import { TailscaleService } from './services/tailscale.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-// Note: profileRoutes is loaded dynamically below to avoid a static import failure
-// when profiles.ts does not yet exist in the build.
-
 const execFileAsync = promisify(execFile);
 const config = loadConfig();
 
@@ -93,8 +90,6 @@ await app.register(logRoutes);
 await app.register(proxyRoutes);
 
 if (config.deploymentMode === 'profiles') {
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore – profiles.ts is created in a later task
   const { profileRoutes } = await import('./routes/profiles.js');
   await app.register(profileRoutes);
 }

@@ -262,8 +262,11 @@ export class ProfileBackend implements DeploymentBackend {
       try {
         const stream = createReadStream(logFile, { start: position, encoding: 'utf-8' });
         let buf = '';
+        let bytesRead = 0;
         stream.on('data', (chunk: string | Buffer) => {
-          buf += chunk;
+          const chunkStr = typeof chunk === 'string' ? chunk : chunk.toString('utf-8');
+          bytesRead += Buffer.byteLength(chunkStr, 'utf-8');
+          buf += chunkStr;
           const lines = buf.split('\n');
           buf = lines.pop() ?? '';
           for (const line of lines) {
@@ -271,7 +274,7 @@ export class ProfileBackend implements DeploymentBackend {
           }
         });
         stream.on('end', () => {
-          position += Buffer.byteLength(buf, 'utf-8');
+          position += bytesRead;
         });
         stream.on('error', () => {});
       } catch {

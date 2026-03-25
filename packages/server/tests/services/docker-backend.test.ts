@@ -14,7 +14,7 @@ const mockDocker = {
 };
 
 const mockFleetConfig = {
-  readFleetConfig: vi.fn().mockReturnValue({ portStep: 20, configBase: '/tmp/cfg', workspaceBase: '/tmp/ws' }),
+  readFleetConfig: vi.fn().mockReturnValue({ count: 3, portStep: 20, configBase: '/tmp/cfg', workspaceBase: '/tmp/ws' }),
   readTokens: vi.fn().mockReturnValue({ 1: 'token-abc123' }),
   readInstanceConfig: vi.fn().mockReturnValue({ gateway: {} }),
   writeInstanceConfig: vi.fn(),

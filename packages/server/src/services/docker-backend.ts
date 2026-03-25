@@ -204,7 +204,7 @@ export class DockerBackend implements DeploymentBackend {
           onData(line);
         }
       });
-    })();
+    })().catch((err) => this.log?.error({ err, id }, 'streamLogs failed'));
     return { stop: () => logStream?.destroy() };
   }
 
@@ -228,7 +228,7 @@ export class DockerBackend implements DeploymentBackend {
           // best effort per container
         }
       }
-    })();
+    })().catch((err) => this.log?.error({ err }, 'streamAllLogs failed'));
     return { stop: () => { for (const s of streams) s.destroy(); } };
   }
 

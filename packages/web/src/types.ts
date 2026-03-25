@@ -1,6 +1,7 @@
+// packages/web/src/types.ts
 export interface FleetInstance {
   id: string;
-  index: number;
+  index?: number;
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;
   token: string;
@@ -11,9 +12,12 @@ export interface FleetInstance {
   disk: { config: number; workspace: number };
   health: 'healthy' | 'unhealthy' | 'starting' | 'none';
   image: string;
+  profile?: string;
+  pid?: number;            // profile mode only
 }
 
 export interface FleetStatus {
+  mode: 'docker' | 'profiles';
   instances: FleetInstance[];
   totalRunning: number;
   updatedAt: number;

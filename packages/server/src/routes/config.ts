@@ -1,3 +1,4 @@
+// packages/server/src/routes/config.ts
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { validateInstanceId } from '../validate.js';
@@ -19,12 +20,11 @@ export async function configRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>('/api/fleet/:id/config', async (request, reply) => {
     const { id } = request.params;
-    if (!validateInstanceId(id)) {
+    if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    const index = parseInt(id.replace('openclaw-', ''), 10);
     try {
-      return app.fleetConfig.readInstanceConfig(index);
+      return await app.backend.readInstanceConfig(id);
     } catch {
       return reply.status(404).send({ error: 'Config not found', code: 'CONFIG_NOT_FOUND' });
     }
@@ -32,16 +32,15 @@ export async function configRoutes(app: FastifyInstance) {
 
   app.put<{ Params: { id: string } }>('/api/fleet/:id/config', async (request, reply) => {
     const { id } = request.params;
-    if (!validateInstanceId(id)) {
+    if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    const index = parseInt(id.replace('openclaw-', ''), 10);
     const parsed = instanceConfigBodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Body must be a JSON object', code: 'INVALID_BODY' });
     }
     try {
-      app.fleetConfig.writeInstanceConfig(index, parsed.data);
+      await app.backend.writeInstanceConfig(id, parsed.data as object);
       return { ok: true };
     } catch (error: any) {
       return reply.status(500).send({ error: error.message, code: 'CONFIG_WRITE_FAILED' });

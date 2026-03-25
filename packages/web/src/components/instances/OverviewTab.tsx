@@ -71,13 +71,20 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
             <p className="metric-value">{formatUptime(instance.uptime)}</p>
           </div>
           <div className="metric-card">
-            <p className="metric-label">Image</p>
-            <p className="metric-value mono">{instance.image}</p>
+            <p className="metric-label">{instance.profile ? 'Profile' : 'Image'}</p>
+            <p className="metric-value mono">{instance.profile ?? instance.image}</p>
           </div>
-          <div className="metric-card">
-            <p className="metric-label">Health</p>
-            <p className="metric-value">{instance.health}</p>
-          </div>
+          {instance.pid !== undefined ? (
+            <div className="metric-card">
+              <p className="metric-label">PID</p>
+              <p className="metric-value mono">{instance.pid}</p>
+            </div>
+          ) : (
+            <div className="metric-card">
+              <p className="metric-label">Health</p>
+              <p className="metric-value">{instance.health}</p>
+            </div>
+          )}
         </div>
       </section>
 

@@ -32,7 +32,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
     <section className="panel-card">
       <div className="panel-header">
         <div>
-          <p className="pill mono">{instance.id}</p>
+          <p className="pill mono">{instance.profile ?? instance.id}</p>
           <h2 className="panel-title">Instance Control</h2>
           <p className="muted">Inspect state, tail logs, edit config, and watch metrics.</p>
         </div>

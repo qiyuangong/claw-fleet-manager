@@ -58,3 +58,18 @@ export const scaleFleet = (count: number) =>
     method: 'POST',
     body: JSON.stringify({ count }),
   });
+
+export interface CreateProfileOpts {
+  name: string;
+  port?: number;
+  config?: object;
+}
+
+export const createProfile = (opts: CreateProfileOpts) =>
+  apiFetch<FleetInstance>('/api/fleet/profiles', {
+    method: 'POST',
+    body: JSON.stringify(opts),
+  });
+
+export const deleteProfile = (name: string) =>
+  apiFetch<{ ok: boolean }>(`/api/fleet/profiles/${name}`, { method: 'DELETE' });

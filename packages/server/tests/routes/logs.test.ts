@@ -1,3 +1,4 @@
+// packages/server/tests/routes/logs.test.ts
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
@@ -7,11 +8,11 @@ describe('Log routes', () => {
   const app = Fastify();
 
   beforeAll(async () => {
-    const mockStream = { on: vi.fn(), destroy: vi.fn() };
-    app.decorate('docker', {
-      getContainerLogs: vi.fn().mockResolvedValue(mockStream),
-      listFleetContainers: vi.fn().mockResolvedValue([]),
+    app.decorate('backend', {
+      streamLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
+      streamAllLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
     });
+    app.decorate('deploymentMode', 'docker');
     await app.register(fastifyWebsocket);
     await app.register(logRoutes);
     await app.ready();
@@ -23,5 +24,10 @@ describe('Log routes', () => {
     const routes = app.printRoutes();
     expect(routes).toContain('ws/logs');
     expect(routes).toContain(':id');
+  });
+
+  it('has /ws/logs route registered', () => {
+    const routes = app.printRoutes();
+    expect(routes).toContain('ws/logs');
   });
 });

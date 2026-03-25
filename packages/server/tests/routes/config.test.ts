@@ -1,3 +1,4 @@
+// packages/server/tests/routes/config.test.ts
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { configRoutes } from '../../src/routes/config.js';
@@ -15,20 +16,21 @@ const mockFleetConfig = {
     workspaceBase: '/tmp/workspaces',
     tz: 'UTC',
   }),
-  readFleetEnvRaw: vi.fn().mockReturnValue({
-    BASE_URL: 'https://api.example.com',
-    API_KEY: 'sk-test123',
-  }),
   writeFleetConfig: vi.fn(),
-  readInstanceConfig: vi.fn().mockReturnValue({ gateway: { mode: 'token' } }),
-  writeInstanceConfig: vi.fn(),
 };
 
-describe('Config routes', () => {
+const mockBackend = {
+  readInstanceConfig: vi.fn().mockResolvedValue({ gateway: { mode: 'token' } }),
+  writeInstanceConfig: vi.fn().mockResolvedValue(undefined),
+};
+
+describe('Config routes — docker mode', () => {
   const app = Fastify();
 
   beforeAll(async () => {
     app.decorate('fleetConfig', mockFleetConfig);
+    app.decorate('backend', mockBackend);
+    app.decorate('deploymentMode', 'docker');
     await app.register(configRoutes);
     await app.ready();
   });
@@ -55,6 +57,7 @@ describe('Config routes', () => {
     const res = await app.inject({ method: 'GET', url: '/api/fleet/openclaw-1/config' });
     expect(res.statusCode).toBe(200);
     expect(res.json().gateway.mode).toBe('token');
+    expect(mockBackend.readInstanceConfig).toHaveBeenCalledWith('openclaw-1');
   });
 
   it('PUT /api/fleet/:id/config writes instance config', async () => {
@@ -64,7 +67,7 @@ describe('Config routes', () => {
       payload: { gateway: { mode: 'local' } },
     });
     expect(res.statusCode).toBe(200);
-    expect(mockFleetConfig.writeInstanceConfig).toHaveBeenCalledWith(1, { gateway: { mode: 'local' } });
+    expect(mockBackend.writeInstanceConfig).toHaveBeenCalledWith('openclaw-1', { gateway: { mode: 'local' } });
   });
 
   it('PUT /api/config/fleet rejects non-string values', async () => {
@@ -77,13 +80,13 @@ describe('Config routes', () => {
     expect(res.json().code).toBe('INVALID_BODY');
   });
 
-  it('rejects invalid instance id on GET config', async () => {
+  it('rejects invalid docker instance id on GET config', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/fleet/evil-container/config' });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
   });
 
-  it('rejects invalid instance id on PUT config', async () => {
+  it('rejects invalid docker instance id on PUT config', async () => {
     const res = await app.inject({
       method: 'PUT',
       url: '/api/fleet/evil-container/config',
@@ -91,5 +94,25 @@ describe('Config routes', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
+  });
+});
+
+describe('Config routes — profile mode', () => {
+  const app = Fastify();
+
+  beforeAll(async () => {
+    app.decorate('fleetConfig', mockFleetConfig);
+    app.decorate('backend', mockBackend);
+    app.decorate('deploymentMode', 'profiles');
+    await app.register(configRoutes);
+    await app.ready();
+  });
+
+  afterAll(() => app.close());
+
+  it('accepts profile name as instance id', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/main/config' });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.readInstanceConfig).toHaveBeenCalledWith('main');
   });
 });

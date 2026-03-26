@@ -147,4 +147,16 @@ describe('UserService.setAssignedProfiles', () => {
     await svc.create('alice', 'password123', 'user');
     await expect(svc.setAssignedProfiles('alice', ['INVALID!'])).rejects.toThrow(/invalid profile/i);
   });
+
+  it('enforces exclusive profile ownership across users', async () => {
+    await svc.initialize({ username: 'admin', password: 'password123' });
+    await svc.create('alice', 'password123', 'user');
+    await svc.create('bob', 'password123', 'user');
+
+    await svc.setAssignedProfiles('alice', ['profile-a', 'profile-b']);
+    await svc.setAssignedProfiles('bob', ['profile-b', 'profile-c']);
+
+    expect(svc.get('alice')?.assignedProfiles).toEqual(['profile-a']);
+    expect(svc.get('bob')?.assignedProfiles).toEqual(['profile-b', 'profile-c']);
+  });
 });

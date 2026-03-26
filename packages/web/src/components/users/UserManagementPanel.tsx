@@ -22,6 +22,12 @@ export function UserManagementPanel() {
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
 
   const allProfiles = fleet?.instances.map((instance) => instance.id) ?? [];
+  const profileOwner = new Map<string, string>();
+  for (const user of users ?? []) {
+    for (const profile of user.assignedProfiles) {
+      profileOwner.set(profile, user.username);
+    }
+  }
 
   const createMutation = useMutation({
     mutationFn: () => createUser(newUsername.trim(), newPassword, newRole),
@@ -72,7 +78,7 @@ export function UserManagementPanel() {
         <div>
           <p className="pill">Admin</p>
           <h2 className="panel-title">User Management</h2>
-          <p className="muted">Create users, reset passwords, and assign profile access.</p>
+          <p className="muted">Create users, reset passwords, and assign profile access (each profile can belong to only one user).</p>
         </div>
       </div>
 
@@ -184,6 +190,9 @@ export function UserManagementPanel() {
                     )}
                   />
                   <span className="mono">{profileId}</span>
+                  {profileOwner.get(profileId) && profileOwner.get(profileId) !== editProfilesTarget ? (
+                    <span className="muted">(currently assigned to {profileOwner.get(profileId)})</span>
+                  ) : null}
                 </label>
               ))}
               {allProfiles.length === 0 ? <p className="muted">No profiles available yet.</p> : null}

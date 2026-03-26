@@ -198,6 +198,12 @@ button {
   margin-bottom: 1rem;
 }
 
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
 .account-indicator {
   border: 1px solid rgba(123, 224, 255, 0.28);
   border-radius: 999px;

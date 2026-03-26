@@ -131,6 +131,21 @@ describe('User routes', () => {
       const res = await app.inject({ method: 'PUT', url: '/api/users/alice/profiles', headers: { authorization: basic('admin', 'adminpass1') }, payload: { profiles: ['INVALID!'] } });
       expect(res.statusCode).toBe(400);
     });
+
+    it('reassigns a profile from one user to another', async () => {
+      await svc.create('charlie', 'charliepass1', 'user');
+      await svc.setAssignedProfiles('charlie', ['profile-x']);
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/api/users/alice/profiles',
+        headers: { authorization: basic('admin', 'adminpass1') },
+        payload: { profiles: ['profile-x'] },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(svc.get('alice')?.assignedProfiles).toContain('profile-x');
+      expect(svc.get('charlie')?.assignedProfiles).not.toContain('profile-x');
+    });
   });
 
   describe('PUT /api/users/me/password', () => {

@@ -1,8 +1,7 @@
 import { URL } from 'node:url';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import fastifyBasicAuth from '@fastify/basic-auth';
-import type { ServerConfig } from './types.js';
+import type { UserService } from './services/user.js';
 
 const PROXY_TOKEN_SECRET = randomBytes(32);
 const PROXY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -29,15 +28,11 @@ export function validateProxyToken(token: string): boolean {
 
 function parseBasicAuth(header?: string): { username: string; password: string } | null {
   if (!header?.startsWith('Basic ')) return null;
-
   try {
     const decoded = Buffer.from(header.slice(6), 'base64').toString('utf-8');
     const separator = decoded.indexOf(':');
     if (separator < 0) return null;
-    return {
-      username: decoded.slice(0, separator),
-      password: decoded.slice(separator + 1),
-    };
+    return { username: decoded.slice(0, separator), password: decoded.slice(separator + 1) };
   } catch {
     return null;
   }
@@ -51,70 +46,42 @@ function parseWebSocketQueryAuth(urlPath: string): { username: string; password:
     const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
     const separator = decoded.indexOf(':');
     if (separator < 0) return null;
-    return {
-      username: decoded.slice(0, separator),
-      password: decoded.slice(separator + 1),
-    };
+    return { username: decoded.slice(0, separator), password: decoded.slice(separator + 1) };
   } catch {
     return null;
   }
 }
 
-function isAuthorized(
-  credentials: { username: string; password: string } | null,
-  config: ServerConfig,
-): boolean {
-  if (!credentials) return false;
-  try {
-    const userMatch = timingSafeEqual(
-      Buffer.from(credentials.username),
-      Buffer.from(config.auth.username),
-    );
-    const passMatch = timingSafeEqual(
-      Buffer.from(credentials.password),
-      Buffer.from(config.auth.password),
-    );
-    return userMatch && passMatch;
-  } catch {
-    return false; // length mismatch throws
-  }
-}
-
-export async function registerAuth(app: FastifyInstance, config: ServerConfig) {
-  await app.register(fastifyBasicAuth, {
-    validate: async (username, password) => {
-      if (username !== config.auth.username || password !== config.auth.password) {
-        throw new Error('Unauthorized');
-      }
-    },
-    authenticate: { realm: 'Claw Fleet Manager' },
-  });
-
-  const proxyCookieName = 'x-fleet-proxy-auth';
-
-  function parseProxyCookie(cookieHeader: string | undefined): { username: string; password: string } | null {
-    if (!cookieHeader) return null;
-    for (const part of cookieHeader.split(';')) {
-      const trimmed = part.trim();
-      if (trimmed.startsWith(`${proxyCookieName}=`)) {
-        const encoded = trimmed.slice(proxyCookieName.length + 1);
-        try {
-          const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
-          const separator = decoded.indexOf(':');
-          if (separator < 0) return null;
-          return { username: decoded.slice(0, separator), password: decoded.slice(separator + 1) };
-        } catch {
-          return null;
-        }
+function parseProxyCookie(cookieHeader: string | undefined, cookieName: string): { username: string; password: string } | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(`${cookieName}=`)) {
+      const encoded = trimmed.slice(cookieName.length + 1);
+      try {
+        const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
+        const separator = decoded.indexOf(':');
+        if (separator < 0) return null;
+        return { username: decoded.slice(0, separator), password: decoded.slice(separator + 1) };
+      } catch {
+        return null;
       }
     }
-    return null;
   }
+  return null;
+}
+
+export async function registerAuth(app: FastifyInstance, userService: UserService) {
+  const proxyCookieName = 'x-fleet-proxy-auth';
 
   app.addHook('onRequest', async (request, reply) => {
     const headerCredentials = parseBasicAuth(request.headers.authorization);
-    if (isAuthorized(headerCredentials, config)) {
-      return;
+    if (headerCredentials) {
+      const user = await userService.verify(headerCredentials.username, headerCredentials.password);
+      if (user) {
+        request.user = user;
+        return;
+      }
     }
 
     const rawUrl = request.raw.url ?? '/';
@@ -124,27 +91,38 @@ export async function registerAuth(app: FastifyInstance, config: ServerConfig) {
       || rawUrl.startsWith('/proxy-ws/');
 
     if (isProxyPath) {
-      const cookieCredentials = parseProxyCookie(request.headers.cookie);
-      if (isAuthorized(cookieCredentials, config)) {
-        return;
+      const cookieCredentials = parseProxyCookie(request.headers.cookie, proxyCookieName);
+      if (cookieCredentials) {
+        const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
+        if (user) {
+          request.user = user;
+          return;
+        }
       }
 
       const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
       if (proxyToken && validateProxyToken(proxyToken)) {
+        // proxyToken path — token was issued server-side after a real auth; treat as admin-level.
+        // We must set request.user to a synthetic admin-like object so that any preHandlers
+        // (requireProfileAccess on /ws/logs/:id) don't 403 due to missing request.user.
+        request.user = { username: '__proxytoken__', passwordHash: '', role: 'admin', assignedProfiles: [] };
         return;
       }
 
       const queryCredentials = parseWebSocketQueryAuth(rawUrl);
-      if (isAuthorized(queryCredentials, config)) {
-        // Set a cookie so sub-resources on the proxied page don't need ?auth=
-        const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
-        if (encoded) {
-          reply.header(
-            'set-cookie',
-            `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
-          );
+      if (queryCredentials) {
+        const user = await userService.verify(queryCredentials.username, queryCredentials.password);
+        if (user) {
+          request.user = user;
+          const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
+          if (encoded) {
+            reply.header(
+              'set-cookie',
+              `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
+            );
+          }
+          return;
         }
-        return;
       }
     }
 

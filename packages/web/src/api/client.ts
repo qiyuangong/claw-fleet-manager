@@ -1,4 +1,17 @@
+const AUTH_DISABLED_KEY = 'fleet_manager_auth_disabled';
+
+function isAuthDisabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.sessionStorage.getItem(AUTH_DISABLED_KEY) === '1';
+}
+
+export function logoutApiClient(): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(AUTH_DISABLED_KEY, '1');
+}
+
 function basicAuthHeaders(): HeadersInit {
+  if (isAuthDisabled()) return {};
   const username = import.meta.env.VITE_BASIC_AUTH_USER;
   const password = import.meta.env.VITE_BASIC_AUTH_PASSWORD;
   if (!username || !password) return {};

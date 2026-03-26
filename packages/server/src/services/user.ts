@@ -141,12 +141,22 @@ export class UserService {
   }
 
   async setAssignedProfiles(username: string, profiles: string[]): Promise<void> {
-    for (const p of profiles) {
+    const uniqueProfiles = Array.from(new Set(profiles));
+    for (const p of uniqueProfiles) {
       if (!PROFILE_NAME_RE.test(p)) throw new Error(`Invalid profile name: '${p}'`);
     }
     const user = this.users.find(u => u.username === username);
     if (!user) throw new Error(`User '${username}' not found`);
-    user.assignedProfiles = profiles;
+
+    // A profile can belong to only one user at a time.
+    // Reassigning profiles to this user automatically removes them from others.
+    const reassigned = new Set(uniqueProfiles);
+    for (const other of this.users) {
+      if (other.username === username) continue;
+      other.assignedProfiles = other.assignedProfiles.filter((p) => !reassigned.has(p));
+    }
+
+    user.assignedProfiles = uniqueProfiles;
     this.evictCache();
     this.persist();
   }

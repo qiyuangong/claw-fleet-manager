@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { logoutApiClient } from '../../api/client';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
@@ -11,11 +13,19 @@ export function Shell() {
   const activeView = useAppStore((state) => state.activeView);
   const setCurrentUser = useAppStore((state) => state.setCurrentUser);
   const { data: currentUser } = useCurrentUser();
+  const queryClient = useQueryClient();
   const [showChangePassword, setShowChangePassword] = useState(false);
 
   useEffect(() => {
     setCurrentUser(currentUser ?? null);
   }, [currentUser, setCurrentUser]);
+
+  const handleLogout = async () => {
+    logoutApiClient();
+    setCurrentUser(null);
+    await queryClient.clear();
+    window.location.reload();
+  };
 
   return (
     <div className="app-shell">
@@ -23,9 +33,14 @@ export function Shell() {
       <main className="main-panel">
         <div className="main-panel-topbar">
           {currentUser ? (
-            <button className="account-indicator" onClick={() => setShowChangePassword(true)}>
-              {currentUser.username} ({currentUser.role})
-            </button>
+            <div className="account-actions">
+              <button className="account-indicator" onClick={() => setShowChangePassword(true)}>
+                {currentUser.username} ({currentUser.role})
+              </button>
+              <button className="secondary-button" onClick={handleLogout}>
+                Logout
+              </button>
+            </div>
           ) : null}
         </div>
         {activeView.type === 'instance' ? (

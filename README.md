@@ -106,3 +106,7 @@ npm run build
 cd packages/server
 npx vitest run
 ```
+
+## License
+
+Apache 2.0. See [LICENSE](LICENSE).

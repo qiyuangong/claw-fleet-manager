@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import Fastify from 'fastify';
-import { registerAuth } from '../../src/auth.js';
+import { generateProxyToken, registerAuth } from '../../src/auth.js';
 import { UserService } from '../../src/services/user.js';
 
 let tmpDir: string;
@@ -98,6 +98,17 @@ describe('Auth middleware', () => {
     const encoded = encode('admin', 'secret1234');
     const res = await app.inject({ method: 'GET', url: `/ws/logs/openclaw-1?auth=${encoded}` });
     expect(res.statusCode).toBe(200);
+  });
+
+  it('allows access via proxyToken on /proxy/ paths without elevating a user session', async () => {
+    const res = await app.inject({ method: 'GET', url: `/proxy/some-instance/?proxyToken=${generateProxyToken()}` });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does not allow proxyToken to authenticate /ws/ paths', async () => {
+    const res = await app.inject({ method: 'GET', url: `/ws/logs/openclaw-1?proxyToken=${generateProxyToken()}` });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toBe('Basic realm="Claw Fleet Manager"');
   });
 
   it('returns 401 with wrong ?auth= credentials on proxy paths', async () => {

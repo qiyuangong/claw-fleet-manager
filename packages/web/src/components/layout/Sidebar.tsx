@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AddProfileDialog } from '../instances/AddProfileDialog';
 import { useFleet } from '../../hooks/useFleet';
 import { selectedInstanceIdSelector, useAppStore } from '../../store';
@@ -18,12 +18,6 @@ export function Sidebar() {
     if (!currentUser || currentUser.role === 'admin') return true;
     return currentUser.assignedProfiles.includes(instance.id);
   }) ?? [];
-  const firstVisibleInstanceId = visibleInstances[0]?.id ?? null;
-
-  useEffect(() => {
-    if (!firstVisibleInstanceId || selectedInstanceId) return;
-    selectInstance(firstVisibleInstanceId);
-  }, [firstVisibleInstanceId, selectInstance, selectedInstanceId]);
 
   const isProfileMode = data?.mode === 'profiles';
 

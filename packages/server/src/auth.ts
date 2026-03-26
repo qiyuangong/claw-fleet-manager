@@ -85,12 +85,10 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
     }
 
     const rawUrl = request.raw.url ?? '/';
-    const isProxyPath =
-      rawUrl.startsWith('/ws/')
-      || rawUrl.startsWith('/proxy/')
-      || rawUrl.startsWith('/proxy-ws/');
+    const isProxyPath = rawUrl.startsWith('/proxy/') || rawUrl.startsWith('/proxy-ws/');
+    const isWsPath = rawUrl.startsWith('/ws/');
 
-    if (isProxyPath) {
+    if (isProxyPath || isWsPath) {
       const cookieCredentials = parseProxyCookie(request.headers.cookie, proxyCookieName);
       if (cookieCredentials) {
         const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
@@ -100,13 +98,11 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
         }
       }
 
-      const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
-      if (proxyToken && validateProxyToken(proxyToken)) {
-        // proxyToken path — token was issued server-side after a real auth; treat as admin-level.
-        // We must set request.user to a synthetic admin-like object so that any preHandlers
-        // (requireProfileAccess on /ws/logs/:id) don't 403 due to missing request.user.
-        request.user = { username: '__proxytoken__', passwordHash: '', role: 'admin', assignedProfiles: [] };
-        return;
+      if (isProxyPath) {
+        const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
+        if (proxyToken && validateProxyToken(proxyToken)) {
+          return;
+        }
       }
 
       const queryCredentials = parseWebSocketQueryAuth(rawUrl);

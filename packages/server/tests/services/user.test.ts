@@ -129,6 +129,19 @@ describe('UserService.setAssignedProfiles', () => {
     expect(svc.get('alice')?.assignedProfiles).toEqual(['profile-a', 'profile-b']);
   });
 
+  it('evicts cached verify results after profile changes', async () => {
+    await svc.initialize({ username: 'admin', password: 'password123' });
+    await svc.create('alice', 'password123', 'user');
+
+    const before = await svc.verify('alice', 'password123');
+    expect(before?.assignedProfiles).toEqual([]);
+
+    await svc.setAssignedProfiles('alice', ['profile-a']);
+
+    const after = await svc.verify('alice', 'password123');
+    expect(after?.assignedProfiles).toEqual(['profile-a']);
+  });
+
   it('throws on invalid profile name', async () => {
     await svc.initialize({ username: 'admin', password: 'password123' });
     await svc.create('alice', 'password123', 'user');

@@ -147,6 +147,7 @@ export class UserService {
     const user = this.users.find(u => u.username === username);
     if (!user) throw new Error(`User '${username}' not found`);
     user.assignedProfiles = profiles;
+    this.evictCache();
     this.persist();
   }
 

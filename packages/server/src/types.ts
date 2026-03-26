@@ -60,3 +60,12 @@ export interface FleetConfig {
   workspaceBase: string;
   tz: string;
 }
+
+export interface User {
+  username: string;
+  passwordHash: string;
+  role: 'admin' | 'user';
+  assignedProfiles: string[];
+}
+
+export type PublicUser = Omit<User, 'passwordHash'>;

@@ -1,0 +1,162 @@
+// packages/server/src/services/user.ts
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { join } from 'node:path';
+import type { User, PublicUser } from '../types.js';
+
+const scryptAsync = promisify(scrypt);
+
+const USERNAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;
+const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const SCRYPT_KEYLEN = 64;
+const CACHE_TTL_MS = 10_000;
+
+interface CacheEntry { result: User | null; expiresAt: number }
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const hash = (await scryptAsync(password, salt, SCRYPT_KEYLEN)) as Buffer;
+  return `scrypt$${salt}$${hash.toString('hex')}`;
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const parts = stored.split('$');
+  if (parts.length !== 3 || parts[0] !== 'scrypt') return false;
+  const [, salt, hashHex] = parts;
+  const hash = (await scryptAsync(password, salt, SCRYPT_KEYLEN)) as Buffer;
+  const expected = Buffer.from(hashHex, 'hex');
+  if (hash.length !== expected.length) return false;
+  return timingSafeEqual(hash, expected);
+}
+
+function cacheKey(username: string, password: string): string {
+  return createHash('sha256').update(`${username}:${password}`).digest('hex');
+}
+
+export class UserService {
+  private usersFile: string;
+  private users: User[] = [];
+  private cache = new Map<string, CacheEntry>();
+  private sentinelHash: string | null = null;
+
+  constructor(fleetDir: string) {
+    this.usersFile = join(fleetDir, 'users.json');
+  }
+
+  async initialize(bootstrap: { username: string; password: string }): Promise<void> {
+    if (existsSync(this.usersFile)) {
+      const data = JSON.parse(readFileSync(this.usersFile, 'utf-8'));
+      this.users = data.users ?? [];
+      return;
+    }
+    const passwordHash = await hashPassword(bootstrap.password);
+    this.users = [{ username: bootstrap.username, passwordHash, role: 'admin', assignedProfiles: [] }];
+    this.persist();
+    // Pre-compute sentinel hash for timing-safe unknown-user verify
+    this.sentinelHash = await hashPassword('sentinel-value-that-never-matches');
+  }
+
+  private async ensureSentinel(): Promise<string> {
+    if (!this.sentinelHash) {
+      this.sentinelHash = await hashPassword('sentinel-value-that-never-matches');
+    }
+    return this.sentinelHash;
+  }
+
+  async verify(username: string, password: string): Promise<User | null> {
+    const key = cacheKey(username, password);
+    const now = Date.now();
+    const cached = this.cache.get(key);
+    if (cached && cached.expiresAt > now) return cached.result;
+
+    const user = this.users.find(u => u.username === username);
+    let result: User | null = null;
+    if (user) {
+      const ok = await verifyPassword(password, user.passwordHash);
+      result = ok ? user : null;
+    } else {
+      // Dummy verify for timing safety
+      await verifyPassword(password, await this.ensureSentinel());
+    }
+
+    this.cache.set(key, { result, expiresAt: now + CACHE_TTL_MS });
+    return result;
+  }
+
+  list(): PublicUser[] {
+    return this.users.map(({ passwordHash: _, ...rest }) => rest);
+  }
+
+  get(username: string): PublicUser | undefined {
+    const u = this.users.find(u => u.username === username);
+    if (!u) return undefined;
+    const { passwordHash: _, ...rest } = u;
+    return rest;
+  }
+
+  async create(username: string, password: string, role: 'admin' | 'user'): Promise<PublicUser> {
+    if (!USERNAME_RE.test(username)) throw new Error('Invalid username: must match /^[a-z0-9][a-z0-9_-]{0,62}$/');
+    if (password.length < 8) throw new Error('Invalid password: minimum 8 characters');
+    if (this.users.find(u => u.username === username)) throw new Error(`User '${username}' already exists`);
+    const passwordHash = await hashPassword(password);
+    const user: User = { username, passwordHash, role, assignedProfiles: [] };
+    this.users.push(user);
+    this.persist();
+    const { passwordHash: _, ...pub } = user;
+    return pub;
+  }
+
+  async delete(username: string, requestingUsername: string): Promise<void> {
+    if (username === requestingUsername) throw new Error('Cannot delete self');
+    const user = this.users.find(u => u.username === username);
+    if (!user) throw new Error(`User '${username}' not found`);
+    const remaining = this.users.filter(u => u.username !== username);
+    if (!remaining.some(u => u.role === 'admin')) throw new Error('Cannot delete the last admin');
+    this.users = remaining;
+    this.evictCacheForUser(username);
+    this.persist();
+  }
+
+  async setPassword(username: string, newPassword: string): Promise<void> {
+    if (newPassword.length < 8) throw new Error('Invalid password: minimum 8 characters');
+    const user = this.users.find(u => u.username === username);
+    if (!user) throw new Error(`User '${username}' not found`);
+    user.passwordHash = await hashPassword(newPassword);
+    this.evictCacheForUser(username);
+    this.persist();
+  }
+
+  async verifyAndSetPassword(username: string, currentPassword: string, newPassword: string): Promise<void> {
+    const user = this.users.find(u => u.username === username);
+    if (!user) throw new Error(`User '${username}' not found`);
+    const ok = await verifyPassword(currentPassword, user.passwordHash);
+    if (!ok) throw new Error('Current password is incorrect');
+    if (newPassword.length < 8) throw new Error('Invalid password: minimum 8 characters');
+    user.passwordHash = await hashPassword(newPassword);
+    this.evictCacheForUser(username);
+    this.persist();
+  }
+
+  async setAssignedProfiles(username: string, profiles: string[]): Promise<void> {
+    for (const p of profiles) {
+      if (!PROFILE_NAME_RE.test(p)) throw new Error(`Invalid profile name: '${p}'`);
+    }
+    const user = this.users.find(u => u.username === username);
+    if (!user) throw new Error(`User '${username}' not found`);
+    user.assignedProfiles = profiles;
+    this.persist();
+  }
+
+  private evictCacheForUser(username: string): void {
+    for (const [key, entry] of this.cache.entries()) {
+      if (entry.result?.username === username) this.cache.delete(key);
+    }
+  }
+
+  private persist(): void {
+    const tmp = `${this.usersFile}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ users: this.users }, null, 2), 'utf-8');
+    renameSync(tmp, this.usersFile);
+  }
+}

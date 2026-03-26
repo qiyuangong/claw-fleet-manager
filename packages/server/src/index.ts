@@ -11,6 +11,7 @@ import { fleetRoutes } from './routes/fleet.js';
 import { healthRoutes } from './routes/health.js';
 import { instanceRoutes } from './routes/instances.js';
 import { logRoutes } from './routes/logs.js';
+import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
 import { DockerBackend } from './services/docker-backend.js';
@@ -87,6 +88,7 @@ await app.register(healthRoutes);
 await app.register(configRoutes);
 await app.register(fleetRoutes);
 await app.register(instanceRoutes);
+await app.register(userRoutes);
 await app.register(logRoutes);
 await app.register(proxyRoutes);
 

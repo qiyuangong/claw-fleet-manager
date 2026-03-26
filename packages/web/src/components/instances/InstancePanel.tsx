@@ -8,8 +8,9 @@ const ConfigTab = lazy(async () => ({ default: (await import('./ConfigTab')).Con
 const MetricsTab = lazy(async () => ({ default: (await import('./MetricsTab')).MetricsTab }));
 const ControlUiTab = lazy(async () => ({ default: (await import('./ControlUiTab')).ControlUiTab }));
 const FeishuTab = lazy(async () => ({ default: (await import('./FeishuTab')).FeishuTab }));
+const PluginsTab = lazy(async () => ({ default: (await import('./PluginsTab')).PluginsTab }));
 
-const tabs = ['overview', 'logs', 'config', 'metrics', 'controlui', 'feishu'] as const;
+const baseTabs = ['overview', 'logs', 'config', 'metrics', 'controlui', 'feishu'] as const;
 
 export function InstancePanel({ instanceId }: { instanceId: string }) {
   const { data } = useFleet();
@@ -39,7 +40,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
       </div>
 
       <div className="tab-row">
-        {tabs.map((tab) => (
+        {[...baseTabs, ...(instance.profile ? (['plugins'] as const) : [])].map((tab) => (
           <button
             key={tab}
             className={`tab-button ${activeTab === tab ? 'active' : ''}`}
@@ -58,6 +59,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
           {activeTab === 'metrics' ? <MetricsTab instance={instance} /> : null}
           {activeTab === 'controlui' ? <ControlUiTab instance={instance} /> : null}
           {activeTab === 'feishu' ? <FeishuTab instanceId={instanceId} /> : null}
+          {activeTab === 'plugins' ? <PluginsTab instance={instance} /> : null}
         </Suspense>
       ) : null}
     </section>

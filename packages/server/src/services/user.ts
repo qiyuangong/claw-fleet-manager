@@ -80,8 +80,9 @@ export class UserService {
       await verifyPassword(password, await this.ensureSentinel());
     }
 
-    this.cache.set(key, { result: result ? { ...result } : null, expiresAt: now + CACHE_TTL_MS });
-    return result;
+    const resultCopy = result ? { ...result } : null;
+    this.cache.set(key, { result: resultCopy, expiresAt: now + CACHE_TTL_MS });
+    return resultCopy;
   }
 
   list(): PublicUser[] {

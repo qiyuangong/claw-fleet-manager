@@ -1,6 +1,16 @@
+import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
+
+const { undiciRequestMock } = vi.hoisted(() => ({
+  undiciRequestMock: vi.fn(),
+}));
+
+vi.mock('undici', () => ({
+  request: undiciRequestMock,
+}));
+
 import { proxyRoutes, stripFrameHeaders } from '../../src/routes/proxy.js';
 
 const mockStatus = {
@@ -63,12 +73,50 @@ describe('Proxy routes', () => {
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend as any);
+    app.decorate('fleetConfig', {
+      readTokens: vi.fn().mockReturnValue({ 1: 'docker-token' }),
+    } as any);
     await app.register(fastifyWebsocket);
     await app.register(proxyRoutes);
     await app.ready();
   });
 
   afterAll(() => app.close());
+
+  it('injects bootstrap script for profile-mode HTML responses', async () => {
+    mockBackend.getCachedStatus.mockReturnValue({
+      instances: [
+        {
+          id: '1',
+          profile: '1',
+          port: 18789,
+          status: 'running',
+          token: '***',
+          uptime: 100,
+          cpu: 5,
+          memory: { used: 200, limit: 8000 },
+          disk: { config: 0, workspace: 0 },
+          health: 'healthy',
+          image: '/opt/homebrew/bin/openclaw',
+        },
+      ],
+      totalRunning: 1,
+      updatedAt: Date.now(),
+    });
+    mockBackend.revealToken = vi.fn().mockResolvedValue('profile-token');
+    undiciRequestMock.mockResolvedValue({
+      statusCode: 200,
+      headers: { 'content-type': 'text/html' },
+      body: Readable.from(['<html><head></head><body>ok</body></html>']),
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/proxy/1/' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('profile-token');
+    expect(res.body).toContain('window.WebSocket=P');
+    expect(mockBackend.revealToken).toHaveBeenCalledWith('1');
+  });
 
   it('returns 404 for unknown instance id', async () => {
     const res = await app.inject({ method: 'GET', url: '/proxy/openclaw-99/' });

@@ -110,3 +110,59 @@ describe('ProfileBackend — getCachedStatus', () => {
     expect(status?.mode).toBe('profiles');
   });
 });
+
+describe('ProfileBackend — runtime env', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+    vi.mocked(fs.renameSync).mockReturnValue(undefined);
+    vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
+  });
+
+  it('start() launches the gateway with the registry config/state env', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        main: {
+          name: 'main',
+          port: 18789,
+          pid: null,
+          configPath: '/custom/configs/main/openclaw.json',
+          stateDir: '/custom/states/main',
+        },
+      },
+      nextPort: 18809,
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(registry);
+    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
+    vi.mocked(childProcess.execFile).mockImplementation((_f, _a, cb: any) => {
+      cb(null, { stdout: '/usr/local/bin/openclaw\n', stderr: '' });
+      return {} as any;
+    });
+
+    const backend = makeBackend();
+    await backend.initialize();
+    await backend.start('main');
+
+    expect(childProcess.spawn).toHaveBeenCalledWith(
+      expect.stringMatching(/openclaw$/),
+      ['--profile', 'main', 'gateway', '--port', '18789'],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          OPENCLAW_CONFIG_PATH: '/custom/configs/main/openclaw.json',
+          OPENCLAW_STATE_DIR: '/custom/states/main',
+        }),
+      }),
+    );
+  });
+
+  it('builds the runtime env from the registry config/state paths', async () => {
+    const backend = makeBackend();
+    const env = (backend as any).profileEnv({
+      configPath: '/custom/configs/main/openclaw.json',
+      stateDir: '/custom/states/main',
+    });
+    expect(env.OPENCLAW_CONFIG_PATH).toBe('/custom/configs/main/openclaw.json');
+    expect(env.OPENCLAW_STATE_DIR).toBe('/custom/states/main');
+  });
+});

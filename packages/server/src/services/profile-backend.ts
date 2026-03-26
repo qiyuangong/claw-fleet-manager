@@ -123,7 +123,11 @@ export class ProfileBackend implements DeploymentBackend {
       const child = spawn(
         this.binaryPath,
         ['--profile', id, 'gateway', '--port', String(entry.port)],
-        { stdio: ['ignore', 'pipe', 'pipe'], detached: false },
+        {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: false,
+          env: this.profileEnv(entry),
+        },
       );
 
       child.stdout?.pipe(logStream);
@@ -206,11 +210,7 @@ export class ProfileBackend implements DeploymentBackend {
 
     // Run setup
     await execFileAsync(this.binaryPath, ['--profile', name, 'setup'], {
-      env: {
-        ...process.env,
-        OPENCLAW_CONFIG_PATH: configPath,
-        OPENCLAW_STATE_DIR: stateDir,
-      },
+      env: this.profileEnv({ configPath, stateDir }),
     });
 
     // Write custom config if provided
@@ -307,7 +307,9 @@ export class ProfileBackend implements DeploymentBackend {
   async execInstanceCommand(id: string, args: string[]): Promise<string> {
     const entry = this.registry.profiles[id];
     if (!entry) throw new Error(`Profile "${id}" not found`);
-    const { stdout } = await execFileAsync(this.binaryPath, ['--profile', id, ...args]);
+    const { stdout } = await execFileAsync(this.binaryPath, ['--profile', id, ...args], {
+      env: this.profileEnv(entry),
+    });
     return stdout;
   }
 
@@ -383,6 +385,14 @@ export class ProfileBackend implements DeploymentBackend {
       disk: { config: configSize, workspace: stateSize },
       health,
       image: this.binaryPath,
+    };
+  }
+
+  private profileEnv(entry: Pick<ProfileEntry, 'configPath' | 'stateDir'>): NodeJS.ProcessEnv {
+    return {
+      ...process.env,
+      OPENCLAW_CONFIG_PATH: entry.configPath,
+      OPENCLAW_STATE_DIR: entry.stateDir,
     };
   }
 

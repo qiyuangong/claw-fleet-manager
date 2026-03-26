@@ -111,6 +111,59 @@ describe('ProfileBackend — registry', () => {
     expect(writeCall).toBeTruthy();
     const written = JSON.parse(String(writeCall?.[1]));
     expect(written.agents.defaults.workspace).toBe('/tmp/states/main/workspace');
+
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/main/workspace/MEMORY.md', expect.any(String), 'utf-8');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/main/workspace/CLAUDE.md', expect.any(String), 'utf-8');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/main/workspace/.gitignore', expect.any(String), 'utf-8');
+  });
+
+  it('initialize() migrates existing profile config workspace path and seeds workspace files', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        main: {
+          name: 'main',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/configs/main/openclaw.json',
+          stateDir: '/tmp/states/main',
+        },
+      },
+      nextPort: 18809,
+    });
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (String(path).endsWith('/tmp/fleet/profiles.json')) {
+        return registry;
+      }
+      if (String(path).endsWith('/tmp/configs/main/openclaw.json')) {
+        return JSON.stringify({
+          agents: {
+            defaults: {
+              workspace: '/Users/syslab/.openclaw/workspace',
+            },
+          },
+        });
+      }
+      throw Object.assign(new Error(), { code: 'ENOENT' });
+    });
+    vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
+      const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+      if (file === 'which') {
+        cb(null, '/usr/local/bin/openclaw\n', '');
+        return {} as any;
+      }
+      cb(null, '', '');
+      return {} as any;
+    });
+
+    const backend = makeBackend();
+    await backend.initialize();
+
+    const migratedConfigCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) =>
+      String(path).endsWith('/tmp/configs/main/openclaw.json.tmp'));
+    expect(migratedConfigCall).toBeTruthy();
+    const migratedConfig = JSON.parse(String(migratedConfigCall?.[1]));
+    expect(migratedConfig.agents.defaults.workspace).toBe('/tmp/states/main/workspace');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/main/workspace/MEMORY.md', expect.any(String), 'utf-8');
   });
 });
 

@@ -27,6 +27,17 @@ interface ProfileRegistry {
   nextPort: number;
 }
 
+type ProfileConfig = {
+  agents?: {
+    defaults?: {
+      workspace?: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
 export class ProfileBackend implements DeploymentBackend {
   private registry: ProfileRegistry = { profiles: {}, nextPort: 0 };
   private processStartTimes = new Map<string, number>();
@@ -222,13 +233,20 @@ export class ProfileBackend implements DeploymentBackend {
       env: this.profileEnv({ configPath, stateDir }),
     });
 
-    // Write custom config if provided
+    await mkdir(configDir, { recursive: true });
+    const rawConfig = readFileSync(configPath, 'utf-8');
+    const nextConfig = JSON.parse(rawConfig) as ProfileConfig;
+    nextConfig.agents ??= {};
+    nextConfig.agents.defaults ??= {};
+    nextConfig.agents.defaults.workspace = join(stateDir, 'workspace');
+
     if (opts.config) {
-      await mkdir(configDir, { recursive: true });
-      const tmpPath = `${configPath}.tmp`;
-      writeFileSync(tmpPath, JSON.stringify(opts.config, null, 2) + '\n', 'utf-8');
-      renameSync(tmpPath, configPath);
+      Object.assign(nextConfig, opts.config);
     }
+
+    const tmpPath = `${configPath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(nextConfig, null, 2) + '\n', 'utf-8');
+    renameSync(tmpPath, configPath);
 
     // Register
     const entry: ProfileEntry = { name, port, pid: null, configPath, stateDir };

@@ -48,12 +48,12 @@ export class UserService {
     if (existsSync(this.usersFile)) {
       const data = JSON.parse(readFileSync(this.usersFile, 'utf-8'));
       this.users = data.users ?? [];
-      return;
+    } else {
+      const passwordHash = await hashPassword(bootstrap.password);
+      this.users = [{ username: bootstrap.username, passwordHash, role: 'admin', assignedProfiles: [] }];
+      this.persist();
     }
-    const passwordHash = await hashPassword(bootstrap.password);
-    this.users = [{ username: bootstrap.username, passwordHash, role: 'admin', assignedProfiles: [] }];
-    this.persist();
-    // Pre-compute sentinel hash for timing-safe unknown-user verify
+    // Always pre-compute sentinel for timing-safe unknown-user verify
     this.sentinelHash = await hashPassword('sentinel-value-that-never-matches');
   }
 
@@ -80,7 +80,7 @@ export class UserService {
       await verifyPassword(password, await this.ensureSentinel());
     }
 
-    this.cache.set(key, { result, expiresAt: now + CACHE_TTL_MS });
+    this.cache.set(key, { result: result ? { ...result } : null, expiresAt: now + CACHE_TTL_MS });
     return result;
   }
 
@@ -103,6 +103,7 @@ export class UserService {
     const user: User = { username, passwordHash, role, assignedProfiles: [] };
     this.users.push(user);
     this.persist();
+    // No cache eviction needed: new users have no cached entries yet
     const { passwordHash: _, ...pub } = user;
     return pub;
   }
@@ -114,7 +115,7 @@ export class UserService {
     const remaining = this.users.filter(u => u.username !== username);
     if (!remaining.some(u => u.role === 'admin')) throw new Error('Cannot delete the last admin');
     this.users = remaining;
-    this.evictCacheForUser(username);
+    this.evictCache();
     this.persist();
   }
 
@@ -123,7 +124,7 @@ export class UserService {
     const user = this.users.find(u => u.username === username);
     if (!user) throw new Error(`User '${username}' not found`);
     user.passwordHash = await hashPassword(newPassword);
-    this.evictCacheForUser(username);
+    this.evictCache();
     this.persist();
   }
 
@@ -134,7 +135,7 @@ export class UserService {
     if (!ok) throw new Error('Current password is incorrect');
     if (newPassword.length < 8) throw new Error('Invalid password: minimum 8 characters');
     user.passwordHash = await hashPassword(newPassword);
-    this.evictCacheForUser(username);
+    this.evictCache();
     this.persist();
   }
 
@@ -148,10 +149,8 @@ export class UserService {
     this.persist();
   }
 
-  private evictCacheForUser(username: string): void {
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.result?.username === username) this.cache.delete(key);
-    }
+  private evictCache(): void {
+    this.cache.clear();
   }
 
   private persist(): void {

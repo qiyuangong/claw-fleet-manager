@@ -11,6 +11,7 @@ import { fleetRoutes } from './routes/fleet.js';
 import { healthRoutes } from './routes/health.js';
 import { instanceRoutes } from './routes/instances.js';
 import { logRoutes } from './routes/logs.js';
+import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
 import { DockerBackend } from './services/docker-backend.js';
@@ -18,6 +19,7 @@ import { ProfileBackend } from './services/profile-backend.js';
 import { ComposeGenerator } from './services/compose-generator.js';
 import { DockerService } from './services/docker.js';
 import { FleetConfigService } from './services/fleet-config.js';
+import { UserService } from './services/user.js';
 import { TailscaleService } from './services/tailscale.js';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -48,6 +50,8 @@ const app = Fastify({ logger: true, ...(httpsOptions ? { https: httpsOptions } :
 
 // ── Shared services ──────────────────────────────────────────────────────────
 const fleetConfig = new FleetConfigService(config.fleetDir);
+const userService = new UserService(config.fleetDir);
+await userService.initialize(config.auth);
 
 // ── Backend factory ──────────────────────────────────────────────────────────
 const backend = config.deploymentMode === 'profiles'
@@ -75,17 +79,16 @@ app.decorate('backend', backend as DeploymentBackend);
 app.decorate('deploymentMode', config.deploymentMode ?? 'docker');
 app.decorate('fleetConfig', fleetConfig);
 app.decorate('fleetDir', config.fleetDir);
-app.decorate('proxyAuth', Buffer.from(
-  `${config.auth.username}:${config.auth.password}`, 'utf-8',
-).toString('base64'));
+app.decorate('userService', userService);
 
 // ── Routes ───────────────────────────────────────────────────────────────────
-await registerAuth(app, config);
+await registerAuth(app, userService);
 await app.register(fastifyWebsocket);
 await app.register(healthRoutes);
 await app.register(configRoutes);
 await app.register(fleetRoutes);
 await app.register(instanceRoutes);
+await app.register(userRoutes);
 await app.register(logRoutes);
 await app.register(proxyRoutes);
 

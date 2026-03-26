@@ -1,20 +1,23 @@
-// packages/web/src/components/layout/Sidebar.tsx
-import { useState, useEffect } from 'react';
-import { useFleet } from '../../hooks/useFleet';
-import { useAppStore } from '../../store';
-import { SidebarItem } from './SidebarItem';
+import { useState } from 'react';
 import { AddProfileDialog } from '../instances/AddProfileDialog';
+import { useFleet } from '../../hooks/useFleet';
+import { selectedInstanceIdSelector, useAppStore } from '../../store';
+import { SidebarItem } from './SidebarItem';
 
 export function Sidebar() {
   const { data, isLoading, error } = useFleet();
-  const selectedInstanceId = useAppStore((state) => state.selectedInstanceId);
+  const activeView = useAppStore((state) => state.activeView);
+  const currentUser = useAppStore((state) => state.currentUser);
+  const selectedInstanceId = useAppStore(selectedInstanceIdSelector);
   const selectInstance = useAppStore((state) => state.selectInstance);
+  const selectConfig = useAppStore((state) => state.selectConfig);
+  const selectUsers = useAppStore((state) => state.selectUsers);
   const [showAddProfile, setShowAddProfile] = useState(false);
 
-  useEffect(() => {
-    if (!data?.instances.length || selectedInstanceId) return;
-    selectInstance(data.instances[0].id);
-  }, [data, selectInstance, selectedInstanceId]);
+  const visibleInstances = data?.instances.filter((instance) => {
+    if (!currentUser || currentUser.role === 'admin') return true;
+    return currentUser.assignedProfiles.includes(instance.id);
+  }) ?? [];
 
   const isProfileMode = data?.mode === 'profiles';
 
@@ -24,14 +27,14 @@ export function Sidebar() {
         <p className="pill">Fleet Manager</p>
         <h1 className="sidebar-title">Claw Fleet</h1>
         <p className="sidebar-subtitle">
-          {data ? `${data.totalRunning}/${data.instances.length} running` : isLoading ? 'Loading fleet...' : 'Awaiting server'}
+          {data ? `${data.totalRunning}/${visibleInstances.length} running` : isLoading ? 'Loading fleet...' : 'Awaiting server'}
         </p>
         {error ? <p className="error-text">{error.message}</p> : null}
       </div>
 
       <nav className="sidebar-nav">
         <p className="sidebar-section">Instances</p>
-        {data?.instances.map((instance) => (
+        {visibleInstances.map((instance) => (
           <SidebarItem
             key={instance.id}
             instance={instance}
@@ -39,15 +42,27 @@ export function Sidebar() {
             onClick={() => selectInstance(instance.id)}
           />
         ))}
+
+        {currentUser?.role === 'admin' ? (
+          <>
+            <p className="sidebar-section">Admin</p>
+            <button
+              className={`sidebar-nav-item${activeView.type === 'users' ? ' selected' : ''}`}
+              onClick={selectUsers}
+            >
+              Users
+            </button>
+          </>
+        ) : null}
       </nav>
 
       <div className="sidebar-footer">
-        {isProfileMode ? (
+        {isProfileMode && currentUser?.role === 'admin' ? (
           <button className="primary-button" onClick={() => setShowAddProfile(true)}>
             + Add Profile
           </button>
         ) : null}
-        <button className="secondary-button" onClick={() => selectInstance(null)}>
+        <button className="secondary-button" onClick={selectConfig}>
           Fleet Config
         </button>
       </div>

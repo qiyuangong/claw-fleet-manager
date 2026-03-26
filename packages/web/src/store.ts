@@ -1,17 +1,30 @@
 import { create } from 'zustand';
+import type { PublicUser } from './types';
 
 type Tab = 'overview' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu' | 'plugins';
+type ActiveView = { type: 'instance'; id: string } | { type: 'config' } | { type: 'users' };
 
 interface AppState {
-  selectedInstanceId: string | null;
+  activeView: ActiveView;
   activeTab: Tab;
-  selectInstance: (id: string | null) => void;
+  currentUser: PublicUser | null;
+  selectInstance: (id: string) => void;
+  selectConfig: () => void;
+  selectUsers: () => void;
   setTab: (tab: Tab) => void;
+  setCurrentUser: (user: PublicUser | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  selectedInstanceId: null,
+  activeView: { type: 'config' },
   activeTab: 'overview',
-  selectInstance: (id) => set({ selectedInstanceId: id, activeTab: 'overview' }),
+  currentUser: null,
+  selectInstance: (id) => set({ activeView: { type: 'instance', id }, activeTab: 'overview' }),
+  selectConfig: () => set({ activeView: { type: 'config' } }),
+  selectUsers: () => set({ activeView: { type: 'users' } }),
   setTab: (tab) => set({ activeTab: tab }),
+  setCurrentUser: (user) => set({ currentUser: user }),
 }));
+
+export const selectedInstanceIdSelector = (state: AppState) =>
+  state.activeView.type === 'instance' ? state.activeView.id : null;

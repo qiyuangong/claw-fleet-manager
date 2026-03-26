@@ -35,3 +35,9 @@ export interface FleetConfig {
   workspaceBase: string;
   tz: string;
 }
+
+export interface PublicUser {
+  username: string;
+  role: 'admin' | 'user';
+  assignedProfiles: string[];
+}

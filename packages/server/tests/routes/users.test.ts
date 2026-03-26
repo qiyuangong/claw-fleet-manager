@@ -55,6 +55,7 @@ describe('User routes', () => {
       const res = await app.inject({ method: 'GET', url: '/api/users', headers: { authorization: basic('admin', 'adminpass1') } });
       expect(res.statusCode).toBe(200);
       expect(res.json()).toHaveLength(2);
+      expect(res.json()[0].passwordHash).toBeUndefined();
     });
 
     it('returns 403 for regular user', async () => {
@@ -96,6 +97,15 @@ describe('User routes', () => {
     it('returns 403 when deleting last admin', async () => {
       const res = await app.inject({ method: 'DELETE', url: '/api/users/admin', headers: { authorization: basic('admin', 'adminpass1') } });
       expect(res.statusCode).toBe(403);
+    });
+
+    it('returns 403 when admin tries to delete themselves (self-delete guard)', async () => {
+      await svc.create('admin2', 'password123', 'admin');
+      // admin tries to delete themselves — self-delete guard should fire before last-admin check
+      const res = await app.inject({ method: 'DELETE', url: '/api/users/admin', headers: { authorization: basic('admin', 'adminpass1') } });
+      expect(res.statusCode).toBe(403);
+      // Clean up: have 'admin' delete 'admin2'
+      await svc.delete('admin2', 'admin');
     });
   });
 

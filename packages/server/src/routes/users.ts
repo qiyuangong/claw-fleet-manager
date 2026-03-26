@@ -27,7 +27,7 @@ const setProfilesSchema = z.object({
 export async function userRoutes(app: FastifyInstance) {
   // Self-service — registered BEFORE parametric /:username routes
   app.get('/api/users/me', async (request) => {
-    const { passwordHash: _, ...pub } = request.user as any;
+    const { passwordHash: _, ...pub } = request.user;
     return pub;
   });
 

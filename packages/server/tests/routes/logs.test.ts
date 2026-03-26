@@ -13,6 +13,9 @@ describe('Log routes', () => {
       streamAllLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
     });
     app.decorate('deploymentMode', 'docker');
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
     await app.register(fastifyWebsocket);
     await app.register(logRoutes);
     await app.ready();

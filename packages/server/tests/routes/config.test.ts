@@ -31,6 +31,9 @@ describe('Config routes — docker mode', () => {
     app.decorate('fleetConfig', mockFleetConfig);
     app.decorate('backend', mockBackend);
     app.decorate('deploymentMode', 'docker');
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
     await app.register(configRoutes);
     await app.ready();
   });
@@ -104,6 +107,9 @@ describe('Config routes — profile mode', () => {
     app.decorate('fleetConfig', mockFleetConfig);
     app.decorate('backend', mockBackend);
     app.decorate('deploymentMode', 'profiles');
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
     await app.register(configRoutes);
     await app.ready();
   });

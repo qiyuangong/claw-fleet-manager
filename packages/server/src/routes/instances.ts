@@ -1,6 +1,7 @@
 // packages/server/src/routes/instances.ts
 import type { FastifyInstance } from 'fastify';
 import { validateInstanceId } from '../validate.js';
+import { requireProfileAccess } from '../authorize.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FEISHU_CODE_RE = /^[A-Za-z0-9]{3,32}$/;
@@ -33,7 +34,7 @@ function parsePendingDevices(output: string): { requestId: string; ip: string }[
 }
 
 export async function instanceRoutes(app: FastifyInstance) {
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/start', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/start', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -48,7 +49,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/stop', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/stop', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -63,7 +64,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/restart', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/restart', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -78,7 +79,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get<{ Params: { id: string } }>('/api/fleet/:id/devices/pending', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/fleet/:id/devices/pending', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -93,6 +94,7 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string; requestId: string } }>(
     '/api/fleet/:id/devices/:requestId/approve',
+    { preHandler: requireProfileAccess },
     async (request, reply) => {
       const { id, requestId } = request.params;
       if (!validateInstanceId(id, app.deploymentMode)) {
@@ -110,7 +112,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get<{ Params: { id: string } }>('/api/fleet/:id/feishu/pairing', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/fleet/:id/feishu/pairing', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -125,6 +127,7 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string; code: string } }>(
     '/api/fleet/:id/feishu/pairing/:code/approve',
+    { preHandler: requireProfileAccess },
     async (request, reply) => {
       const { id, code } = request.params;
       if (!validateInstanceId(id, app.deploymentMode)) {
@@ -142,7 +145,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/token/reveal', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/token/reveal', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id, app.deploymentMode)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });

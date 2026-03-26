@@ -29,6 +29,9 @@ describe('Fleet routes', () => {
     app.decorate('backend', mockBackend);
     app.decorate('deploymentMode', 'docker');
     app.decorate('fleetDir', '/tmp');
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
     await app.register(fleetRoutes);
     await app.ready();
   });
@@ -89,6 +92,9 @@ describe('Fleet routes — profile mode', () => {
     app.decorate('backend', { getCachedStatus: vi.fn().mockReturnValue(null) });
     app.decorate('deploymentMode', 'profiles');
     app.decorate('fleetDir', '/tmp');
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
     await app.register(fleetRoutes);
     await app.ready();
   });

@@ -1,6 +1,7 @@
 // packages/server/src/routes/profiles.ts
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { requireAdmin, requireProfileAccess } from '../authorize.js';
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
@@ -15,12 +16,12 @@ const installPluginSchema = z.object({
 });
 
 export async function profileRoutes(app: FastifyInstance) {
-  app.get('/api/fleet/profiles', async () => {
+  app.get('/api/fleet/profiles', { preHandler: requireAdmin }, async () => {
     const status = app.backend.getCachedStatus();
     return { instances: status?.instances ?? [], mode: 'profiles' };
   });
 
-  app.post('/api/fleet/profiles', async (request, reply) => {
+  app.post('/api/fleet/profiles', { preHandler: requireAdmin }, async (request, reply) => {
     const parsed = createProfileSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -39,7 +40,7 @@ export async function profileRoutes(app: FastifyInstance) {
     }
   });
 
-  app.delete<{ Params: { name: string } }>('/api/fleet/profiles/:name', async (request, reply) => {
+  app.delete<{ Params: { name: string } }>('/api/fleet/profiles/:name', { preHandler: requireAdmin }, async (request, reply) => {
     const { name } = request.params;
     if (!PROFILE_NAME_RE.test(name)) {
       return reply.status(400).send({ error: 'Invalid profile name', code: 'INVALID_NAME' });
@@ -52,7 +53,7 @@ export async function profileRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get<{ Params: { id: string } }>('/api/fleet/:id/plugins', async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/fleet/:id/plugins', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!PROFILE_NAME_RE.test(id)) {
       return reply.status(400).send({ error: 'Invalid profile name', code: 'INVALID_NAME' });
@@ -65,7 +66,7 @@ export async function profileRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/plugins/install', async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/plugins/install', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!PROFILE_NAME_RE.test(id)) {
       return reply.status(400).send({ error: 'Invalid profile name', code: 'INVALID_NAME' });
@@ -87,6 +88,7 @@ export async function profileRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string; pluginId: string } }>(
     '/api/fleet/:id/plugins/:pluginId',
+    { preHandler: requireProfileAccess },
     async (request, reply) => {
       const { id, pluginId } = request.params;
       if (!PROFILE_NAME_RE.test(id)) {

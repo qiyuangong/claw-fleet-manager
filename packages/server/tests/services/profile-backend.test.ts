@@ -165,4 +165,45 @@ describe('ProfileBackend — runtime env', () => {
     expect(env.OPENCLAW_CONFIG_PATH).toBe('/custom/configs/main/openclaw.json');
     expect(env.OPENCLAW_STATE_DIR).toBe('/custom/states/main');
   });
+
+  it('stop() kills descendant processes and does not auto-restart an intentional stop', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        main: {
+          name: 'main',
+          port: 18789,
+          pid: 12345,
+          configPath: '/custom/configs/main/openclaw.json',
+          stateDir: '/custom/states/main',
+        },
+      },
+      nextPort: 18809,
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(registry);
+    vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
+      const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+      if (file === 'which') {
+        cb(null, '/usr/local/bin/openclaw\n', '');
+        return {} as any;
+      }
+      cb(null, '', '');
+      return {} as any;
+    });
+    const killSpy = vi.spyOn(process, 'kill')
+      .mockImplementation((pid: number, signal?: NodeJS.Signals | 0) => {
+        if (signal === 0) {
+          throw new Error('dead');
+        }
+        return true;
+      });
+
+    const backend = new ProfileBackend('/tmp/fleet', { ...config, autoRestart: true });
+    await backend.initialize();
+    (backend as any).listDescendantPids = vi.fn().mockResolvedValue([54321]);
+    await backend.stop('main');
+
+    expect(killSpy).toHaveBeenCalledWith(54321, 'SIGTERM');
+    expect(killSpy).toHaveBeenCalledWith(12345, 'SIGTERM');
+    expect((backend as any).stopping.has('main')).toBe(true);
+  });
 });

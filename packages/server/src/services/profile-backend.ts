@@ -32,6 +32,7 @@ export class ProfileBackend implements DeploymentBackend {
   private processStartTimes = new Map<string, number>();
   private instanceStatus = new Map<string, FleetInstance['status']>();
   private locks = new Map<string, boolean>();
+  private stopping = new Set<string>();
   private cache: FleetStatus | null = null;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   private binaryPath = '';
@@ -109,6 +110,7 @@ export class ProfileBackend implements DeploymentBackend {
     if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
     this.locks.set(id, true);
     try {
+      this.stopping.delete(id);
       const entry = this.registry.profiles[id];
       if (!entry) throw new Error(`Profile "${id}" not found`);
 
@@ -141,10 +143,16 @@ export class ProfileBackend implements DeploymentBackend {
       if (this.cfg.autoRestart) {
         let startTime = Date.now();
         child.on('exit', (code, signal) => {
+          const intentionalStop = this.stopping.has(id);
           this.log?.warn({ profile: id, code, signal }, 'Profile process exited');
           entry.pid = null;
           this.instanceStatus.set(id, 'stopped');
           this.saveRegistry();
+
+          if (intentionalStop) {
+            this.stopping.delete(id);
+            return;
+          }
 
           setTimeout(async () => {
             const timeSinceStart = Date.now() - startTime;
@@ -176,6 +184,7 @@ export class ProfileBackend implements DeploymentBackend {
       if (!entry) throw new Error(`Profile "${id}" not found`);
       if (entry.pid === null) return;
 
+      this.stopping.add(id);
       await this.killProcess(entry.pid);
       entry.pid = null;
       this.instanceStatus.set(id, 'stopped');
@@ -423,6 +432,14 @@ export class ProfileBackend implements DeploymentBackend {
   }
 
   private async killProcess(pid: number): Promise<void> {
+    const childPids = await this.listDescendantPids(pid);
+
+    for (const childPid of childPids) {
+      try {
+        process.kill(childPid, 'SIGTERM');
+      } catch {}
+    }
+
     try {
       process.kill(pid, 'SIGTERM');
     } catch {
@@ -437,12 +454,42 @@ export class ProfileBackend implements DeploymentBackend {
         try {
           process.kill(pid, 0);
         } catch {
+          for (const childPid of childPids) {
+            try { process.kill(childPid, 'SIGKILL'); } catch {}
+          }
           clearTimeout(deadline);
           clearInterval(check);
           resolve();
         }
       }, 200);
     });
+  }
+
+  private async listDescendantPids(pid: number): Promise<number[]> {
+    const seen = new Set<number>();
+    const queue = [pid];
+    const result: number[] = [];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (current === undefined) break;
+      try {
+        const { stdout } = await execFileAsync('pgrep', ['-P', String(current)]);
+        const children = stdout
+          .split('\n')
+          .map((value) => parseInt(value.trim(), 10))
+          .filter((value) => Number.isFinite(value) && !seen.has(value));
+        for (const child of children) {
+          seen.add(child);
+          result.push(child);
+          queue.push(child);
+        }
+      } catch {
+        // No children for this process.
+      }
+    }
+
+    return result.reverse();
   }
 
   private async probePort(port: number): Promise<void> {

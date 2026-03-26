@@ -46,6 +46,18 @@ function findInstance(app: FastifyInstance, id: string) {
   return app.backend.getCachedStatus()?.instances.find((instance) => instance.id === id);
 }
 
+async function getProxyBootstrapToken(app: FastifyInstance, id: string, index?: number): Promise<string> {
+  if (index !== undefined) {
+    return app.fleetConfig.readTokens()[index] ?? '';
+  }
+
+  try {
+    return await app.backend.revealToken(id);
+  } catch {
+    return '';
+  }
+}
+
 function toProxyPath(request: FastifyRequest<ProxyParams>): string {
   const rawUrl = new URL(request.raw.url ?? '/', 'http://localhost');
   rawUrl.searchParams.delete('auth');
@@ -167,7 +179,7 @@ export async function proxyRoutes(app: FastifyInstance) {
     // finds the gateway token automatically (the UI stores it in sessionStorage keyed
     // by gatewayUrl, which differs between the direct port and the proxy URL).
     if (String(safeHeaders['content-type'] ?? '').toLowerCase().includes('text/html')) {
-      const token = (instance.index !== undefined ? app.fleetConfig.readTokens()[instance.index] : undefined) ?? '';
+      const token = await getProxyBootstrapToken(app, instance.id, instance.index);
       if (token) {
         const chunks: Buffer[] = [];
         for await (const chunk of response.body) {

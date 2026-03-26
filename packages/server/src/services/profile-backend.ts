@@ -148,6 +148,18 @@ export class ProfileBackend implements DeploymentBackend {
       const entry = this.registry.profiles[id];
       if (!entry) throw new Error(`Profile "${id}" not found`);
 
+      const adoption = await this.detectHealthyGatewayOnPort(entry);
+      if (adoption.adopted) {
+        entry.pid = adoption.pid;
+        this.processStartTimes.set(id, this.processStartTimes.get(id) ?? Date.now());
+        this.instanceStatus.set(id, 'running');
+        this.saveRegistry();
+        this.log?.info({ profile: id, port: entry.port, pid: adoption.pid ?? null }, 'Adopted already-running profile gateway');
+        return;
+      }
+
+      await this.probePort(entry.port);
+
       const logDir = join(this.fleetDir, 'logs');
       await mkdir(logDir, { recursive: true });
       const logFile = join(logDir, `${id}.log`);
@@ -546,6 +558,32 @@ export class ProfileBackend implements DeploymentBackend {
         reject(new Error(`Port ${port} is already in use`));
       });
     });
+  }
+
+  private async detectHealthyGatewayOnPort(entry: Pick<ProfileEntry, 'port'>): Promise<{ adopted: boolean; pid: number | null }> {
+    try {
+      const res = await fetch(`http://127.0.0.1:${entry.port}/healthz`, {
+        signal: AbortSignal.timeout(1500),
+      });
+      if (!res.ok) {
+        return { adopted: false, pid: null };
+      }
+    } catch {
+      return { adopted: false, pid: null };
+    }
+
+    const pid = await this.getListeningPid(entry.port);
+    return { adopted: true, pid };
+  }
+
+  private async getListeningPid(port: number): Promise<number | null> {
+    try {
+      const { stdout } = await execFileAsync('lsof', ['-nP', '-t', `-iTCP:${port}`, '-sTCP:LISTEN']);
+      const pid = parseInt(stdout.split('\n')[0]?.trim() ?? '', 10);
+      return Number.isFinite(pid) ? pid : null;
+    } catch {
+      return null;
+    }
   }
 
   private loadRegistry(): ProfileRegistry {

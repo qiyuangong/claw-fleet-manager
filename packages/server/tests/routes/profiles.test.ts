@@ -20,6 +20,7 @@ const mockInstance = {
 const mockBackend = {
   createInstance: vi.fn().mockResolvedValue(mockInstance),
   removeInstance: vi.fn().mockResolvedValue(undefined),
+  execInstanceCommand: vi.fn(),
   getCachedStatus: vi.fn().mockReturnValue({
     mode: 'profiles',
     instances: [mockInstance],
@@ -71,5 +72,38 @@ describe('Profile routes', () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/fleet/profiles/rescue' });
     expect(res.statusCode).toBe(200);
     expect(mockBackend.removeInstance).toHaveBeenCalledWith('rescue');
+  });
+
+  it('GET /api/fleet/:id/plugins returns parsed plugin list', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce(JSON.stringify({
+      workspaceDir: '/tmp/workspace',
+      plugins: [{ id: 'feishu', enabled: true, status: 'loaded' }],
+    }));
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/main/plugins' });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('main', ['plugins', 'list', '--json']);
+    expect(res.json().plugins[0].id).toBe('feishu');
+  });
+
+  it('POST /api/fleet/:id/plugins/install installs a plugin for the profile', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce('Installed plugin: feishu');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/main/plugins/install',
+      payload: { spec: '@openclaw/feishu' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand)
+      .toHaveBeenCalledWith('main', ['plugins', 'install', '@openclaw/feishu']);
+    expect(res.json().ok).toBe(true);
+  });
+
+  it('DELETE /api/fleet/:id/plugins/:pluginId uninstalls a plugin for the profile', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce('Removed plugin: feishu');
+    const res = await app.inject({ method: 'DELETE', url: '/api/fleet/main/plugins/feishu' });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand)
+      .toHaveBeenCalledWith('main', ['plugins', 'uninstall', '--force', 'feishu']);
+    expect(res.json().ok).toBe(true);
   });
 });

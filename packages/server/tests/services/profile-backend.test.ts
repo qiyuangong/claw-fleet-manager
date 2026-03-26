@@ -70,6 +70,48 @@ describe('ProfileBackend — registry', () => {
     await expect(backend.createInstance({ name: 'main' }))
       .rejects.toThrow('Profile "main" already exists');
   });
+
+  it('createInstance() writes an isolated workspace path into the generated profile config', async () => {
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (String(path).endsWith('/tmp/fleet/profiles.json')) {
+        throw Object.assign(new Error(), { code: 'ENOENT' });
+      }
+      if (String(path).endsWith('/tmp/configs/main/openclaw.json')) {
+        return JSON.stringify({
+          agents: {
+            defaults: {
+              workspace: '/Users/syslab/.openclaw/workspace',
+            },
+          },
+          gateway: { auth: { token: 'abc' } },
+        });
+      }
+      throw Object.assign(new Error(), { code: 'ENOENT' });
+    });
+
+    const mockServer = { listen: vi.fn((_port: number, cb: () => void) => cb()), close: vi.fn((cb: () => void) => cb()) };
+    vi.mocked(net.createServer).mockReturnValue(mockServer as any);
+    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
+    vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
+      const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+      if (file === 'which') {
+        cb(null, '/usr/local/bin/openclaw\n', '');
+        return {} as any;
+      }
+      cb(null, '', '');
+      return {} as any;
+    });
+
+    const backend = makeBackend();
+    await backend.initialize();
+    await backend.createInstance({ name: 'main' });
+
+    const writeCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) => String(path).endsWith('/tmp/configs/main/openclaw.json.tmp'));
+    expect(writeCall).toBeTruthy();
+    const written = JSON.parse(String(writeCall?.[1]));
+    expect(written.agents.defaults.workspace).toBe('/tmp/states/main/workspace');
+  });
 });
 
 describe('ProfileBackend — revealToken', () => {
@@ -164,5 +206,46 @@ describe('ProfileBackend — runtime env', () => {
     });
     expect(env.OPENCLAW_CONFIG_PATH).toBe('/custom/configs/main/openclaw.json');
     expect(env.OPENCLAW_STATE_DIR).toBe('/custom/states/main');
+  });
+
+  it('stop() kills descendant processes and does not auto-restart an intentional stop', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        main: {
+          name: 'main',
+          port: 18789,
+          pid: 12345,
+          configPath: '/custom/configs/main/openclaw.json',
+          stateDir: '/custom/states/main',
+        },
+      },
+      nextPort: 18809,
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(registry);
+    vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
+      const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+      if (file === 'which') {
+        cb(null, '/usr/local/bin/openclaw\n', '');
+        return {} as any;
+      }
+      cb(null, '', '');
+      return {} as any;
+    });
+    const killSpy = vi.spyOn(process, 'kill')
+      .mockImplementation((pid: number, signal?: NodeJS.Signals | 0) => {
+        if (signal === 0) {
+          throw new Error('dead');
+        }
+        return true;
+      });
+
+    const backend = new ProfileBackend('/tmp/fleet', { ...config, autoRestart: true });
+    await backend.initialize();
+    (backend as any).listDescendantPids = vi.fn().mockResolvedValue([54321]);
+    await backend.stop('main');
+
+    expect(killSpy).toHaveBeenCalledWith(54321, 'SIGTERM');
+    expect(killSpy).toHaveBeenCalledWith(12345, 'SIGTERM');
+    expect((backend as any).stopping.has('main')).toBe(true);
   });
 });

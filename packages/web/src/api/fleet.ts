@@ -65,6 +65,22 @@ export interface CreateProfileOpts {
   config?: object;
 }
 
+export interface ProfilePlugin {
+  id: string;
+  name?: string;
+  description?: string;
+  version?: string;
+  origin?: string;
+  status?: string;
+  enabled?: boolean;
+  source?: string;
+}
+
+export interface ProfilePluginList {
+  workspaceDir?: string;
+  plugins: ProfilePlugin[];
+}
+
 export const createProfile = (opts: CreateProfileOpts) =>
   apiFetch<FleetInstance>('/api/fleet/profiles', {
     method: 'POST',
@@ -73,3 +89,17 @@ export const createProfile = (opts: CreateProfileOpts) =>
 
 export const deleteProfile = (name: string) =>
   apiFetch<{ ok: boolean }>(`/api/fleet/profiles/${name}`, { method: 'DELETE' });
+
+export const getProfilePlugins = (id: string) =>
+  apiFetch<ProfilePluginList>(`/api/fleet/${id}/plugins`);
+
+export const installProfilePlugin = (id: string, spec: string) =>
+  apiFetch<{ ok: boolean; output: string }>(`/api/fleet/${id}/plugins/install`, {
+    method: 'POST',
+    body: JSON.stringify({ spec }),
+  });
+
+export const uninstallProfilePlugin = (id: string, pluginId: string) =>
+  apiFetch<{ ok: boolean; output: string }>(`/api/fleet/${id}/plugins/${pluginId}`, {
+    method: 'DELETE',
+  });

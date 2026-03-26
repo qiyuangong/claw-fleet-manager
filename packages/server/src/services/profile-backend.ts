@@ -13,6 +13,26 @@ import type { FleetInstance, FleetStatus, ProfilesConfig } from '../types.js';
 
 const execFileAsync = promisify(execFile);
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const WORKSPACE_GITIGNORE = `node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+server.config.json
+certs/
+.superpowers/
+.env.local
+.worktrees/
+`;
+const WORKSPACE_CLAUDE_MD = `# CLAUDE.md
+
+Profile-local workspace for OpenClaw profile mode.
+`;
+const WORKSPACE_MEMORY_MD = `# MEMORY.md
+
+## Notes
+
+- Add profile-specific working notes here.
+`;
 
 interface ProfileEntry {
   name: string;
@@ -70,6 +90,9 @@ export class ProfileBackend implements DeploymentBackend {
 
     // Validate PIDs (stale PID cleanup)
     for (const entry of Object.values(this.registry.profiles)) {
+      await this.ensureWorkspaceInitialized(entry).catch((err) => {
+        this.log?.warn({ err, profile: entry.name }, 'Failed to align profile workspace files');
+      });
       if (entry.pid !== null) {
         const alive = await this.isPidAlive(entry.pid, entry.name);
         if (!alive) {
@@ -238,15 +261,18 @@ export class ProfileBackend implements DeploymentBackend {
     const nextConfig = JSON.parse(rawConfig) as ProfileConfig;
     nextConfig.agents ??= {};
     nextConfig.agents.defaults ??= {};
-    nextConfig.agents.defaults.workspace = join(stateDir, 'workspace');
+    const workspaceDir = join(stateDir, 'workspace');
 
     if (opts.config) {
       Object.assign(nextConfig, opts.config);
     }
+    nextConfig.agents.defaults.workspace = workspaceDir;
 
     const tmpPath = `${configPath}.tmp`;
     writeFileSync(tmpPath, JSON.stringify(nextConfig, null, 2) + '\n', 'utf-8');
     renameSync(tmpPath, configPath);
+    await mkdir(workspaceDir, { recursive: true });
+    this.seedWorkspaceFiles(workspaceDir);
 
     // Register
     const entry: ProfileEntry = { name, port, pid: null, configPath, stateDir };
@@ -536,5 +562,45 @@ export class ProfileBackend implements DeploymentBackend {
     const tmpPath = `${path}.tmp`;
     writeFileSync(tmpPath, JSON.stringify(this.registry, null, 2) + '\n', 'utf-8');
     renameSync(tmpPath, path);
+  }
+
+  private async ensureWorkspaceInitialized(entry: Pick<ProfileEntry, 'name' | 'configPath' | 'stateDir'>): Promise<void> {
+    const workspaceDir = join(entry.stateDir, 'workspace');
+    await mkdir(workspaceDir, { recursive: true });
+    this.seedWorkspaceFiles(workspaceDir);
+    const updated = this.rewriteWorkspacePath(entry.configPath, workspaceDir);
+    if (updated) {
+      this.log?.info({ profile: entry.name, workspaceDir }, 'Migrated profile workspace path in config');
+    }
+  }
+
+  private seedWorkspaceFiles(workspaceDir: string): void {
+    const seeds: Array<[string, string]> = [
+      ['.gitignore', WORKSPACE_GITIGNORE],
+      ['CLAUDE.md', WORKSPACE_CLAUDE_MD],
+      ['MEMORY.md', WORKSPACE_MEMORY_MD],
+    ];
+
+    for (const [name, content] of seeds) {
+      const path = join(workspaceDir, name);
+      if (!existsSync(path)) {
+        writeFileSync(path, content, 'utf-8');
+      }
+    }
+  }
+
+  private rewriteWorkspacePath(configPath: string, workspaceDir: string): boolean {
+    const raw = readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(raw) as ProfileConfig;
+    config.agents ??= {};
+    config.agents.defaults ??= {};
+    if (config.agents.defaults.workspace === workspaceDir) {
+      return false;
+    }
+    config.agents.defaults.workspace = workspaceDir;
+    const tmpPath = `${configPath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+    renameSync(tmpPath, configPath);
+    return true;
   }
 }

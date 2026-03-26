@@ -1,7 +1,7 @@
 # User Management Design
 
 **Date:** 2026-03-26
-**Status:** Draft
+**Status:** In Review
 **Feature:** Multi-user management with profile assignment
 
 ---
@@ -70,15 +70,15 @@ Single responsibility: manage the `users.json` file.
 
 **Methods:**
 
-- `initialize(bootstrapCredentials: { username: string; password: string }): Promise<void>` — seeds `users.json` from `server.config.json` credentials if the file does not exist. No-op on subsequent calls.
-- `verify(username: string, password: string): Promise<User | null>` — looks up the user then uses `crypto.scrypt` to verify. To prevent timing-based username enumeration, always performs a dummy hash comparison for unknown usernames (using a pre-computed sentinel hash) so that "user not found" and "wrong password" take the same time.
+- `initialize(bootstrapCredentials: { username: string; password: string }): Promise<void>` — seeds `users.json` from `server.config.json` credentials if the file does not exist. No-op on subsequent calls. The bootstrap password is **not** subject to the 8-character minimum — the operator controls `server.config.json` directly and is responsible for its security.
+- `verify(username: string, password: string): Promise<User | null>` — looks up the user then uses `crypto.scrypt` to verify. To prevent timing-based username enumeration, always performs a dummy hash comparison for unknown usernames (using a pre-computed sentinel hash) so that "user not found" and "wrong password" take the same time. Results are cached in a short-lived in-memory map (`Map<string, { result: User | null; expiresAt: number }>`, TTL: 10 seconds) keyed on `sha256(username + ":" + password)` to avoid running `scrypt` on every proxied sub-resource request (JS/CSS/images all re-authenticate).
 - `list(): PublicUser[]` — returns all users without `passwordHash`.
 - `get(username: string): PublicUser | undefined`
 - `create(username: string, password: string, role: 'admin' | 'user'): Promise<PublicUser>`
-- `delete(username: string): Promise<void>` — enforces the last-admin invariant.
-- `setPassword(username: string, newPassword: string): Promise<void>` — admin reset path; no current-password check.
-- `verifyAndSetPassword(username: string, currentPassword: string, newPassword: string): Promise<void>` — self-service path; verifies current password before updating.
-- `setAssignedProfiles(username: string, profiles: string[]): Promise<void>` — validates that all profile IDs match `PROFILE_NAME_RE` but does **not** enforce that profiles exist (stale assignments are silently ignored during filtering).
+- `delete(username: string): Promise<void>` — enforces the last-admin invariant (at least one `admin`-role user must remain). Also rejects self-deletion with 403 (`request.user.username === username`).
+- `setPassword(username: string, newPassword: string): Promise<void>` — admin reset path; no current-password check. Invalidates any cached `verify()` entries for that username by evicting all cache entries whose key maps to that user (cache eviction on write: clear all entries where cached `result.username === username`). This ensures the target user's proxy cookie fails on next request.
+- `verifyAndSetPassword(username: string, currentPassword: string, newPassword: string): Promise<void>` — self-service path; verifies current password before updating. Same cache eviction as `setPassword`.
+- `setAssignedProfiles(username: string, profiles: string[]): Promise<void>` — validates that all profile IDs match `/^[a-z0-9][a-z0-9-]{0,62}$/` (same regex as `PROFILE_NAME_RE` in `routes/profiles.ts`) but does **not** enforce that profiles exist. Stale assignments are silently ignored during filtering.
 
 Atomic writes use `.tmp` + rename (same pattern as `FleetConfigService`).
 
@@ -88,7 +88,7 @@ Atomic writes use `.tmp` + rename (same pattern as `FleetConfigService`).
 
 - Replace the single `isAuthorized(credentials, config)` credential check with `await userService.verify(username, password)`.
 - After successful auth, attach the resolved `User` object to `request.user` via a Fastify request decorator.
-- **Proxy cookie behaviour on password change**: The proxy cookie (`x-fleet-proxy-auth`) stores Base64-encoded `username:password`. The auth hook re-validates proxy cookie credentials on every request via `userService.verify()`, so a password change immediately invalidates any existing proxy cookies for that user on the next request. No explicit cookie revocation mechanism is needed.
+- **Proxy cookie behaviour on password change**: The proxy cookie (`x-fleet-proxy-auth`) stores Base64-encoded `username:password`. The auth hook re-validates proxy cookie credentials on every request via `userService.verify()`. When a password is changed (by the user themselves or by an admin reset), `UserService` evicts all `verify()` cache entries for that user. This means the target user's next proxied request will fail `verify()` and receive a 401, invalidating their proxy cookie. No separate revocation mechanism is needed. This applies equally to admin-initiated password resets (`PUT /api/users/:username/password`) and self-service resets (`PUT /api/users/me/password`).
 
 ### New: `authorize.ts` (`packages/server/src/authorize.ts`)
 
@@ -111,7 +111,7 @@ Add `request.user: User` to Fastify type augmentation.
 - Pass `userService` to `registerAuth`.
 - Register `userRoutes`.
 - Decorate the Fastify instance with `userService`.
-- **Remove** the `app.proxyAuth` decorator. Instead, `proxy.ts` constructs the upstream `Authorization` header per-request from `request.user.username` + the stored `passwordHash` is not usable directly. The proxy must forward `request.headers.authorization` as-is (already present since auth passed) rather than using a single pre-built value. Update `proxy.ts` to forward the raw `Authorization` header from the incoming request.
+- **Remove** the `app.proxyAuth` decorator from `index.ts` and `fastify.d.ts`. It is declared but never referenced in `proxy.ts` — the proxy already forwards all non-hop-by-hop headers from the incoming request as-is (line 160-161 of `proxy.ts`). This includes the `Authorization` header when present (Basic Auth path) and omits it when absent (cookie/proxyToken paths). No change to `proxy.ts` is required for this reason. The upstream OpenClaw instances use their own token system injected via `buildInjectedScript`, not the fleet manager's Basic Auth credentials.
 
 ---
 
@@ -201,7 +201,8 @@ The `GET /api/fleet` endpoint already filters server-side. The client additional
 |----------|-------------|
 | `POST /api/users` with duplicate username | 409 Conflict |
 | `DELETE /api/users/:username` would remove last admin | 403 Forbidden |
-| `PUT /api/users/me/password` with wrong `currentPassword` | 401 Unauthorized |
+| `DELETE /api/users/:username` where username === requester | 403 Forbidden (no self-deletion) |
+| `PUT /api/users/me/password` with wrong `currentPassword` | 422 Unprocessable Entity (not 401 — 401 would trigger a browser Basic Auth dialog) |
 | `/api/fleet/:id/*` for unassigned profile (non-admin) | 403 Forbidden |
 | `WS /ws/logs/:id` for unassigned profile (non-admin) | WebSocket close 4003 |
 | `POST /api/users` with invalid username format | 400 Bad Request |

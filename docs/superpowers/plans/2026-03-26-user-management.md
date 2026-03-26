@@ -543,10 +543,10 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
 
       const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
       if (proxyToken && validateProxyToken(proxyToken)) {
-        // proxyToken path — no user object available; attach a synthetic read-only marker
-        // Proxy token access is granted only after the user has already authenticated
-        // via Basic Auth or cookie (token is generated server-side). Treat as admin-level
-        // for proxy paths only — requireProfileAccess is not applied to proxy routes.
+        // proxyToken path — token was issued server-side after a real auth; treat as admin-level.
+        // We must set request.user to a synthetic admin-like object so that any preHandlers
+        // (requireProfileAccess on /ws/logs/:id) don't 403 due to missing request.user.
+        request.user = { username: '__proxytoken__', passwordHash: '', role: 'admin', assignedProfiles: [] };
         return;
       }
 

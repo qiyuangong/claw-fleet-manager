@@ -9,14 +9,14 @@ Claw Fleet Manager is a Turbo/npm-workspaces monorepo for operating an `openclaw
 
 The server supports two deployment backends:
 
-- `docker`: manage `openclaw-*` containers in an existing fleet directory
 - `profiles`: manage native `openclaw` profile processes without Docker
+- `docker`: manage `openclaw-*` containers in an existing fleet directory
 
 ## Features
 
 - Fleet overview with cached status refresh, health, CPU, memory, disk, uptime, and image details
 - Start, stop, and restart individual instances
-- Fleet-wide config editing plus Docker fleet scaling
+- Fleet-wide config editing, with Docker fleet scaling available when needed
 - Per-instance `openclaw.json` editing
 - Live log streaming over WebSockets
 - Embedded Control UI via authenticated reverse proxy
@@ -38,28 +38,32 @@ The server supports two deployment backends:
 └── README.md
 ```
 
-## ASIC Diagram
+## Architecture
 
-```mermaid
-flowchart LR
-    Browser["Browser UI"]
-    Web["packages/web<br/>React + Vite"]
-    Server["packages/server<br/>Fastify API"]
-    Auth["User Auth<br/>users.json"]
-    Backend["Deployment Backend"]
-    Docker["Docker Fleet"]
-    Profiles["OpenClaw Profiles"]
-    Files["Fleet Config Files"]
-    Proxy["Logs + Control UI Proxy"]
+The browser talks to the React dashboard, which calls the Fastify manager API. The manager handles users, config, logs, and Control UI proxying, then primarily manages native profile-based gateways, with Docker-based `openclaw-N` instances available as an alternate backend.
 
-    Browser --> Web
-    Web --> Server
-    Server --> Auth
-    Server --> Proxy
-    Server --> Files
-    Server --> Backend
-    Backend --> Docker
-    Backend --> Profiles
+```text
+┌────────────────────────────── Browser / UI ──────────────────────────────┐
+│                                                                          │
+│  Browser  -->  Web Dashboard (React + Vite)  -->  Fastify API Server    │
+│                                                    │                     │
+│                                                    ├─ users.json         │
+│                                                    ├─ fleet config       │
+│                                                    └─ logs / UI proxy    │
+└──────────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────── Managed Runtime ─────────────────────────────┐
+│                                                                          │
+│  Profile mode:   profile-a    profile-b    ...   profile-n              │
+│                  openclaw --profile <name> gateway                      │
+│                  config dir   state dir    workspace dir                │
+│                                                                          │
+│  Docker mode:    openclaw-1   openclaw-2   ...   openclaw-N             │
+│                  config/1     config/2           config/N               │
+│                  workspace/1  workspace/2        workspace/N            │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Requirements
@@ -67,8 +71,8 @@ flowchart LR
 Choose the requirements that match your deployment mode:
 
 - All modes: Node.js with npm workspaces support, plus `npm install`
-- Docker mode: Docker / Docker Compose and an existing openclaw fleet directory
 - Profile mode: `openclaw` available on `PATH`
+- Docker mode: Docker / Docker Compose and an existing openclaw fleet directory
 - Optional: `tailscale` CLI if `tailscale.hostname` is configured
 
 ## Authentication and Users
@@ -96,7 +100,8 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 3. Edit `packages/server/server.config.json`.
 
 - Set `fleetDir` to your actual fleet directory.
-- Keep `deploymentMode: "docker"` for container orchestration, or switch to `profiles` and fill in the `profiles` block.
+- For the more flexible multi-profile setup, use `deploymentMode: "profiles"` and fill in the `profiles` block.
+- Use `deploymentMode: "docker"` only if you want to manage an existing container-based fleet.
 - `auth.username` and `auth.password` seed the initial admin account on first boot.
 - The current Vite dev proxy targets `https://localhost:3001`, so the default `npm run dev` flow expects `tls.cert` and `tls.key` to be configured in `server.config.json`.
 - If you want to run the backend without TLS in development, update [`packages/web/vite.config.ts`](packages/web/vite.config.ts) to proxy to `http://localhost:3001` instead.

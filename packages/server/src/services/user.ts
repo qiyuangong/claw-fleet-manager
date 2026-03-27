@@ -66,8 +66,8 @@ export class UserService {
       const data = JSON.parse(readFileSync(this.usersFile, 'utf-8'));
       const loadedUsers = Array.isArray(data.users) ? data.users : [];
       this.users = loadedUsers
-        .map((raw) => normalizeLoadedUser(raw))
-        .filter((user): user is User => user !== null);
+        .map((raw: unknown) => normalizeLoadedUser(raw))
+        .filter((user: User | null): user is User => user !== null);
       this.persist();
     } else {
       const passwordHash = await hashPassword(bootstrap.password);

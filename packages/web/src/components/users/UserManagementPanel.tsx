@@ -97,21 +97,23 @@ export function UserManagementPanel() {
               <tr key={user.username}>
                 <td className="mono">{user.username}</td>
                 <td>{user.role}</td>
-                <td>{user.assignedProfiles.join(', ') || 'None'}</td>
+                <td>{user.role === 'admin' ? 'All profiles' : user.assignedProfiles.join(', ') || 'None'}</td>
                 <td>
                   <div className="action-row">
                     <button className="secondary-button" onClick={() => setResetTarget(user.username)}>
                       Reset Password
                     </button>
-                    <button
-                      className="secondary-button"
-                      onClick={() => {
-                        setEditProfilesTarget(user.username);
-                        setSelectedProfiles(user.assignedProfiles);
-                      }}
-                    >
-                      Profiles
-                    </button>
+                    {user.role !== 'admin' ? (
+                      <button
+                        className="secondary-button"
+                        onClick={() => {
+                          setEditProfilesTarget(user.username);
+                          setSelectedProfiles(user.assignedProfiles);
+                        }}
+                      >
+                        Profiles
+                      </button>
+                    ) : null}
                     {user.username !== currentUser.username ? (
                       <button
                         className="danger-button"

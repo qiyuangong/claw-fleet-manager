@@ -1,4 +1,5 @@
 const AUTH_DISABLED_KEY = 'fleet_manager_auth_disabled';
+const AUTH_SESSION_KEY = 'fleet_manager_session_auth';
 
 function isAuthDisabled(): boolean {
   if (typeof window === 'undefined') return false;
@@ -15,10 +16,26 @@ export function enableApiClientAuth(): void {
   window.sessionStorage.removeItem(AUTH_DISABLED_KEY);
 }
 
+export function setApiClientSessionAuth(username: string, password: string): void {
+  if (typeof window === 'undefined') return;
+  const encoded = btoa(`${username}:${password}`);
+  window.sessionStorage.setItem(AUTH_SESSION_KEY, encoded);
+  window.sessionStorage.removeItem(AUTH_DISABLED_KEY);
+}
+
+export function clearApiClientSessionAuth(): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(AUTH_SESSION_KEY);
+}
+
 function basicAuthHeaders(): HeadersInit {
   if (isAuthDisabled()) {
     // Force unauthorized even if the browser has cached Basic Auth credentials.
     return { Authorization: `Basic ${btoa('logged_out:logged_out')}` };
+  }
+  if (typeof window !== 'undefined') {
+    const sessionAuth = window.sessionStorage.getItem(AUTH_SESSION_KEY);
+    if (sessionAuth) return { Authorization: `Basic ${sessionAuth}` };
   }
   const username = import.meta.env.VITE_BASIC_AUTH_USER;
   const password = import.meta.env.VITE_BASIC_AUTH_PASSWORD;

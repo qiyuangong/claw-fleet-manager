@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { enableApiClientAuth, logoutApiClient } from '../../api/client';
+import {
+  clearApiClientSessionAuth,
+  enableApiClientAuth,
+  logoutApiClient,
+  setApiClientSessionAuth,
+} from '../../api/client';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
@@ -15,12 +20,16 @@ export function Shell() {
   const { data: currentUser, error: currentUserError, isLoading: currentUserLoading } = useCurrentUser();
   const queryClient = useQueryClient();
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
     setCurrentUser(currentUser ?? null);
   }, [currentUser, setCurrentUser]);
 
   const handleLogout = () => {
+    clearApiClientSessionAuth();
     logoutApiClient();
     setCurrentUser(null);
     queryClient.clear();
@@ -29,6 +38,18 @@ export function Shell() {
 
   const handleLoginAgain = () => {
     enableApiClientAuth();
+    clearApiClientSessionAuth();
+    queryClient.clear();
+    window.location.reload();
+  };
+
+  const handleSignIn = () => {
+    if (!loginUsername.trim() || !loginPassword) {
+      setLoginError('Username and password are required');
+      return;
+    }
+    setApiClientSessionAuth(loginUsername.trim(), loginPassword);
+    setLoginError('');
     queryClient.clear();
     window.location.reload();
   };
@@ -38,10 +59,31 @@ export function Shell() {
       <main className="empty-state">
         <section className="panel-card">
           <h2 style={{ marginTop: 0 }}>Signed out</h2>
-          <p className="muted">You are logged out. Sign in again to continue.</p>
-          <button className="primary-button" onClick={handleLoginAgain}>
-            Sign In Again
-          </button>
+          <p className="muted">Sign in again to continue.</p>
+          <div className="field-grid" style={{ marginTop: '0.75rem' }}>
+            <input
+              className="text-input"
+              placeholder="Username"
+              value={loginUsername}
+              onChange={(event) => setLoginUsername(event.target.value)}
+            />
+            <input
+              className="text-input"
+              type="password"
+              placeholder="Password"
+              value={loginPassword}
+              onChange={(event) => setLoginPassword(event.target.value)}
+            />
+          </div>
+          <div className="action-row" style={{ marginTop: '1rem' }}>
+            <button className="primary-button" onClick={handleSignIn}>
+              Sign In
+            </button>
+            <button className="secondary-button" onClick={handleLoginAgain}>
+              Use Default Auth
+            </button>
+          </div>
+          {loginError ? <p className="error-text" style={{ marginBottom: 0 }}>{loginError}</p> : null}
         </section>
       </main>
     );

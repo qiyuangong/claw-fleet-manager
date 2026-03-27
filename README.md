@@ -44,9 +44,14 @@ cp packages/server/server.config.example.json packages/server/server.config.json
    - Set `fleetDir` to your fleet directory
    - Set `deploymentMode` to `"profiles"` (recommended) or `"docker"`
    - `auth.username` / `auth.password` seed the first admin account on startup
-   - **TLS** — the example config includes a `tls` block, so the server will fail to start unless you either:
-     - set `tls.cert` / `tls.key` to valid certificate files, **or**
-     - remove the `tls` block entirely and change the Vite proxy target in `packages/web/vite.config.ts` from `https://` to `http://localhost:3001`
+   - **TLS** — TLS is required for the Control UI (device auth needs a secure context). Generate a self-signed cert for local development:
+     ```bash
+     openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
+       -keyout key.pem -out cert.pem \
+       -subj "/CN=localhost" \
+       -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+     ```
+     Then set `tls.cert` and `tls.key` in `server.config.json` to the paths of the generated files. Your browser will show a security warning for a self-signed cert — accept it once to proceed.
 
 4. Create the web env file:
 

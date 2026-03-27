@@ -44,9 +44,14 @@ cp packages/server/server.config.example.json packages/server/server.config.json
    - 将 `fleetDir` 设置为你的 fleet 目录
    - 将 `deploymentMode` 设置为 `"profiles"`（推荐）或 `"docker"`
    - `auth.username` / `auth.password` 用于首次启动时初始化管理员账号
-   - **TLS** — 示例配置中包含 `tls` 配置块，因此服务启动时必须满足以下之一，否则会报错：
-     - 将 `tls.cert` / `tls.key` 设置为有效的证书文件路径，**或者**
-     - 删除 `tls` 配置块，并将 `packages/web/vite.config.ts` 中的代理目标从 `https://` 改为 `http://localhost:3001`
+   - **TLS** — Control UI 的设备认证需要安全上下文，因此 TLS 是必须的。本地开发可以生成自签名证书：
+     ```bash
+     openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
+       -keyout key.pem -out cert.pem \
+       -subj "/CN=localhost" \
+       -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+     ```
+     然后在 `server.config.json` 中将 `tls.cert` 和 `tls.key` 设置为生成文件的路径。使用自签名证书时浏览器会显示安全警告，接受一次即可继续。
 
 4. 创建前端环境变量文件：
 

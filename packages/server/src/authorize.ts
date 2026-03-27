@@ -13,7 +13,8 @@ export async function requireProfileAccess(request: FastifyRequest, reply: Fasti
   }
   if (request.user.role === 'admin') return;
   const id = (request.params as Record<string, string>).id;
-  if (!id || !request.user.assignedProfiles.includes(id)) {
+  const assignedProfiles = Array.isArray(request.user.assignedProfiles) ? request.user.assignedProfiles : [];
+  if (!id || !assignedProfiles.includes(id)) {
     return reply.status(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
   }
 }

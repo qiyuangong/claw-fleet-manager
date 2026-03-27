@@ -16,7 +16,7 @@ export function Sidebar() {
 
   const visibleInstances = data?.instances.filter((instance) => {
     if (!currentUser || currentUser.role === 'admin') return true;
-    return currentUser.assignedProfiles.includes(instance.id);
+    return (currentUser.assignedProfiles ?? []).includes(instance.id);
   }) ?? [];
 
   const isProfileMode = data?.mode === 'profiles';

@@ -126,6 +126,17 @@ export function Shell() {
     );
   }
 
+  if (!currentUser && currentUserLoading) {
+    return (
+      <main className="empty-state">
+        <section className="panel-card">
+          <h2 style={{ marginTop: 0 }}>Loading session</h2>
+          <p className="muted">Checking your account and permissions.</p>
+        </section>
+      </main>
+    );
+  }
+
   if (currentUser && currentUser.role !== 'admin') {
     if (!fleet) {
       return (

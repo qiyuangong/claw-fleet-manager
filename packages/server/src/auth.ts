@@ -123,7 +123,9 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
     }
 
     const suppressBrowserPrompt =
-      rawUrl.startsWith('/proxy/')
+      rawUrl.startsWith('/api/')
+      || rawUrl.startsWith('/ws/')
+      || rawUrl.startsWith('/proxy/')
       || rawUrl.startsWith('/proxy-ws/');
 
     if (!suppressBrowserPrompt) {

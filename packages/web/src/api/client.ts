@@ -20,6 +20,13 @@ export function logoutApiClient(): void {
   window.sessionStorage.setItem(AUTH_DISABLED_KEY, '1');
 }
 
+export function isApiClientLoggedOut(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (isAuthDisabled()) return true;
+  if (getAuthMode() !== 'manual') return false;
+  return !window.sessionStorage.getItem(AUTH_SESSION_KEY);
+}
+
 export function enableApiClientAuth(): void {
   if (typeof window === 'undefined') return;
   window.sessionStorage.setItem(AUTH_MODE_KEY, 'default');

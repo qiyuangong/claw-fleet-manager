@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   clearApiClientSessionAuth,
   enableApiClientAuth,
+  isApiClientLoggedOut,
   logoutApiClient,
   setApiClientSessionAuth,
 } from '../../api/client';
@@ -26,6 +27,7 @@ export function Shell() {
   const { data: fleet } = useFleet();
   const queryClient = useQueryClient();
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [loggedOut, setLoggedOut] = useState(() => isApiClientLoggedOut());
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -48,9 +50,9 @@ export function Shell() {
   const handleLogout = () => {
     clearApiClientSessionAuth();
     logoutApiClient();
+    setLoggedOut(true);
     setCurrentUser(null);
     queryClient.clear();
-    window.location.reload();
   };
 
   const handleLoginAgain = async () => {
@@ -58,12 +60,14 @@ export function Shell() {
     setLoginError('');
     enableApiClientAuth();
     clearApiClientSessionAuth();
+    setLoggedOut(false);
     try {
       const user = await getCurrentUser();
       setCurrentUser(user);
       queryClient.setQueryData(['currentUser'], user);
       await queryClient.invalidateQueries({ queryKey: ['fleet'] });
     } catch {
+      setLoggedOut(true);
       setLoginError('Default credentials are not available in this build. Please sign in with username/password.');
     } finally {
       setLoggingIn(false);
@@ -76,6 +80,7 @@ export function Shell() {
       return;
     }
     setLoggingIn(true);
+    setLoggedOut(false);
     setApiClientSessionAuth(loginUsername.trim(), loginPassword);
     try {
       const user = await getCurrentUser();
@@ -84,6 +89,7 @@ export function Shell() {
       queryClient.setQueryData(['currentUser'], user);
       await queryClient.invalidateQueries({ queryKey: ['fleet'] });
     } catch {
+      setLoggedOut(true);
       clearApiClientSessionAuth();
       setLoginError('Invalid username or password');
     } finally {
@@ -91,7 +97,7 @@ export function Shell() {
     }
   };
 
-  if (!currentUser && currentUserError && !currentUserLoading) {
+  if (!currentUser && (loggedOut || currentUserError) && !currentUserLoading) {
     return (
       <main className="empty-state">
         <section className="panel-card">
@@ -137,34 +143,18 @@ export function Shell() {
     );
   }
 
-  if (currentUser && currentUser.role !== 'admin') {
-    if (!fleet) {
-      return (
-        <div className="app-shell">
-          <Sidebar />
-          <main className="empty-state">
-            <section className="panel-card">
-              <h2 style={{ marginTop: 0 }}>Loading profile</h2>
-              <p className="muted">Resolving your assigned profile.</p>
-            </section>
-          </main>
-        </div>
-      );
-    }
-
-    if (nonAdminAllowedInstances.length === 0) {
-      return (
-        <div className="app-shell">
-          <Sidebar />
-          <main className="empty-state">
-            <section className="panel-card">
-              <h2 style={{ marginTop: 0 }}>No profile assigned</h2>
-              <p className="muted">This account does not have access to any profile yet.</p>
-            </section>
-          </main>
-        </div>
-      );
-    }
+  if (currentUser && currentUser.role !== 'admin' && !fleet) {
+    return (
+      <div className="app-shell">
+        <Sidebar />
+        <main className="empty-state">
+          <section className="panel-card">
+            <h2 style={{ marginTop: 0 }}>Loading profile</h2>
+            <p className="muted">Resolving your assigned profile.</p>
+          </section>
+        </main>
+      </div>
+    );
   }
 
   return (

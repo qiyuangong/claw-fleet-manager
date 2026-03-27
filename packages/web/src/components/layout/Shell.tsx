@@ -11,14 +11,17 @@ import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
 import { UserManagementPanel } from '../users/UserManagementPanel';
+import { useFleet } from '../../hooks/useFleet';
 import { Sidebar } from './Sidebar';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useAppStore } from '../../store';
 
 export function Shell() {
   const activeView = useAppStore((state) => state.activeView);
+  const selectInstance = useAppStore((state) => state.selectInstance);
   const setCurrentUser = useAppStore((state) => state.setCurrentUser);
   const { data: currentUser, error: currentUserError, isLoading: currentUserLoading } = useCurrentUser();
+  const { data: fleet } = useFleet();
   const queryClient = useQueryClient();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [loginUsername, setLoginUsername] = useState('');
@@ -29,6 +32,19 @@ export function Shell() {
   useEffect(() => {
     setCurrentUser(currentUser ?? null);
   }, [currentUser, setCurrentUser]);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role === 'admin' || !fleet) return;
+
+    const allowedInstances = fleet.instances.filter((instance) =>
+      (currentUser.assignedProfiles ?? []).includes(instance.id),
+    );
+
+    if (allowedInstances.length === 0) return;
+    if (activeView.type === 'instance' && allowedInstances.some((instance) => instance.id === activeView.id)) return;
+
+    selectInstance(allowedInstances[0].id);
+  }, [activeView, currentUser, fleet, selectInstance]);
 
   const handleLogout = () => {
     clearApiClientSessionAuth();
@@ -109,6 +125,26 @@ export function Shell() {
         </section>
       </main>
     );
+  }
+
+  if (currentUser && currentUser.role !== 'admin' && fleet) {
+    const allowedInstances = fleet.instances.filter((instance) =>
+      (currentUser.assignedProfiles ?? []).includes(instance.id),
+    );
+
+    if (allowedInstances.length === 0) {
+      return (
+        <div className="app-shell">
+          <Sidebar />
+          <main className="empty-state">
+            <section className="panel-card">
+              <h2 style={{ marginTop: 0 }}>No profile assigned</h2>
+              <p className="muted">This account does not have access to any profile yet.</p>
+            </section>
+          </main>
+        </div>
+      );
+    }
   }
 
   return (

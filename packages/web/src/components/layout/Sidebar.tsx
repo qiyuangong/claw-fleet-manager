@@ -20,6 +20,7 @@ export function Sidebar() {
   }) ?? [];
 
   const isProfileMode = data?.mode === 'profiles';
+  const canManageFleet = currentUser?.role === 'admin';
 
   return (
     <aside className="sidebar">
@@ -57,14 +58,16 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        {isProfileMode && currentUser?.role === 'admin' ? (
+        {isProfileMode && canManageFleet ? (
           <button className="primary-button" onClick={() => setShowAddProfile(true)}>
             + Add Profile
           </button>
         ) : null}
-        <button className="secondary-button" onClick={selectConfig}>
-          Fleet Config
-        </button>
+        {canManageFleet ? (
+          <button className="secondary-button" onClick={selectConfig}>
+            Fleet Config
+          </button>
+        ) : null}
       </div>
 
       {showAddProfile ? <AddProfileDialog onClose={() => setShowAddProfile(false)} /> : null}

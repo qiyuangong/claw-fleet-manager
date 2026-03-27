@@ -97,7 +97,7 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 - Keep `deploymentMode: "docker"` for container orchestration, or switch to `profiles` and fill in the `profiles` block.
 - `auth.username` and `auth.password` seed the initial admin account on first boot.
 - The current Vite dev proxy targets `https://localhost:3001`, so the default `npm run dev` flow expects `tls.cert` and `tls.key` to be configured in `server.config.json`.
-- If you want to run the backend without TLS in development, update [`packages/web/vite.config.ts`](/Users/qiyuangong/.codex/worktrees/f612/claw-fleet-manager/packages/web/vite.config.ts) to proxy to `http://localhost:3001` instead.
+- If you want to run the backend without TLS in development, update [`packages/web/vite.config.ts`](packages/web/vite.config.ts) to proxy to `http://localhost:3001` instead.
 
 4. Create the web env file:
 

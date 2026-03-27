@@ -39,19 +39,22 @@ describe('Auth middleware', () => {
   it('allows access with valid Basic Auth credentials', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/test', headers: { authorization: validAuth } });
     expect(res.statusCode).toBe(200);
+    const setCookie = res.headers['set-cookie'] as string;
+    expect(setCookie).toContain(`x-fleet-proxy-auth=${encode('admin', 'secret1234')}`);
+    expect(setCookie).toContain('Path=/proxy');
   });
 
-  it('returns 401 with www-authenticate header when auth is missing', async () => {
+  it('returns 401 without www-authenticate header on /api paths when auth is missing', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/test' });
     expect(res.statusCode).toBe(401);
-    expect(res.headers['www-authenticate']).toBe('Basic realm="Claw Fleet Manager"');
+    expect(res.headers['www-authenticate']).toBeUndefined();
     expect(res.json()).toEqual({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
   });
 
-  it('returns 401 with wrong credentials', async () => {
+  it('returns 401 without www-authenticate header on /api paths with wrong credentials', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/test', headers: { authorization: `Basic ${encode('admin', 'wrong')}` } });
     expect(res.statusCode).toBe(401);
-    expect(res.headers['www-authenticate']).toBe('Basic realm="Claw Fleet Manager"');
+    expect(res.headers['www-authenticate']).toBeUndefined();
   });
 
   it('returns 401 with malformed base64 in Authorization header', async () => {
@@ -108,7 +111,7 @@ describe('Auth middleware', () => {
   it('does not allow proxyToken to authenticate /ws/ paths', async () => {
     const res = await app.inject({ method: 'GET', url: `/ws/logs/openclaw-1?proxyToken=${generateProxyToken()}` });
     expect(res.statusCode).toBe(401);
-    expect(res.headers['www-authenticate']).toBe('Basic realm="Claw Fleet Manager"');
+    expect(res.headers['www-authenticate']).toBeUndefined();
   });
 
   it('returns 401 with wrong ?auth= credentials on proxy paths', async () => {
@@ -118,9 +121,9 @@ describe('Auth middleware', () => {
     expect(res.headers['www-authenticate']).toBeUndefined();
   });
 
-  it('shows www-authenticate header on /ws/ paths when unauthenticated', async () => {
+  it('suppresses www-authenticate header on /ws/ paths when unauthenticated', async () => {
     const res = await app.inject({ method: 'GET', url: '/ws/logs/openclaw-1' });
     expect(res.statusCode).toBe(401);
-    expect(res.headers['www-authenticate']).toBe('Basic realm="Claw Fleet Manager"');
+    expect(res.headers['www-authenticate']).toBeUndefined();
   });
 });

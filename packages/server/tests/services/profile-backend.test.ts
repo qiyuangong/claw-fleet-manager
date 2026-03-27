@@ -265,6 +265,50 @@ describe('ProfileBackend — runtime env', () => {
     expect(env.OPENCLAW_STATE_DIR).toBe('/custom/states/main');
   });
 
+  it('builds gateway command args with the managed profile port and token auth', async () => {
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (String(path).endsWith('/custom/configs/main/openclaw.json')) {
+        return JSON.stringify({
+          gateway: {
+            auth: {
+              mode: 'token',
+              token: 'secret-token-xyz',
+            },
+          },
+        });
+      }
+      throw Object.assign(new Error(), { code: 'ENOENT' });
+    });
+
+    const backend = makeBackend();
+    const args = (backend as any).gatewayCommandArgs(
+      {
+        name: 'main',
+        port: 18849,
+        configPath: '/custom/configs/main/openclaw.json',
+        stateDir: '/custom/states/main',
+      },
+      ['devices', 'list', '--json'],
+    );
+
+    expect(args).toEqual([
+      'devices',
+      'list',
+      '--json',
+      '--url',
+      'ws://127.0.0.1:18849',
+      '--token',
+      'secret-token-xyz',
+    ]);
+  });
+
+  it('only overrides gateway connection details for device commands', async () => {
+    const backend = makeBackend();
+    expect((backend as any).requiresGatewayOverride(['devices', 'list'])).toBe(true);
+    expect((backend as any).requiresGatewayOverride(['pairing', 'list', 'feishu'])).toBe(false);
+    expect((backend as any).requiresGatewayOverride(['plugins', 'list', '--json'])).toBe(false);
+  });
+
   it('start() adopts an already-healthy gateway on the profile port instead of spawning', async () => {
     const registry = JSON.stringify({
       profiles: {

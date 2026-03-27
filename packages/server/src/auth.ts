@@ -73,6 +73,12 @@ function parseProxyCookie(cookieHeader: string | undefined, cookieName: string):
 
 export async function registerAuth(app: FastifyInstance, userService: UserService) {
   const proxyCookieName = 'x-fleet-proxy-auth';
+  const setProxyCookie = (reply: { header: (name: string, value: string) => unknown }, encoded: string) => {
+    reply.header(
+      'set-cookie',
+      `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
+    );
+  };
 
   app.addHook('onRequest', async (request, reply) => {
     const rawUrl = request.raw.url ?? '/';
@@ -90,6 +96,7 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
       const user = await userService.verify(headerCredentials.username, headerCredentials.password);
       if (user) {
         request.user = user;
+        setProxyCookie(reply, request.headers.authorization!.slice(6));
         return;
       }
     }
@@ -117,12 +124,7 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
         if (user) {
           request.user = user;
           const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
-          if (encoded) {
-            reply.header(
-              'set-cookie',
-              `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
-            );
-          }
+          if (encoded) setProxyCookie(reply, encoded);
           return;
         }
       }

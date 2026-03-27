@@ -6,6 +6,7 @@ import {
   logoutApiClient,
   setApiClientSessionAuth,
 } from '../../api/client';
+import { getCurrentUser } from '../../api/users';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
@@ -23,6 +24,7 @@ export function Shell() {
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     setCurrentUser(currentUser ?? null);
@@ -36,22 +38,42 @@ export function Shell() {
     window.location.reload();
   };
 
-  const handleLoginAgain = () => {
+  const handleLoginAgain = async () => {
+    setLoggingIn(true);
+    setLoginError('');
     enableApiClientAuth();
     clearApiClientSessionAuth();
-    queryClient.clear();
-    window.location.reload();
+    try {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+      queryClient.setQueryData(['currentUser'], user);
+      await queryClient.invalidateQueries({ queryKey: ['fleet'] });
+    } catch {
+      setLoginError('Default credentials are not available in this build. Please sign in with username/password.');
+    } finally {
+      setLoggingIn(false);
+    }
   };
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (!loginUsername.trim() || !loginPassword) {
       setLoginError('Username and password are required');
       return;
     }
+    setLoggingIn(true);
     setApiClientSessionAuth(loginUsername.trim(), loginPassword);
-    setLoginError('');
-    queryClient.clear();
-    window.location.reload();
+    try {
+      const user = await getCurrentUser();
+      setCurrentUser(user);
+      setLoginError('');
+      queryClient.setQueryData(['currentUser'], user);
+      await queryClient.invalidateQueries({ queryKey: ['fleet'] });
+    } catch {
+      clearApiClientSessionAuth();
+      setLoginError('Invalid username or password');
+    } finally {
+      setLoggingIn(false);
+    }
   };
 
   if (!currentUser && currentUserError && !currentUserLoading) {
@@ -76,10 +98,10 @@ export function Shell() {
             />
           </div>
           <div className="action-row" style={{ marginTop: '1rem' }}>
-            <button className="primary-button" onClick={handleSignIn}>
-              Sign In
+            <button className="primary-button" onClick={() => void handleSignIn()} disabled={loggingIn}>
+              {loggingIn ? 'Signing In...' : 'Sign In'}
             </button>
-            <button className="secondary-button" onClick={handleLoginAgain}>
+            <button className="secondary-button" onClick={() => void handleLoginAgain()} disabled={loggingIn}>
               Use Default Auth
             </button>
           </div>

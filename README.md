@@ -44,7 +44,9 @@ cp packages/server/server.config.example.json packages/server/server.config.json
    - Set `fleetDir` to your fleet directory
    - Set `deploymentMode` to `"profiles"` (recommended) or `"docker"`
    - `auth.username` / `auth.password` seed the first admin account on startup
-   - For remote access, configure `tls.cert` and `tls.key` (required for secure context)
+   - **TLS** — the example config includes a `tls` block, so the server will fail to start unless you either:
+     - set `tls.cert` / `tls.key` to valid certificate files, **or**
+     - remove the `tls` block entirely and change the Vite proxy target in `packages/web/vite.config.ts` from `https://` to `http://localhost:3001`
 
 4. Create the web env file:
 
@@ -60,9 +62,7 @@ cp packages/web/.env.example packages/web/.env.local
 npm run dev
 ```
 
-Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001`.
-
-> If you want to run without TLS in development, update the proxy target in `packages/web/vite.config.ts` to `http://localhost:3001`.
+Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001` (or `http://` if you removed TLS).
 
 ## Architecture
 

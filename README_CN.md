@@ -44,7 +44,9 @@ cp packages/server/server.config.example.json packages/server/server.config.json
    - 将 `fleetDir` 设置为你的 fleet 目录
    - 将 `deploymentMode` 设置为 `"profiles"`（推荐）或 `"docker"`
    - `auth.username` / `auth.password` 用于首次启动时初始化管理员账号
-   - 如需远程访问，请配置 `tls.cert` 和 `tls.key`（安全上下文所需）
+   - **TLS** — 示例配置中包含 `tls` 配置块，因此服务启动时必须满足以下之一，否则会报错：
+     - 将 `tls.cert` / `tls.key` 设置为有效的证书文件路径，**或者**
+     - 删除 `tls` 配置块，并将 `packages/web/vite.config.ts` 中的代理目标从 `https://` 改为 `http://localhost:3001`
 
 4. 创建前端环境变量文件：
 
@@ -60,9 +62,7 @@ cp packages/web/.env.example packages/web/.env.local
 npm run dev
 ```
 
-管理面板运行在 `http://localhost:5173`，API 服务运行在 `https://localhost:3001`。
-
-> 如果想在开发环境中不启用 TLS，请将 `packages/web/vite.config.ts` 中的代理目标改为 `http://localhost:3001`。
+管理面板运行在 `http://localhost:5173`，API 服务运行在 `https://localhost:3001`（若已移除 TLS 则为 `http://`）。
 
 ## 架构
 

@@ -28,6 +28,9 @@ export function Shell() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const nonAdminAllowedInstances = currentUser && currentUser.role !== 'admin' && fleet
+    ? fleet.instances.filter((instance) => (currentUser.assignedProfiles ?? []).includes(instance.id))
+    : [];
 
   useEffect(() => {
     setCurrentUser(currentUser ?? null);
@@ -35,16 +38,11 @@ export function Shell() {
 
   useEffect(() => {
     if (!currentUser || currentUser.role === 'admin' || !fleet) return;
+    if (nonAdminAllowedInstances.length === 0) return;
+    if (activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)) return;
 
-    const allowedInstances = fleet.instances.filter((instance) =>
-      (currentUser.assignedProfiles ?? []).includes(instance.id),
-    );
-
-    if (allowedInstances.length === 0) return;
-    if (activeView.type === 'instance' && allowedInstances.some((instance) => instance.id === activeView.id)) return;
-
-    selectInstance(allowedInstances[0].id);
-  }, [activeView, currentUser, fleet, selectInstance]);
+    selectInstance(nonAdminAllowedInstances[0].id);
+  }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectInstance]);
 
   const handleLogout = () => {
     clearApiClientSessionAuth();
@@ -127,12 +125,22 @@ export function Shell() {
     );
   }
 
-  if (currentUser && currentUser.role !== 'admin' && fleet) {
-    const allowedInstances = fleet.instances.filter((instance) =>
-      (currentUser.assignedProfiles ?? []).includes(instance.id),
-    );
+  if (currentUser && currentUser.role !== 'admin') {
+    if (!fleet) {
+      return (
+        <div className="app-shell">
+          <Sidebar />
+          <main className="empty-state">
+            <section className="panel-card">
+              <h2 style={{ marginTop: 0 }}>Loading profile</h2>
+              <p className="muted">Resolving your assigned profile.</p>
+            </section>
+          </main>
+        </div>
+      );
+    }
 
-    if (allowedInstances.length === 0) {
+    if (nonAdminAllowedInstances.length === 0) {
       return (
         <div className="app-shell">
           <Sidebar />
@@ -146,6 +154,14 @@ export function Shell() {
       );
     }
   }
+
+  const nonAdminInstanceId = currentUser && currentUser.role !== 'admin'
+    ? (
+        activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)
+          ? activeView.id
+          : nonAdminAllowedInstances[0]?.id
+      )
+    : null;
 
   return (
     <div className="app-shell">
@@ -163,7 +179,9 @@ export function Shell() {
             </div>
           ) : null}
         </div>
-        {activeView.type === 'instance' ? (
+        {nonAdminInstanceId ? (
+          <InstancePanel instanceId={nonAdminInstanceId} />
+        ) : activeView.type === 'instance' ? (
           <InstancePanel instanceId={activeView.id} />
         ) : activeView.type === 'users' ? (
           <UserManagementPanel />

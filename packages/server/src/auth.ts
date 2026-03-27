@@ -73,20 +73,33 @@ function parseProxyCookie(cookieHeader: string | undefined, cookieName: string):
 
 export async function registerAuth(app: FastifyInstance, userService: UserService) {
   const proxyCookieName = 'x-fleet-proxy-auth';
+  const setProxyCookie = (reply: { header: (name: string, value: string) => unknown }, encoded: string) => {
+    reply.header(
+      'set-cookie',
+      `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
+    );
+  };
 
   app.addHook('onRequest', async (request, reply) => {
+    const rawUrl = request.raw.url ?? '/';
+    const isApiPath = rawUrl.startsWith('/api/');
+    const isWsPath = rawUrl.startsWith('/ws/');
+    const isProxyPath = rawUrl.startsWith('/proxy/') || rawUrl.startsWith('/proxy-ws/');
+
+    // Let the SPA shell and static assets load without browser-level auth prompts.
+    if (!isApiPath && !isWsPath && !isProxyPath) {
+      return;
+    }
+
     const headerCredentials = parseBasicAuth(request.headers.authorization);
     if (headerCredentials) {
       const user = await userService.verify(headerCredentials.username, headerCredentials.password);
       if (user) {
         request.user = user;
+        setProxyCookie(reply, request.headers.authorization!.slice(6));
         return;
       }
     }
-
-    const rawUrl = request.raw.url ?? '/';
-    const isProxyPath = rawUrl.startsWith('/proxy/') || rawUrl.startsWith('/proxy-ws/');
-    const isWsPath = rawUrl.startsWith('/ws/');
 
     if (isProxyPath || isWsPath) {
       const cookieCredentials = parseProxyCookie(request.headers.cookie, proxyCookieName);
@@ -111,19 +124,16 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
         if (user) {
           request.user = user;
           const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
-          if (encoded) {
-            reply.header(
-              'set-cookie',
-              `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
-            );
-          }
+          if (encoded) setProxyCookie(reply, encoded);
           return;
         }
       }
     }
 
     const suppressBrowserPrompt =
-      rawUrl.startsWith('/proxy/')
+      rawUrl.startsWith('/api/')
+      || rawUrl.startsWith('/ws/')
+      || rawUrl.startsWith('/proxy/')
       || rawUrl.startsWith('/proxy-ws/');
 
     if (!suppressBrowserPrompt) {

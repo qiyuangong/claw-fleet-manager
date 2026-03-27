@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { UserService } from '../../src/services/user.js';
@@ -30,6 +30,18 @@ describe('UserService.initialize', () => {
     await svc.create('alice', 'password123', 'user');
     await svc.initialize({ username: 'admin', password: 'newpassword' });
     expect(svc.list()).toHaveLength(2);
+  });
+
+  it('normalizes legacy users without assignedProfiles', async () => {
+    const usersFile = join(tmpDir, 'users.json');
+    writeFileSync(usersFile, JSON.stringify({
+      users: [
+        { username: 'qiyuan', passwordHash: 'scrypt$deadbeef$deadbeef', role: 'user' },
+      ],
+    }), 'utf-8');
+
+    await svc.initialize({ username: 'admin', password: 'password123' });
+    expect(svc.get('qiyuan')?.assignedProfiles).toEqual([]);
   });
 });
 
@@ -146,5 +158,17 @@ describe('UserService.setAssignedProfiles', () => {
     await svc.initialize({ username: 'admin', password: 'password123' });
     await svc.create('alice', 'password123', 'user');
     await expect(svc.setAssignedProfiles('alice', ['INVALID!'])).rejects.toThrow(/invalid profile/i);
+  });
+
+  it('enforces exclusive profile ownership across users', async () => {
+    await svc.initialize({ username: 'admin', password: 'password123' });
+    await svc.create('alice', 'password123', 'user');
+    await svc.create('bob', 'password123', 'user');
+
+    await svc.setAssignedProfiles('alice', ['profile-a', 'profile-b']);
+    await svc.setAssignedProfiles('bob', ['profile-b', 'profile-c']);
+
+    expect(svc.get('alice')?.assignedProfiles).toEqual(['profile-a']);
+    expect(svc.get('bob')?.assignedProfiles).toEqual(['profile-b', 'profile-c']);
   });
 });

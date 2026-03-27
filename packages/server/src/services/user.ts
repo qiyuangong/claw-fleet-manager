@@ -14,6 +14,23 @@ const CACHE_TTL_MS = 10_000;
 
 interface CacheEntry { result: User | null; expiresAt: number }
 
+function normalizeLoadedUser(raw: any): User | null {
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.username !== 'string' || typeof raw.passwordHash !== 'string') return null;
+
+  const role: 'admin' | 'user' = raw.role === 'admin' ? 'admin' : 'user';
+  const assignedProfiles = Array.isArray(raw.assignedProfiles)
+    ? raw.assignedProfiles.filter((value: unknown): value is string => typeof value === 'string')
+    : [];
+
+  return {
+    username: raw.username,
+    passwordHash: raw.passwordHash,
+    role,
+    assignedProfiles,
+  };
+}
+
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString('hex');
   const hash = (await scryptAsync(password, salt, SCRYPT_KEYLEN)) as Buffer;
@@ -47,7 +64,11 @@ export class UserService {
   async initialize(bootstrap: { username: string; password: string }): Promise<void> {
     if (existsSync(this.usersFile)) {
       const data = JSON.parse(readFileSync(this.usersFile, 'utf-8'));
-      this.users = data.users ?? [];
+      const loadedUsers = Array.isArray(data.users) ? data.users : [];
+      this.users = loadedUsers
+        .map((raw: unknown) => normalizeLoadedUser(raw))
+        .filter((user: User | null): user is User => user !== null);
+      this.persist();
     } else {
       const passwordHash = await hashPassword(bootstrap.password);
       this.users = [{ username: bootstrap.username, passwordHash, role: 'admin', assignedProfiles: [] }];
@@ -141,12 +162,22 @@ export class UserService {
   }
 
   async setAssignedProfiles(username: string, profiles: string[]): Promise<void> {
-    for (const p of profiles) {
+    const uniqueProfiles = Array.from(new Set(profiles));
+    for (const p of uniqueProfiles) {
       if (!PROFILE_NAME_RE.test(p)) throw new Error(`Invalid profile name: '${p}'`);
     }
     const user = this.users.find(u => u.username === username);
     if (!user) throw new Error(`User '${username}' not found`);
-    user.assignedProfiles = profiles;
+
+    // A profile can belong to only one user at a time.
+    // Reassigning profiles to this user automatically removes them from others.
+    const reassigned = new Set(uniqueProfiles);
+    for (const other of this.users) {
+      if (other.username === username) continue;
+      other.assignedProfiles = other.assignedProfiles.filter((p) => !reassigned.has(p));
+    }
+
+    user.assignedProfiles = uniqueProfiles;
     this.evictCache();
     this.persist();
   }

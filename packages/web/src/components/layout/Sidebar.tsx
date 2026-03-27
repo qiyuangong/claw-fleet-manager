@@ -12,14 +12,16 @@ export function Sidebar() {
   const selectInstance = useAppStore((state) => state.selectInstance);
   const selectConfig = useAppStore((state) => state.selectConfig);
   const selectUsers = useAppStore((state) => state.selectUsers);
+  const selectAccount = useAppStore((state) => state.selectAccount);
   const [showAddProfile, setShowAddProfile] = useState(false);
 
   const visibleInstances = data?.instances.filter((instance) => {
     if (!currentUser || currentUser.role === 'admin') return true;
-    return currentUser.assignedProfiles.includes(instance.id);
+    return (currentUser.assignedProfiles ?? []).includes(instance.id);
   }) ?? [];
 
   const isProfileMode = data?.mode === 'profiles';
+  const canManageFleet = currentUser?.role === 'admin';
 
   return (
     <aside className="sidebar">
@@ -33,6 +35,18 @@ export function Sidebar() {
       </div>
 
       <nav className="sidebar-nav">
+        {currentUser?.role !== 'admin' ? (
+          <>
+            <p className="sidebar-section">Account</p>
+            <button
+              className={`sidebar-nav-item${activeView.type === 'account' ? ' selected' : ''}`}
+              onClick={selectAccount}
+            >
+              My Account
+            </button>
+          </>
+        ) : null}
+
         <p className="sidebar-section">Instances</p>
         {visibleInstances.map((instance) => (
           <SidebarItem
@@ -57,14 +71,16 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar-footer">
-        {isProfileMode && currentUser?.role === 'admin' ? (
+        {isProfileMode && canManageFleet ? (
           <button className="primary-button" onClick={() => setShowAddProfile(true)}>
             + Add Profile
           </button>
         ) : null}
-        <button className="secondary-button" onClick={selectConfig}>
-          Fleet Config
-        </button>
+        {canManageFleet ? (
+          <button className="secondary-button" onClick={selectConfig}>
+            Fleet Config
+          </button>
+        ) : null}
       </div>
 
       {showAddProfile ? <AddProfileDialog onClose={() => setShowAddProfile(false)} /> : null}

@@ -48,6 +48,13 @@ interface ProfileRegistry {
 }
 
 type ProfileConfig = {
+  gateway?: {
+    auth?: {
+      mode?: string;
+      token?: string;
+      password?: string;
+    };
+  };
   agents?: {
     defaults?: {
       workspace?: string;
@@ -372,7 +379,8 @@ export class ProfileBackend implements DeploymentBackend {
   async execInstanceCommand(id: string, args: string[]): Promise<string> {
     const entry = this.registry.profiles[id];
     if (!entry) throw new Error(`Profile "${id}" not found`);
-    const { stdout } = await execFileAsync(this.binaryPath, ['--profile', id, ...args], {
+    const commandArgs = this.requiresGatewayOverride(args) ? this.gatewayCommandArgs(entry, args) : args;
+    const { stdout } = await execFileAsync(this.binaryPath, commandArgs, {
       env: this.profileEnv(entry),
     });
     return stdout;
@@ -458,6 +466,33 @@ export class ProfileBackend implements DeploymentBackend {
       ...process.env,
       OPENCLAW_CONFIG_PATH: entry.configPath,
       OPENCLAW_STATE_DIR: entry.stateDir,
+    };
+  }
+
+  private gatewayCommandArgs(entry: Pick<ProfileEntry, 'port' | 'configPath'>, args: string[]): string[] {
+    const commandArgs = [...args, '--url', `ws://127.0.0.1:${entry.port}`];
+    const auth = this.readGatewayAuth(entry);
+
+    if (auth.mode === 'token' && auth.token) {
+      commandArgs.push('--token', auth.token);
+    } else if (auth.mode === 'password' && auth.password) {
+      commandArgs.push('--password', auth.password);
+    }
+
+    return commandArgs;
+  }
+
+  private requiresGatewayOverride(args: string[]): boolean {
+    return args[0] === 'devices';
+  }
+
+  private readGatewayAuth(entry: Pick<ProfileEntry, 'configPath'>): { mode?: string; token?: string; password?: string } {
+    const raw = readFileSync(entry.configPath, 'utf-8');
+    const config = JSON.parse(raw) as ProfileConfig;
+    return {
+      mode: config.gateway?.auth?.mode,
+      token: config.gateway?.auth?.token,
+      password: config.gateway?.auth?.password,
     };
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { logoutApiClient } from '../../api/client';
+import { enableApiClientAuth, logoutApiClient } from '../../api/client';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
@@ -12,7 +12,7 @@ import { useAppStore } from '../../store';
 export function Shell() {
   const activeView = useAppStore((state) => state.activeView);
   const setCurrentUser = useAppStore((state) => state.setCurrentUser);
-  const { data: currentUser } = useCurrentUser();
+  const { data: currentUser, error: currentUserError, isLoading: currentUserLoading } = useCurrentUser();
   const queryClient = useQueryClient();
   const [showChangePassword, setShowChangePassword] = useState(false);
 
@@ -20,12 +20,32 @@ export function Shell() {
     setCurrentUser(currentUser ?? null);
   }, [currentUser, setCurrentUser]);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     logoutApiClient();
     setCurrentUser(null);
-    await queryClient.clear();
+    queryClient.clear();
     window.location.reload();
   };
+
+  const handleLoginAgain = () => {
+    enableApiClientAuth();
+    queryClient.clear();
+    window.location.reload();
+  };
+
+  if (!currentUser && currentUserError && !currentUserLoading) {
+    return (
+      <main className="empty-state">
+        <section className="panel-card">
+          <h2 style={{ marginTop: 0 }}>Signed out</h2>
+          <p className="muted">You are logged out. Sign in again to continue.</p>
+          <button className="primary-button" onClick={handleLoginAgain}>
+            Sign In Again
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <div className="app-shell">

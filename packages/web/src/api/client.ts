@@ -10,8 +10,16 @@ export function logoutApiClient(): void {
   window.sessionStorage.setItem(AUTH_DISABLED_KEY, '1');
 }
 
+export function enableApiClientAuth(): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(AUTH_DISABLED_KEY);
+}
+
 function basicAuthHeaders(): HeadersInit {
-  if (isAuthDisabled()) return {};
+  if (isAuthDisabled()) {
+    // Force unauthorized even if the browser has cached Basic Auth credentials.
+    return { Authorization: `Basic ${btoa('logged_out:logged_out')}` };
+  }
   const username = import.meta.env.VITE_BASIC_AUTH_USER;
   const password = import.meta.env.VITE_BASIC_AUTH_PASSWORD;
   if (!username || !password) return {};

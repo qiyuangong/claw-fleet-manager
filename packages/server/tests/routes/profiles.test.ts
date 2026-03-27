@@ -88,6 +88,16 @@ describe('Profile routes', () => {
     expect(res.json().plugins[0].id).toBe('feishu');
   });
 
+  it('GET /api/fleet/:id/plugins tolerates CLI log lines before JSON output', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce(
+      '\u001b[35m[plugins]\u001b[0m feishu_chat: Registered feishu_chat tool\n'
+      + '{"workspaceDir":"/tmp/workspace","plugins":[{"id":"feishu","enabled":true,"status":"loaded"}]}',
+    );
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/main/plugins' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().plugins[0].id).toBe('feishu');
+  });
+
   it('POST /api/fleet/:id/plugins/install installs a plugin for the profile', async () => {
     mockBackend.execInstanceCommand.mockResolvedValueOnce('Installed plugin: feishu');
     const res = await app.inject({

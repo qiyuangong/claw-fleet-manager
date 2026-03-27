@@ -15,6 +15,15 @@ const installPluginSchema = z.object({
   spec: z.string().min(1, 'spec is required'),
 });
 
+function parseCliJson(stdout: string): object {
+  const ansiStripped = stdout.replace(/\u001b\[[0-9;]*m/g, '');
+  const jsonStart = ansiStripped.indexOf('{');
+  if (jsonStart < 0) {
+    throw new Error('CLI did not return JSON output');
+  }
+  return JSON.parse(ansiStripped.slice(jsonStart)) as object;
+}
+
 export async function profileRoutes(app: FastifyInstance) {
   app.get('/api/fleet/profiles', { preHandler: requireAdmin }, async () => {
     const status = app.backend.getCachedStatus();
@@ -60,7 +69,7 @@ export async function profileRoutes(app: FastifyInstance) {
     }
     try {
       const stdout = await app.backend.execInstanceCommand(id, ['plugins', 'list', '--json']);
-      return JSON.parse(stdout) as object;
+      return parseCliJson(stdout);
     } catch (error: any) {
       return reply.status(500).send({ error: error.message, code: 'PLUGIN_LIST_FAILED' });
     }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getApiClientAuthToken } from '../api/client';
 
 interface LogEntry {
   id: string;
@@ -9,10 +10,8 @@ interface LogEntry {
 const MAX_LINES = 1000;
 
 function wsAuthQuery(): string {
-  const username = import.meta.env.VITE_BASIC_AUTH_USER;
-  const password = import.meta.env.VITE_BASIC_AUTH_PASSWORD;
-  if (!username || !password) return '';
-  const token = btoa(`${username}:${password}`);
+  const token = getApiClientAuthToken();
+  if (!token) return '';
   return `?auth=${encodeURIComponent(token)}`;
 }
 

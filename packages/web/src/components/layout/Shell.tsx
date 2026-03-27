@@ -10,6 +10,7 @@ import { getCurrentUser } from '../../api/users';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
+import { UserHomePanel } from '../users/UserHomePanel';
 import { UserManagementPanel } from '../users/UserManagementPanel';
 import { useFleet } from '../../hooks/useFleet';
 import { Sidebar } from './Sidebar';
@@ -19,6 +20,7 @@ import { useAppStore } from '../../store';
 export function Shell() {
   const activeView = useAppStore((state) => state.activeView);
   const selectInstance = useAppStore((state) => state.selectInstance);
+  const selectAccount = useAppStore((state) => state.selectAccount);
   const setCurrentUser = useAppStore((state) => state.setCurrentUser);
   const { data: currentUser, error: currentUserError, isLoading: currentUserLoading } = useCurrentUser();
   const { data: fleet } = useFleet();
@@ -38,11 +40,10 @@ export function Shell() {
 
   useEffect(() => {
     if (!currentUser || currentUser.role === 'admin' || !fleet) return;
-    if (nonAdminAllowedInstances.length === 0) return;
+    if (activeView.type === 'account') return;
     if (activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)) return;
-
-    selectInstance(nonAdminAllowedInstances[0].id);
-  }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectInstance]);
+    selectAccount();
+  }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectAccount]);
 
   const handleLogout = () => {
     clearApiClientSessionAuth();
@@ -155,14 +156,6 @@ export function Shell() {
     }
   }
 
-  const nonAdminInstanceId = currentUser && currentUser.role !== 'admin'
-    ? (
-        activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)
-          ? activeView.id
-          : nonAdminAllowedInstances[0]?.id
-      )
-    : null;
-
   return (
     <div className="app-shell">
       <Sidebar />
@@ -179,8 +172,13 @@ export function Shell() {
             </div>
           ) : null}
         </div>
-        {nonAdminInstanceId ? (
-          <InstancePanel instanceId={nonAdminInstanceId} />
+        {currentUser && currentUser.role !== 'admin' && activeView.type === 'account' ? (
+          <UserHomePanel
+            user={currentUser}
+            instances={nonAdminAllowedInstances}
+            onOpenInstance={selectInstance}
+            onChangePassword={() => setShowChangePassword(true)}
+          />
         ) : activeView.type === 'instance' ? (
           <InstancePanel instanceId={activeView.id} />
         ) : activeView.type === 'users' ? (

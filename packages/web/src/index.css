@@ -486,6 +486,30 @@ select.text-input {
   overflow-x: auto;
 }
 
+.profile-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.profile-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+  transition: 160ms ease;
+}
+
+.profile-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;

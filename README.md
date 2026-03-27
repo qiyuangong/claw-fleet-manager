@@ -1,5 +1,7 @@
 # Claw Fleet Manager
 
+[简体中文](README_CN.md)
+
 Claw Fleet Manager is a Turbo/npm-workspaces monorepo for operating an `openclaw` fleet from a browser.
 
 - `packages/server`: Fastify API for auth, fleet orchestration, config I/O, log streaming, and reverse proxying

@@ -75,6 +75,16 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
   const proxyCookieName = 'x-fleet-proxy-auth';
 
   app.addHook('onRequest', async (request, reply) => {
+    const rawUrl = request.raw.url ?? '/';
+    const isApiPath = rawUrl.startsWith('/api/');
+    const isWsPath = rawUrl.startsWith('/ws/');
+    const isProxyPath = rawUrl.startsWith('/proxy/') || rawUrl.startsWith('/proxy-ws/');
+
+    // Let the SPA shell and static assets load without browser-level auth prompts.
+    if (!isApiPath && !isWsPath && !isProxyPath) {
+      return;
+    }
+
     const headerCredentials = parseBasicAuth(request.headers.authorization);
     if (headerCredentials) {
       const user = await userService.verify(headerCredentials.username, headerCredentials.password);
@@ -83,10 +93,6 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
         return;
       }
     }
-
-    const rawUrl = request.raw.url ?? '/';
-    const isProxyPath = rawUrl.startsWith('/proxy/') || rawUrl.startsWith('/proxy-ws/');
-    const isWsPath = rawUrl.startsWith('/ws/');
 
     if (isProxyPath || isWsPath) {
       const cookieCredentials = parseProxyCookie(request.headers.cookie, proxyCookieName);

@@ -3,7 +3,9 @@ import { initReactI18next } from 'react-i18next';
 import en from './locales/en';
 import zh from './locales/zh';
 
-const savedLang = localStorage.getItem('lang') ?? 'en';
+const savedLang = (() => {
+  try { return localStorage.getItem('lang') ?? 'en'; } catch { return 'en'; }
+})();
 
 void i18n
   .use(initReactI18next)
@@ -21,7 +23,7 @@ void i18n
 
 export function setLanguage(lang: 'en' | 'zh') {
   void i18n.changeLanguage(lang);
-  localStorage.setItem('lang', lang);
+  try { localStorage.setItem('lang', lang); } catch { /* storage unavailable */ }
 }
 
 export { i18n };

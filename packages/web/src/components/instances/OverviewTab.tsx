@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { restartInstance, revealToken, startInstance, stopInstance } from '../../api/fleet';
 import type { FleetInstance } from '../../types';
 import { MaskedValue } from '../common/MaskedValue';
@@ -21,6 +22,7 @@ function formatUptime(seconds: number): string {
 }
 
 export function OverviewTab({ instance }: { instance: FleetInstance }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['fleet'] });
@@ -40,8 +42,8 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
       <section className="panel-card">
         <div className="panel-header">
           <div>
-            <h3 style={{ margin: 0 }}>Runtime</h3>
-            <p className="muted">Lifecycle, port binding, health, and gateway token.</p>
+            <h3 style={{ margin: 0 }}>{t('runtime')}</h3>
+            <p className="muted">{t('runtimeDesc')}</p>
           </div>
           <div className="pill">
             <StatusBadge status={instance.status} />
@@ -51,37 +53,37 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
 
         <div className="action-row" style={{ marginBottom: '1rem' }}>
           <button className="primary-button" onClick={() => start.mutate()} disabled={instance.status === 'running' || start.isPending}>
-            Start
+            {t('start')}
           </button>
           <button className="danger-button" onClick={() => stop.mutate()} disabled={instance.status === 'stopped' || stop.isPending}>
-            Stop
+            {t('stop')}
           </button>
           <button className="secondary-button" onClick={() => restart.mutate()} disabled={instance.status === 'stopped' || restart.isPending}>
-            Restart
+            {t('restart')}
           </button>
         </div>
 
         <div className="section-grid">
           <div className="metric-card">
-            <p className="metric-label">Port</p>
+            <p className="metric-label">{t('port')}</p>
             <p className="metric-value mono">:{instance.port}</p>
           </div>
           <div className="metric-card">
-            <p className="metric-label">Uptime</p>
+            <p className="metric-label">{t('uptime')}</p>
             <p className="metric-value">{formatUptime(instance.uptime)}</p>
           </div>
           <div className="metric-card">
-            <p className="metric-label">{instance.profile ? 'Profile' : 'Image'}</p>
+            <p className="metric-label">{instance.profile ? t('profile') : t('image')}</p>
             <p className="metric-value mono">{instance.profile ?? instance.image}</p>
           </div>
           {instance.pid !== undefined ? (
             <div className="metric-card">
-              <p className="metric-label">PID</p>
+              <p className="metric-label">{t('pid')}</p>
               <p className="metric-value mono">{instance.pid}</p>
             </div>
           ) : (
             <div className="metric-card">
-              <p className="metric-label">Health</p>
+              <p className="metric-label">{t('health')}</p>
               <p className="metric-value">{instance.health}</p>
             </div>
           )}
@@ -90,14 +92,14 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
 
       <section className="section-grid">
         <div className="metric-card">
-          <p className="metric-label">CPU</p>
+          <p className="metric-label">{t('cpu')}</p>
           <p className="metric-value">{instance.cpu.toFixed(1)}%</p>
           <div className="progress-track">
             <div className="progress-bar" style={{ width: `${cpuPercent}%` }} />
           </div>
         </div>
         <div className="metric-card">
-          <p className="metric-label">Memory</p>
+          <p className="metric-label">{t('memory')}</p>
           <p className="metric-value">{formatBytes(instance.memory.used)} / {formatBytes(instance.memory.limit)}</p>
           <div className="progress-track">
             <div className="progress-bar" style={{ width: `${memPercent}%` }} />
@@ -106,7 +108,7 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
       </section>
 
       <section className="panel-card">
-        <p className="metric-label">Gateway Token</p>
+        <p className="metric-label">{t('gatewayToken')}</p>
         <MaskedValue
           masked={instance.token}
           onReveal={async () => (await revealToken(instance.id)).token}

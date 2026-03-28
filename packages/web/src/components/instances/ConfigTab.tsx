@@ -1,13 +1,15 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Editor from '@monaco-editor/react';
 import { useInstanceConfig } from '../../hooks/useInstanceConfig';
 
 export function ConfigTab({ instanceId }: { instanceId: string }) {
+  const { t } = useTranslation();
   const { data, isLoading, save, saving } = useInstanceConfig(instanceId);
   const initialValue = JSON.stringify(data ?? {}, null, 2);
 
   if (isLoading) {
-    return <div className="panel-card muted">Loading config...</div>;
+    return <div className="panel-card muted">{t('loadingConfig')}</div>;
   }
 
   return (
@@ -29,6 +31,7 @@ function ConfigEditor({
   onSave: (config: unknown) => Promise<unknown>;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -50,10 +53,10 @@ function ConfigEditor({
     <div className="panel-card">
       <div className="toolbar-row" style={{ marginBottom: '1rem' }}>
         <button className="primary-button" onClick={() => void handleSave()} disabled={saving}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t('saving') : t('save')}
         </button>
         {error ? <span className="error-text">{error}</span> : null}
-        {saved ? <span className="success-text">Saved</span> : null}
+        {saved ? <span className="success-text">{t('saved')}</span> : null}
       </div>
 
       <div className="editor-shell">

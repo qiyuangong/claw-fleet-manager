@@ -1,6 +1,6 @@
-// packages/web/src/components/instances/AddProfileDialog.tsx
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { createProfile } from '../../api/fleet';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
 }
 
 export function AddProfileDialog({ onClose }: Props) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [port, setPort] = useState('');
@@ -30,27 +31,27 @@ export function AddProfileDialog({ onClose }: Props) {
   return (
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
-        <h2 style={{ margin: '0 0 1rem' }}>Add Profile</h2>
+        <h2 style={{ margin: '0 0 1rem' }}>{t('addProfileTitle')}</h2>
 
         <label className="field-label">
-          Profile name <span className="muted">(lowercase, hyphens allowed)</span>
+          {t('profileName')} <span className="muted">{t('profileNameHint')}</span>
         </label>
         <input
           className="text-input"
           value={name}
           onChange={(e) => setName(e.target.value.toLowerCase())}
-          placeholder="main"
+          placeholder={t('profileNamePlaceholder')}
           autoFocus
         />
 
         <label className="field-label" style={{ marginTop: '0.75rem' }}>
-          Gateway port <span className="muted">(leave blank to auto-assign)</span>
+          {t('gatewayPort')} <span className="muted">{t('gatewayPortHint')}</span>
         </label>
         <input
           className="text-input"
           value={port}
           onChange={(e) => setPort(e.target.value)}
-          placeholder="18789"
+          placeholder={t('gatewayPortPlaceholder')}
           type="number"
         />
 
@@ -62,10 +63,10 @@ export function AddProfileDialog({ onClose }: Props) {
             onClick={() => create.mutate()}
             disabled={!nameValid || create.isPending}
           >
-            {create.isPending ? 'Creating...' : 'Create'}
+            {create.isPending ? t('creating') : t('create')}
           </button>
           <button className="secondary-button" onClick={onClose}>
-            Cancel
+            {t('cancel')}
           </button>
         </div>
       </div>

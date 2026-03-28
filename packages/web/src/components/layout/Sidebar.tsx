@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AddProfileDialog } from '../instances/AddProfileDialog';
 import { useFleet } from '../../hooks/useFleet';
 import { selectedInstanceIdSelector, useAppStore } from '../../store';
 import { SidebarItem } from './SidebarItem';
+import { setLanguage } from '../../i18n';
 
 export function Sidebar() {
+  const { t, i18n } = useTranslation();
   const { data, isLoading, error } = useFleet();
   const activeView = useAppStore((state) => state.activeView);
   const currentUser = useAppStore((state) => state.currentUser);
@@ -26,10 +29,25 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <p className="pill">Fleet Manager</p>
-        <h1 className="sidebar-title">Claw Fleet</h1>
+        <div className="sidebar-header-top">
+          <p className="pill">{t('fleetManager')}</p>
+          <select
+            className="lang-select"
+            value={i18n.language}
+            onChange={(e) => setLanguage(e.target.value as 'en' | 'zh')}
+            aria-label="Language"
+          >
+            <option value="en">EN</option>
+            <option value="zh">中文</option>
+          </select>
+        </div>
+        <h1 className="sidebar-title">{t('clawFleet')}</h1>
         <p className="sidebar-subtitle">
-          {data ? `${data.totalRunning}/${visibleInstances.length} running` : isLoading ? 'Loading fleet...' : 'Awaiting server'}
+          {data
+            ? t('running', { running: data.totalRunning, total: visibleInstances.length })
+            : isLoading
+              ? t('loadingFleet')
+              : t('awaitingServer')}
         </p>
         {error ? <p className="error-text">{error.message}</p> : null}
       </div>
@@ -37,17 +55,17 @@ export function Sidebar() {
       <nav className="sidebar-nav">
         {currentUser?.role !== 'admin' ? (
           <>
-            <p className="sidebar-section">Account</p>
+            <p className="sidebar-section">{t('account')}</p>
             <button
               className={`sidebar-nav-item${activeView.type === 'account' ? ' selected' : ''}`}
               onClick={selectAccount}
             >
-              My Account
+              {t('myAccount')}
             </button>
           </>
         ) : null}
 
-        <p className="sidebar-section">Instances</p>
+        <p className="sidebar-section">{t('instances')}</p>
         {visibleInstances.map((instance) => (
           <SidebarItem
             key={instance.id}
@@ -59,12 +77,12 @@ export function Sidebar() {
 
         {currentUser?.role === 'admin' ? (
           <>
-            <p className="sidebar-section">Admin</p>
+            <p className="sidebar-section">{t('admin')}</p>
             <button
               className={`sidebar-nav-item${activeView.type === 'users' ? ' selected' : ''}`}
               onClick={selectUsers}
             >
-              Users
+              {t('users')}
             </button>
           </>
         ) : null}
@@ -73,12 +91,12 @@ export function Sidebar() {
       <div className="sidebar-footer">
         {isProfileMode && canManageFleet ? (
           <button className="primary-button" onClick={() => setShowAddProfile(true)}>
-            + Add Profile
+            {t('addProfile')}
           </button>
         ) : null}
         {canManageFleet ? (
           <button className="secondary-button" onClick={selectConfig}>
-            Fleet Config
+            {t('fleetConfig')}
           </button>
         ) : null}
       </div>

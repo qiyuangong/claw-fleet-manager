@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { adminResetPassword, changeOwnPassword } from '../../api/users';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function ChangePasswordDialog({ username, isAdmin, targetUsername, onClose }: Props) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const isResetMode = !!targetUsername && targetUsername !== username;
   const [currentPassword, setCurrentPassword] = useState('');
@@ -32,10 +34,10 @@ export function ChangePasswordDialog({ username, isAdmin, targetUsername, onClos
   });
 
   const heading = isResetMode
-    ? `Reset password for ${targetUsername}`
+    ? t('resetPasswordFor', { username: targetUsername })
     : isAdmin
-      ? 'Change Admin Password'
-      : 'Change Password';
+      ? t('changeAdminPassword')
+      : t('changePasswordTitle');
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -44,7 +46,7 @@ export function ChangePasswordDialog({ username, isAdmin, targetUsername, onClos
 
         {!isResetMode ? (
           <>
-            <label className="field-label">Current password</label>
+            <label className="field-label">{t('currentPassword')}</label>
             <input
               className="text-input"
               type="password"
@@ -56,7 +58,7 @@ export function ChangePasswordDialog({ username, isAdmin, targetUsername, onClos
         ) : null}
 
         <label className="field-label" style={{ marginTop: isResetMode ? 0 : '0.75rem' }}>
-          New password
+          {t('newPassword')}
         </label>
         <input
           className="text-input"
@@ -69,13 +71,13 @@ export function ChangePasswordDialog({ username, isAdmin, targetUsername, onClos
         {error ? <p className="error-text" style={{ marginTop: '0.75rem' }}>{error}</p> : null}
 
         <div className="dialog-actions">
-          <button className="secondary-button" onClick={onClose}>Cancel</button>
+          <button className="secondary-button" onClick={onClose}>{t('cancel')}</button>
           <button
             className="primary-button"
             disabled={mutation.isPending || (!isResetMode && !currentPassword) || !newPassword}
             onClick={() => mutation.mutate()}
           >
-            {mutation.isPending ? 'Saving...' : 'Save'}
+            {mutation.isPending ? t('savingEllipsis') : t('save')}
           </button>
         </div>
       </div>

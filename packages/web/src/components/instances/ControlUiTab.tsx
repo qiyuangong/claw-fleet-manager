@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { revealToken, getPendingDevices, approveDevice } from '../../api/fleet';
 import type { FleetInstance } from '../../types';
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function ControlUiTab({ instance }: Props) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,9 +61,9 @@ export function ControlUiTab({ instance }: Props) {
     try {
       const url = await buildLaunchUrl();
       window.open(url, '_blank', 'noreferrer');
-      setStatus('Opened Control UI in a new tab.');
+      setStatus(t('openedControlUi'));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Failed to open Control UI');
+      setError(cause instanceof Error ? cause.message : t('failedOpenControlUi'));
     } finally {
       setLoading(false);
     }
@@ -75,13 +77,13 @@ export function ControlUiTab({ instance }: Props) {
       const url = await buildLaunchUrl();
       try {
         await navigator.clipboard.writeText(url);
-        setStatus('Launch URL copied to clipboard.');
+        setStatus(t('launchUrlCopied'));
       } catch {
-        window.prompt('Copy launch URL:', url);
-        setStatus('Launch URL prepared. Copy it from the prompt.');
+        window.prompt(t('copyLaunchUrl'), url);
+        setStatus(t('launchUrlPrepared'));
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Failed to build launch URL');
+      setError(cause instanceof Error ? cause.message : t('failedBuildLaunchUrl'));
     } finally {
       setLoading(false);
     }
@@ -91,18 +93,18 @@ export function ControlUiTab({ instance }: Props) {
     <section className="panel-card">
       <div className="panel-header">
         <div>
-          <h3 style={{ margin: 0 }}>Control UI</h3>
-          <p className="muted">Open the gateway Control UI with a one-time token.</p>
+          <h3 style={{ margin: 0 }}>{t('controlUi')}</h3>
+          <p className="muted">{t('controlUiDesc')}</p>
         </div>
       </div>
 
       <div className="section-grid">
         <div className="metric-card">
-          <p className="metric-label">Gateway URL{useProxy ? ' (proxied)' : ''}</p>
+          <p className="metric-label">{useProxy ? t('gatewayUrlProxied') : t('gatewayUrl')}</p>
           <p className="metric-value mono">{baseUrl}</p>
         </div>
         <div className="metric-card">
-          <p className="metric-label">Instance</p>
+          <p className="metric-label">{t('instance')}</p>
           <p className="metric-value mono">{instance.id}</p>
         </div>
       </div>
@@ -111,7 +113,10 @@ export function ControlUiTab({ instance }: Props) {
         <div className="metric-card" style={{ marginTop: '1rem', borderColor: 'var(--warning, #f59e0b)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p className="metric-label" style={{ margin: 0 }}>
-              Pairing required — {pendingDevices.length} pending {pendingDevices.length === 1 ? 'request' : 'requests'}
+              {t('pairingRequired', {
+                count: pendingDevices.length,
+                requests: pendingDevices.length === 1 ? t('request') : t('requests'),
+              })}
             </p>
             <button
               className="primary-button"
@@ -119,7 +124,7 @@ export function ControlUiTab({ instance }: Props) {
               onClick={handleApproveAll}
               disabled={approveMutation.isPending}
             >
-              {approveMutation.isPending ? 'Approving…' : 'Approve All'}
+              {approveMutation.isPending ? t('approving') : t('approveAll')}
             </button>
           </div>
           {pendingDevices.map((device) => (
@@ -133,7 +138,7 @@ export function ControlUiTab({ instance }: Props) {
                 onClick={() => approveMutation.mutate({ requestId: device.requestId })}
                 disabled={approveMutation.isPending}
               >
-                Approve
+                {t('approve')}
               </button>
             </div>
           ))}
@@ -146,14 +151,14 @@ export function ControlUiTab({ instance }: Props) {
           onClick={() => void handleOpen()}
           disabled={loading}
         >
-          {loading ? 'Preparing...' : 'Open Control UI'}
+          {loading ? t('preparing') : t('openControlUi')}
         </button>
         <button
           className="secondary-button"
           onClick={() => void handleCopy()}
           disabled={loading}
         >
-          Copy launch URL
+          {t('copyLaunchUrl')}
         </button>
       </div>
 

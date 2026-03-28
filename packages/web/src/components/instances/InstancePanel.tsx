@@ -1,4 +1,5 @@
 import { Suspense, lazy } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useFleet } from '../../hooks/useFleet';
 import { useAppStore } from '../../store';
 import { OverviewTab } from './OverviewTab';
@@ -12,7 +13,20 @@ const PluginsTab = lazy(async () => ({ default: (await import('./PluginsTab')).P
 
 const baseTabs = ['overview', 'logs', 'config', 'metrics', 'controlui', 'feishu'] as const;
 
+type Tab = typeof baseTabs[number] | 'plugins';
+
+const tabLabelKey: Record<Tab, string> = {
+  overview: 'tabOverview',
+  logs: 'tabLogs',
+  config: 'tabConfig',
+  metrics: 'tabMetrics',
+  controlui: 'tabControlUi',
+  feishu: 'tabFeishu',
+  plugins: 'tabPlugins',
+};
+
 export function InstancePanel({ instanceId }: { instanceId: string }) {
+  const { t } = useTranslation();
   const { data } = useFleet();
   const activeTab = useAppStore((state) => state.activeTab);
   const setTab = useAppStore((state) => state.setTab);
@@ -22,8 +36,8 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
     return (
       <section className="empty-state">
         <div>
-          <h2>Instance not found</h2>
-          <p className="muted">The selected instance is not present in the latest fleet snapshot.</p>
+          <h2>{t('instanceNotFound')}</h2>
+          <p className="muted">{t('instanceNotFoundDesc')}</p>
         </div>
       </section>
     );
@@ -34,8 +48,8 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
       <div className="panel-header">
         <div>
           <p className="pill mono">{instance.profile ?? instance.id}</p>
-          <h2 className="panel-title">Instance Control</h2>
-          <p className="muted">Inspect state, tail logs, edit config, and watch metrics.</p>
+          <h2 className="panel-title">{t('instanceControl')}</h2>
+          <p className="muted">{t('instanceControlDesc')}</p>
         </div>
       </div>
 
@@ -46,14 +60,14 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
             className={`tab-button ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setTab(tab)}
           >
-            {tab === 'controlui' ? 'control ui' : tab}
+            {t(tabLabelKey[tab])}
           </button>
         ))}
       </div>
 
       {activeTab === 'overview' ? <OverviewTab instance={instance} /> : null}
       {activeTab !== 'overview' ? (
-        <Suspense fallback={<div className="panel-card muted">Loading tab...</div>}>
+        <Suspense fallback={<div className="panel-card muted">{t('loadingTab')}</div>}>
           {activeTab === 'logs' ? <LogsTab instanceId={instanceId} /> : null}
           {activeTab === 'config' ? <ConfigTab instanceId={instanceId} /> : null}
           {activeTab === 'metrics' ? <MetricsTab instance={instance} /> : null}

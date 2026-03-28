@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { getProfilePlugins, installProfilePlugin, restartInstance, uninstallProfilePlugin } from '../../api/fleet';
 import type { FleetInstance } from '../../types';
 import type { ProfilePlugin } from '../../api/fleet';
@@ -10,6 +11,7 @@ function pluginLabel(plugin: ProfilePlugin): string {
 }
 
 export function PluginsTab({ instance }: { instance: FleetInstance }) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [spec, setSpec] = useState('');
   const [output, setOutput] = useState<string | null>(null);
@@ -30,13 +32,13 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
   const installMutation = useMutation({
     mutationFn: (pluginSpec: string) => installProfilePlugin(instance.id, pluginSpec),
     onSuccess: (result) => {
-      setOutput(result.output || 'Plugin installed.');
+      setOutput(result.output || t('pluginInstalled'));
       setError(null);
       setSpec('');
       refresh();
     },
     onError: (cause) => {
-      setError(cause instanceof Error ? cause.message : 'Failed to install plugin');
+      setError(cause instanceof Error ? cause.message : t('failedInstallPlugin'));
       setOutput(null);
     },
   });
@@ -44,13 +46,13 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
   const uninstallMutation = useMutation({
     mutationFn: (pluginId: string) => uninstallProfilePlugin(instance.id, pluginId),
     onSuccess: (result) => {
-      setOutput(result.output || 'Plugin removed.');
+      setOutput(result.output || t('pluginRemoved'));
       setError(null);
       setPendingRemoval(null);
       refresh();
     },
     onError: (cause) => {
-      setError(cause instanceof Error ? cause.message : 'Failed to remove plugin');
+      setError(cause instanceof Error ? cause.message : t('failedRemovePlugin'));
       setOutput(null);
       setPendingRemoval(null);
     },
@@ -59,19 +61,19 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
   const restartMutation = useMutation({
     mutationFn: () => restartInstance(instance.id),
     onSuccess: () => {
-      setOutput((current) => current ? `${current}\n\nInstance restarted.` : 'Instance restarted.');
+      setOutput((current) => current ? `${current}\n\n${t('instanceRestarted')}` : t('instanceRestarted'));
       setError(null);
       refresh();
     },
     onError: (cause) => {
-      setError(cause instanceof Error ? cause.message : 'Failed to restart instance');
+      setError(cause instanceof Error ? cause.message : t('failedRestartInstance'));
     },
   });
 
   if (!instance.profile) {
     return (
       <section className="panel-card">
-        <p className="muted">Plugin management is available only for profile-mode instances.</p>
+        <p className="muted">{t('profileModeOnly')}</p>
       </section>
     );
   }
@@ -82,45 +84,45 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
     <section className="panel-card">
       <div className="panel-header">
         <div>
-          <h3 style={{ margin: 0 }}>Plugins</h3>
-          <p className="muted">Install or remove plugins for this profile. Changes are written into the profile config.</p>
+          <h3 style={{ margin: 0 }}>{t('plugins')}</h3>
+          <p className="muted">{t('pluginsDesc')}</p>
         </div>
       </div>
 
       <div className="metric-card" style={{ marginBottom: '1rem' }}>
-        <p className="metric-label">Install Plugin</p>
+        <p className="metric-label">{t('installPlugin')}</p>
         <div className="action-row">
           <input
             className="mock-input"
             style={{ flex: 1, minWidth: '18rem' }}
             value={spec}
             onChange={(e) => setSpec(e.target.value)}
-            placeholder="@openclaw/feishu or local path"
+            placeholder={t('pluginSpecPlaceholder')}
           />
           <button
             className="primary-button"
             onClick={() => installMutation.mutate(spec.trim())}
             disabled={!spec.trim() || installMutation.isPending}
           >
-            {installMutation.isPending ? 'Installing...' : 'Install'}
+            {installMutation.isPending ? t('installing') : t('install')}
           </button>
           <button
             className="secondary-button"
             onClick={() => restartMutation.mutate()}
             disabled={restartMutation.isPending}
           >
-            {restartMutation.isPending ? 'Restarting...' : 'Restart Instance'}
+            {restartMutation.isPending ? t('restarting') : t('restartInstance')}
           </button>
         </div>
         <p className="muted" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
-          Restart the instance after install or removal so plugin changes are loaded into the running gateway.
+          {t('restartInstanceHint')}
         </p>
       </div>
 
-      {pluginsQuery.isLoading ? <div className="panel-card muted">Loading plugins...</div> : null}
+      {pluginsQuery.isLoading ? <div className="panel-card muted">{t('loadingPlugins')}</div> : null}
       {pluginsQuery.error ? (
         <div className="panel-card error-text">
-          {pluginsQuery.error instanceof Error ? pluginsQuery.error.message : 'Failed to load plugins'}
+          {pluginsQuery.error instanceof Error ? pluginsQuery.error.message : t('failedLoadPlugins')}
         </div>
       ) : null}
 
@@ -138,7 +140,7 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
                 onClick={() => setPendingRemoval(plugin)}
                 disabled={uninstallMutation.isPending}
               >
-                Remove
+                {t('remove')}
               </button>
             </div>
             <p className="muted" style={{ marginTop: '0.5rem', minHeight: '2.5rem' }}>
@@ -146,15 +148,15 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
             </p>
             <div className="section-grid" style={{ marginTop: '0.5rem' }}>
               <div>
-                <p className="metric-label">Version</p>
+                <p className="metric-label">{t('version')}</p>
                 <p className="mono">{plugin.version ?? 'unknown'}</p>
               </div>
               <div>
-                <p className="metric-label">Status</p>
+                <p className="metric-label">{t('status')}</p>
                 <p>{plugin.status ?? (plugin.enabled ? 'enabled' : 'unknown')}</p>
               </div>
               <div>
-                <p className="metric-label">Origin</p>
+                <p className="metric-label">{t('origin')}</p>
                 <p>{plugin.origin ?? 'unknown'}</p>
               </div>
             </div>
@@ -164,7 +166,7 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
 
       {!pluginsQuery.isLoading && plugins.length === 0 ? (
         <div className="panel-card muted" style={{ marginTop: '1rem' }}>
-          No plugins discovered for this profile yet.
+          {t('noPlugins')}
         </div>
       ) : null}
 
@@ -177,12 +179,13 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
 
       <ConfirmDialog
         open={pendingRemoval !== null}
-        title="Remove Plugin"
+        title={t('removePlugin')}
         message={
           pendingRemoval
-            ? `Remove plugin "${pluginLabel(pendingRemoval)}" from profile "${instance.profile}"?\n\nRestart the instance afterwards to unload it from the running gateway.`
+            ? t('removePluginConfirm', { plugin: pluginLabel(pendingRemoval), profile: instance.profile })
             : ''
         }
+        confirmLabel={t('remove')}
         onCancel={() => setPendingRemoval(null)}
         onConfirm={() => {
           if (pendingRemoval) {

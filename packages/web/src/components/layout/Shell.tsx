@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   clearApiClientSessionAuth,
@@ -19,6 +20,7 @@ import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useAppStore } from '../../store';
 
 export function Shell() {
+  const { t } = useTranslation();
   const activeView = useAppStore((state) => state.activeView);
   const selectInstance = useAppStore((state) => state.selectInstance);
   const selectAccount = useAppStore((state) => state.selectAccount);
@@ -68,7 +70,7 @@ export function Shell() {
       await queryClient.invalidateQueries({ queryKey: ['fleet'] });
     } catch {
       setLoggedOut(true);
-      setLoginError('Default credentials are not available in this build. Please sign in with username/password.');
+      setLoginError(t('defaultAuthUnavailable'));
     } finally {
       setLoggingIn(false);
     }
@@ -76,7 +78,7 @@ export function Shell() {
 
   const handleSignIn = async () => {
     if (!loginUsername.trim() || !loginPassword) {
-      setLoginError('Username and password are required');
+      setLoginError(t('usernamePasswordRequired'));
       return;
     }
     setLoggingIn(true);
@@ -91,7 +93,7 @@ export function Shell() {
     } catch {
       setLoggedOut(true);
       clearApiClientSessionAuth();
-      setLoginError('Invalid username or password');
+      setLoginError(t('invalidCredentials'));
     } finally {
       setLoggingIn(false);
     }
@@ -101,29 +103,29 @@ export function Shell() {
     return (
       <main className="empty-state">
         <section className="panel-card">
-          <h2 style={{ marginTop: 0 }}>Signed out</h2>
-          <p className="muted">Sign in again to continue.</p>
+          <h2 style={{ marginTop: 0 }}>{t('signedOut')}</h2>
+          <p className="muted">{t('signInAgain')}</p>
           <div className="field-grid" style={{ marginTop: '0.75rem' }}>
             <input
               className="text-input"
-              placeholder="Username"
+              placeholder={t('usernamePlaceholder')}
               value={loginUsername}
               onChange={(event) => setLoginUsername(event.target.value)}
             />
             <input
               className="text-input"
               type="password"
-              placeholder="Password"
+              placeholder={t('passwordPlaceholder')}
               value={loginPassword}
               onChange={(event) => setLoginPassword(event.target.value)}
             />
           </div>
           <div className="action-row" style={{ marginTop: '1rem' }}>
             <button className="primary-button" onClick={() => void handleSignIn()} disabled={loggingIn}>
-              {loggingIn ? 'Signing In...' : 'Sign In'}
+              {loggingIn ? t('signingIn') : t('signIn')}
             </button>
             <button className="secondary-button" onClick={() => void handleLoginAgain()} disabled={loggingIn}>
-              Use Default Auth
+              {t('useDefaultAuth')}
             </button>
           </div>
           {loginError ? <p className="error-text" style={{ marginBottom: 0 }}>{loginError}</p> : null}
@@ -136,8 +138,8 @@ export function Shell() {
     return (
       <main className="empty-state">
         <section className="panel-card">
-          <h2 style={{ marginTop: 0 }}>Loading session</h2>
-          <p className="muted">Checking your account and permissions.</p>
+          <h2 style={{ marginTop: 0 }}>{t('loadingSession')}</h2>
+          <p className="muted">{t('checkingAccount')}</p>
         </section>
       </main>
     );
@@ -149,8 +151,8 @@ export function Shell() {
         <Sidebar />
         <main className="empty-state">
           <section className="panel-card">
-            <h2 style={{ marginTop: 0 }}>Loading profile</h2>
-            <p className="muted">Resolving your assigned profile.</p>
+            <h2 style={{ marginTop: 0 }}>{t('loadingProfile')}</h2>
+            <p className="muted">{t('resolvingProfile')}</p>
           </section>
         </main>
       </div>
@@ -168,7 +170,7 @@ export function Shell() {
                 {currentUser.username} ({currentUser.role})
               </button>
               <button className="secondary-button" onClick={handleLogout}>
-                Logout
+                {t('logout')}
               </button>
             </div>
           ) : null}

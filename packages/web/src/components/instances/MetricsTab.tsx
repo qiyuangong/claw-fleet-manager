@@ -1,4 +1,5 @@
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useTranslation } from 'react-i18next';
 import type { FleetInstance } from '../../types';
 
 interface DataPoint {
@@ -25,12 +26,13 @@ function formatBytes(bytes: number): string {
 }
 
 export function MetricsTab({ instance }: { instance: FleetInstance }) {
+  const { t } = useTranslation();
   const history = getHistory(instance);
 
   return (
     <div className="field-grid">
       <section className="panel-card">
-        <h3 style={{ marginTop: 0 }}>CPU History</h3>
+        <h3 style={{ marginTop: 0 }}>{t('cpuHistory')}</h3>
         <div className="chart-shell" style={{ height: '220px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={history}>
@@ -44,7 +46,7 @@ export function MetricsTab({ instance }: { instance: FleetInstance }) {
       </section>
 
       <section className="panel-card">
-        <h3 style={{ marginTop: 0 }}>Memory History</h3>
+        <h3 style={{ marginTop: 0 }}>{t('memoryHistory')}</h3>
         <div className="chart-shell" style={{ height: '220px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={history}>
@@ -59,11 +61,11 @@ export function MetricsTab({ instance }: { instance: FleetInstance }) {
 
       <section className="section-grid">
         <div className="metric-card">
-          <p className="metric-label">Config Volume</p>
+          <p className="metric-label">{t('configVolume')}</p>
           <p className="metric-value mono">{formatBytes(instance.disk.config)}</p>
         </div>
         <div className="metric-card">
-          <p className="metric-label">Workspace Volume</p>
+          <p className="metric-label">{t('workspaceVolume')}</p>
           <p className="metric-value mono">{formatBytes(instance.disk.workspace)}</p>
         </div>
       </section>

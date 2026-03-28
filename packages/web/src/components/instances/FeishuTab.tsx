@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { getFeishuPairing, approveFeishuPairing } from '../../api/fleet';
 import { useInstanceConfig } from '../../hooks/useInstanceConfig';
 
@@ -17,6 +18,7 @@ function extractFeishuConfig(raw: unknown): FeishuChannelConfig {
 }
 
 export function FeishuTab({ instanceId }: { instanceId: string }) {
+  const { t } = useTranslation();
   const { data: rawConfig, isLoading, save, saving } = useInstanceConfig(instanceId);
   const queryClient = useQueryClient();
 
@@ -79,35 +81,35 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
   });
 
   if (isLoading) {
-    return <div className="panel-card muted">Loading config...</div>;
+    return <div className="panel-card muted">{t('loadingConfig')}</div>;
   }
 
   return (
     <section className="panel-card">
       <div className="panel-header">
         <div>
-          <h3 style={{ margin: 0 }}>Feishu Channel</h3>
-          <p className="muted">Configure the Feishu bot and manage user pairing.</p>
+          <h3 style={{ margin: 0 }}>{t('feishuChannel')}</h3>
+          <p className="muted">{t('feishuChannelDesc')}</p>
         </div>
       </div>
 
       {/* Config */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-          <p className="metric-label" style={{ margin: 0 }}>App Credentials</p>
+          <p className="metric-label" style={{ margin: 0 }}>{t('appCredentials')}</p>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
             />
-            <span className="label">Enabled</span>
+            <span className="label">{t('enabled')}</span>
           </label>
         </div>
 
         <div className="section-grid" style={{ marginBottom: '0.75rem' }}>
           <div>
-            <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>App ID</label>
+            <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('appId')}</label>
             <input
               className="mock-input"
               style={{ width: '100%', boxSizing: 'border-box' }}
@@ -117,7 +119,7 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
             />
           </div>
           <div>
-            <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>App Secret</label>
+            <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('appSecret')}</label>
             <input
               className="mock-input"
               style={{ width: '100%', boxSizing: 'border-box' }}
@@ -131,16 +133,16 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
 
         <div className="section-grid" style={{ marginBottom: '0.75rem' }}>
           <div>
-            <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>Group Policy</label>
+            <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('groupPolicy')}</label>
             <select
               className="mock-input"
               style={{ width: '100%', boxSizing: 'border-box' }}
               value={groupPolicy}
               onChange={(e) => setGroupPolicy(e.target.value)}
             >
-              <option value="open">open — all groups</option>
-              <option value="allowlist">allowlist — listed groups only</option>
-              <option value="disabled">disabled</option>
+              <option value="open">{t('groupPolicyOpen')}</option>
+              <option value="allowlist">{t('groupPolicyAllowlist')}</option>
+              <option value="disabled">{t('groupPolicyDisabled')}</option>
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.25rem' }}>
@@ -151,24 +153,24 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
               onChange={(e) => setRequireMention(e.target.checked)}
             />
             <label className="label" htmlFor={`requireMention-${instanceId}`} style={{ cursor: 'pointer' }}>
-              Require @mention in groups
+              {t('requireMention')}
             </label>
           </div>
         </div>
 
         <div className="toolbar-row">
           <button className="primary-button" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Config'}
+            {saving ? t('saving') : t('saveConfig')}
           </button>
           {saveError ? <span className="error-text">{saveError}</span> : null}
-          {saved ? <span className="success-text">Saved</span> : null}
+          {saved ? <span className="success-text">{t('saved')}</span> : null}
         </div>
       </div>
 
       {/* Pairing */}
       <div>
         <p className="metric-label" style={{ marginBottom: '0.75rem' }}>
-          Pending Pairing Requests
+          {t('pendingPairingRequests')}
           {pending.length > 0 ? ` — ${pending.length}` : ''}
         </p>
 
@@ -178,7 +180,7 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
               {rawOutput}
             </pre>
           ) : (
-            <p className="muted" style={{ fontSize: '0.875rem' }}>No pending pairing requests.</p>
+            <p className="muted" style={{ fontSize: '0.875rem' }}>{t('noPendingPairing')}</p>
           )
         ) : (
           <div
@@ -199,7 +201,7 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
                   onClick={() => approveMutation.mutate(item.code)}
                   disabled={approveMutation.isPending}
                 >
-                  Approve
+                  {t('approve')}
                 </button>
               </div>
             ))}

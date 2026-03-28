@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   masked: string;
@@ -6,6 +7,7 @@ interface Props {
 }
 
 export function MaskedValue({ masked, onReveal }: Props) {
+  const { t } = useTranslation();
   const [revealed, setRevealed] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,7 @@ export function MaskedValue({ masked, onReveal }: Props) {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(value);
       } else if (!fallbackCopy(value)) {
-        throw new Error('Clipboard access is not available');
+        throw new Error(t('clipboardUnavailable'));
       }
 
       setCopyState('copied');
@@ -67,28 +69,28 @@ export function MaskedValue({ masked, onReveal }: Props) {
         setCopyState('copied');
       } else {
         setCopyState('failed');
-        setError('Copy failed. Reveal the token and copy it manually.');
+        setError(t('copyFailedManual'));
       }
       resetCopyState();
     }
   };
 
   const value = revealed ?? masked;
-  const copyLabel = copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy';
+  const copyLabel = copyState === 'copied' ? t('copied') : copyState === 'failed' ? t('copyFailed') : t('copy');
 
   return (
     <>
       <div className="token-row">
         <span className="token-value mono">{value}</span>
         <button className="secondary-button" onClick={() => void handleReveal()} disabled={loading}>
-          {loading ? 'Loading...' : revealed ? 'Hide' : 'Reveal'}
+          {loading ? t('loading') : revealed ? t('hide') : t('reveal')}
         </button>
         <button className="ghost-button" onClick={() => void handleCopy()}>
           {copyLabel}
         </button>
       </div>
       {error ? <p className="token-status error-text">{error}</p> : null}
-      {!error && copyState === 'copied' ? <p className="token-status success-text">Token copied to clipboard.</p> : null}
+      {!error && copyState === 'copied' ? <p className="token-status success-text">{t('tokenCopied')}</p> : null}
     </>
   );
 }

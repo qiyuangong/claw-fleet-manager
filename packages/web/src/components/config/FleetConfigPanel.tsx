@@ -1,11 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { scaleFleet } from '../../api/fleet';
 import { useFleet } from '../../hooks/useFleet';
 import { useFleetConfig } from '../../hooks/useFleetConfig';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 
 export function FleetConfigPanel() {
+  const { t } = useTranslation();
   const { data, isLoading, save, saving } = useFleetConfig();
   const { data: fleetData } = useFleet();
   const queryClient = useQueryClient();
@@ -49,29 +51,31 @@ export function FleetConfigPanel() {
   };
 
   if (isLoading) {
-    return <section className="panel-card muted">Loading fleet config...</section>;
+    return <section className="panel-card muted">{t('loadingConfig')}</section>;
   }
+
+  const fieldLabels: [string, string][] = [
+    ['BASE_URL', t('baseUrl')],
+    ['MODEL_ID', t('modelId')],
+    ['CPU_LIMIT', t('cpuLimit')],
+    ['MEM_LIMIT', t('memLimit')],
+    ['PORT_STEP', t('portStep')],
+    ['TZ', t('timezone')],
+  ];
 
   return (
     <section className="panel-card">
       <div className="panel-header">
         <div>
-          <p className="pill">Fleet Config</p>
-          <h2 className="panel-title">Control Plane</h2>
-          <p className="muted">Edit core fleet settings and scale instance count.</p>
+          <p className="pill">{t('fleetConfigPill')}</p>
+          <h2 className="panel-title">{t('controlPlane')}</h2>
+          <p className="muted">{t('controlPlaneDesc')}</p>
         </div>
       </div>
 
       <div className="fleet-form">
         <div className="field-grid">
-          {[
-            ['BASE_URL', 'Base URL'],
-            ['MODEL_ID', 'Model ID'],
-            ['CPU_LIMIT', 'CPU Limit'],
-            ['MEM_LIMIT', 'Memory Limit'],
-            ['PORT_STEP', 'Port Step'],
-            ['TZ', 'Timezone'],
-          ].map(([key, label]) => (
+          {fieldLabels.map(([key, label]) => (
             <label className="field-label" key={key}>
               <span>{label}</span>
               <input
@@ -85,14 +89,14 @@ export function FleetConfigPanel() {
 
         <div className="action-row">
           <button className="primary-button" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Config'}
+            {saving ? t('saving') : t('saveConfigBtn')}
           </button>
-          {saved ? <span className="success-text">Saved</span> : null}
+          {saved ? <span className="success-text">{t('saved')}</span> : null}
         </div>
 
         <section className="panel-card">
-          <h3 style={{ marginTop: 0 }}>Scale Fleet</h3>
-          <p className="muted">Currently tracking {currentCount} instance(s).</p>
+          <h3 style={{ marginTop: 0 }}>{t('scaleFleet')}</h3>
+          <p className="muted">{t('currentlyTracking', { count: currentCount })}</p>
           <div className="field-row">
             <input
               className="number-input"
@@ -113,7 +117,7 @@ export function FleetConfigPanel() {
                 void doScale();
               }}
             >
-              {scaling ? 'Scaling...' : 'Apply'}
+              {scaling ? t('scalingEllipsis') : t('apply')}
             </button>
           </div>
         </section>
@@ -121,8 +125,8 @@ export function FleetConfigPanel() {
 
       <ConfirmDialog
         open={showConfirm}
-        title="Scale Down Fleet"
-        message={`This will stop and remove ${currentCount - scaleCount} instance(s). Volumes are preserved.`}
+        title={t('scaleDownFleet')}
+        message={t('scaleDownConfirm', { count: currentCount - scaleCount })}
         onConfirm={() => void doScale()}
         onCancel={() => setShowConfirm(false)}
       />

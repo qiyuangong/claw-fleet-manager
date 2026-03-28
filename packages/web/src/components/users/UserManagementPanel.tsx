@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { createUser, deleteUser, setAssignedProfiles } from '../../api/users';
 import { useFleet } from '../../hooks/useFleet';
 import { useUsers } from '../../hooks/useUsers';
@@ -8,6 +9,7 @@ import type { PublicUser } from '../../types';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
 
 export function UserManagementPanel() {
+  const { t } = useTranslation();
   const currentUser = useAppStore((state) => state.currentUser);
   const { data: users, isLoading } = useUsers();
   const { data: fleet } = useFleet();
@@ -63,22 +65,22 @@ export function UserManagementPanel() {
   if (currentUser?.role !== 'admin') {
     return (
       <section className="panel-card">
-        <p className="error-text">User management requires admin access.</p>
+        <p className="error-text">{t('adminAccessRequired')}</p>
       </section>
     );
   }
 
   if (isLoading) {
-    return <div className="panel-card muted">Loading users...</div>;
+    return <div className="panel-card muted">{t('loadingUsers')}</div>;
   }
 
   return (
     <section className="panel-card">
       <div className="panel-header">
         <div>
-          <p className="pill">Admin</p>
-          <h2 className="panel-title">User Management</h2>
-          <p className="muted">Create users, reset passwords, and assign profile access (each profile can belong to only one user).</p>
+          <p className="pill">{t('admin')}</p>
+          <h2 className="panel-title">{t('userManagement')}</h2>
+          <p className="muted">{t('userManagementDesc')}</p>
         </div>
       </div>
 
@@ -86,10 +88,10 @@ export function UserManagementPanel() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Assigned Profiles</th>
-              <th>Actions</th>
+              <th>{t('username')}</th>
+              <th>{t('role')}</th>
+              <th>{t('assignedProfiles')}</th>
+              <th>{t('actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -97,11 +99,11 @@ export function UserManagementPanel() {
               <tr key={user.username}>
                 <td className="mono">{user.username}</td>
                 <td>{user.role}</td>
-                <td>{user.role === 'admin' ? 'All profiles' : user.assignedProfiles.join(', ') || 'None'}</td>
+                <td>{user.role === 'admin' ? t('allProfiles') : user.assignedProfiles.join(', ') || t('none')}</td>
                 <td>
                   <div className="action-row">
                     <button className="secondary-button" onClick={() => setResetTarget(user.username)}>
-                      Reset Password
+                      {t('resetPassword')}
                     </button>
                     {user.role !== 'admin' ? (
                       <button
@@ -111,7 +113,7 @@ export function UserManagementPanel() {
                           setSelectedProfiles(user.assignedProfiles);
                         }}
                       >
-                        Profiles
+                        {t('profiles')}
                       </button>
                     ) : null}
                     {user.username !== currentUser.username ? (
@@ -120,7 +122,7 @@ export function UserManagementPanel() {
                         onClick={() => deleteMutation.mutate(user.username)}
                         disabled={deleteMutation.isPending}
                       >
-                        Delete
+                        {t('delete')}
                       </button>
                     ) : null}
                   </div>
@@ -132,18 +134,18 @@ export function UserManagementPanel() {
       </div>
 
       <div className="panel-card" style={{ marginTop: '1.25rem' }}>
-        <h3 style={{ marginTop: 0 }}>Add User</h3>
+        <h3 style={{ marginTop: 0 }}>{t('addUser')}</h3>
         <div className="form-row">
           <input
             className="text-input"
-            placeholder="Username"
+            placeholder={t('username')}
             value={newUsername}
             onChange={(event) => setNewUsername(event.target.value.toLowerCase())}
           />
           <input
             className="text-input"
             type="password"
-            placeholder="Password"
+            placeholder={t('passwordPlaceholder')}
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
           />
@@ -160,7 +162,7 @@ export function UserManagementPanel() {
             disabled={createMutation.isPending || !newUsername.trim() || !newPassword}
             onClick={() => createMutation.mutate()}
           >
-            {createMutation.isPending ? 'Adding...' : 'Add'}
+            {createMutation.isPending ? t('adding') : t('add')}
           </button>
         </div>
         {createError ? <p className="error-text" style={{ marginBottom: 0 }}>{createError}</p> : null}
@@ -178,7 +180,7 @@ export function UserManagementPanel() {
       {editProfilesTarget ? (
         <div className="dialog-overlay" onClick={() => setEditProfilesTarget(null)}>
           <div className="dialog-card" onClick={(event) => event.stopPropagation()}>
-            <h2 style={{ margin: '0 0 1rem' }}>Assign Profiles: {editProfilesTarget}</h2>
+            <h2 style={{ margin: '0 0 1rem' }}>{t('assignProfilesTitle', { username: editProfilesTarget })}</h2>
             <div className="profile-checklist">
               {allProfiles.map((profileId) => (
                 <label key={profileId} className="check-row">
@@ -193,20 +195,20 @@ export function UserManagementPanel() {
                   />
                   <span className="mono">{profileId}</span>
                   {profileOwner.get(profileId) && profileOwner.get(profileId) !== editProfilesTarget ? (
-                    <span className="muted">(currently assigned to {profileOwner.get(profileId)})</span>
+                    <span className="muted">{t('currentlyAssignedTo', { owner: profileOwner.get(profileId) })}</span>
                   ) : null}
                 </label>
               ))}
-              {allProfiles.length === 0 ? <p className="muted">No profiles available yet.</p> : null}
+              {allProfiles.length === 0 ? <p className="muted">{t('noProfilesAvailable')}</p> : null}
             </div>
             <div className="dialog-actions">
-              <button className="secondary-button" onClick={() => setEditProfilesTarget(null)}>Cancel</button>
+              <button className="secondary-button" onClick={() => setEditProfilesTarget(null)}>{t('cancel')}</button>
               <button
                 className="primary-button"
                 disabled={profilesMutation.isPending}
                 onClick={() => profilesMutation.mutate({ username: editProfilesTarget, profiles: selectedProfiles })}
               >
-                {profilesMutation.isPending ? 'Saving...' : 'Save'}
+                {profilesMutation.isPending ? t('savingEllipsis') : t('save')}
               </button>
             </div>
           </div>

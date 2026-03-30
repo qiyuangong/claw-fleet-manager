@@ -104,12 +104,26 @@ describe('Auth middleware', () => {
   });
 
   it('allows access via proxyToken on /proxy/ paths without elevating a user session', async () => {
-    const res = await app.inject({ method: 'GET', url: `/proxy/some-instance/?proxyToken=${generateProxyToken()}` });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/proxy/some-instance/?proxyToken=${generateProxyToken('some-instance')}`,
+    });
     expect(res.statusCode).toBe(200);
   });
 
+  it('rejects a proxyToken replayed against a different instance', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/proxy/other-instance/?proxyToken=${generateProxyToken('some-instance')}`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
   it('does not allow proxyToken to authenticate /ws/ paths', async () => {
-    const res = await app.inject({ method: 'GET', url: `/ws/logs/openclaw-1?proxyToken=${generateProxyToken()}` });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/ws/logs/openclaw-1?proxyToken=${generateProxyToken('openclaw-1')}`,
+    });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toBeUndefined();
   });

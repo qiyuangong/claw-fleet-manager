@@ -6,19 +6,38 @@ import type { UserService } from './services/user.js';
 const PROXY_TOKEN_SECRET = randomBytes(32);
 const PROXY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-export function generateProxyToken(): string {
-  const expires = Date.now() + PROXY_TOKEN_TTL_MS;
-  const payload = String(expires);
-  const sig = createHmac('sha256', PROXY_TOKEN_SECRET).update(payload).digest('hex');
-  return `${payload}.${sig}`;
+function getProxyTokenPayload(expires: number, instanceId: string): string {
+  return `${expires}.${instanceId}`;
 }
 
-export function validateProxyToken(token: string): boolean {
-  const [payload, sig] = token.split('.');
-  if (!payload || !sig) return false;
-  const expires = parseInt(payload, 10);
+function parseProxyInstanceId(urlPath: string): string | null {
+  const match = urlPath.match(/^\/proxy(?:-ws)?\/([^/?]+)/);
+  return match?.[1] ?? null;
+}
+
+export function generateProxyToken(instanceId: string): string {
+  const expires = Date.now() + PROXY_TOKEN_TTL_MS;
+  const payload = getProxyTokenPayload(expires, instanceId);
+  const encodedInstanceId = Buffer.from(instanceId, 'utf-8').toString('base64url');
+  const sig = createHmac('sha256', PROXY_TOKEN_SECRET).update(payload).digest('hex');
+  return `${expires}.${encodedInstanceId}.${sig}`;
+}
+
+export function validateProxyToken(token: string, instanceId: string): boolean {
+  const [expiresRaw, encodedInstanceId, sig] = token.split('.');
+  if (!expiresRaw || !encodedInstanceId || !sig) return false;
+  const expires = parseInt(expiresRaw, 10);
   if (isNaN(expires) || Date.now() > expires) return false;
-  const expected = createHmac('sha256', PROXY_TOKEN_SECRET).update(payload).digest('hex');
+  let tokenInstanceId: string;
+  try {
+    tokenInstanceId = Buffer.from(encodedInstanceId, 'base64url').toString('utf-8');
+  } catch {
+    return false;
+  }
+  if (tokenInstanceId !== instanceId) return false;
+  const expected = createHmac('sha256', PROXY_TOKEN_SECRET)
+    .update(getProxyTokenPayload(expires, tokenInstanceId))
+    .digest('hex');
   try {
     return timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'));
   } catch {
@@ -113,7 +132,8 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
 
       if (isProxyPath) {
         const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
-        if (proxyToken && validateProxyToken(proxyToken)) {
+        const proxyInstanceId = parseProxyInstanceId(rawUrl);
+        if (proxyToken && proxyInstanceId && validateProxyToken(proxyToken, proxyInstanceId)) {
           return;
         }
       }

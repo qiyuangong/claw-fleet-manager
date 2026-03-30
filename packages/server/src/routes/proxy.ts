@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { request as undiciRequest } from 'undici';
 import WebSocket from 'ws';
 import { generateProxyToken } from '../auth.js';
+import { hasProfileAccess } from '../authorize.js';
 
 const HOP_BY_HOP = new Set([
   'connection',
@@ -91,6 +92,21 @@ function findWildcardInstance(app: FastifyInstance, request: FastifyRequest<Prox
   return { parsed, instance };
 }
 
+function ensureProxyAccess(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  instanceId: string,
+): boolean {
+  if (!request.user) {
+    return true;
+  }
+  if (hasProfileAccess(request.user, instanceId)) {
+    return true;
+  }
+  reply.status(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
+  return false;
+}
+
 function buildInjectedScript(token: string, proxyToken: string): string {
   return (
     `<script>(function(){` +
@@ -147,6 +163,9 @@ export async function proxyRoutes(app: FastifyInstance) {
         code: 'INSTANCE_NOT_FOUND',
       });
     }
+    if (!ensureProxyAccess(request, reply, instance.id)) {
+      return;
+    }
 
     const body = ['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase())
       ? undefined
@@ -188,7 +207,7 @@ export async function proxyRoutes(app: FastifyInstance) {
         const html = Buffer.concat(chunks).toString('utf-8');
         // The embedded Control UI needs both the gateway token and the manager's
         // Basic Auth credentials for its proxied websocket bootstrap.
-        const script = buildInjectedScript(token, generateProxyToken());
+        const script = buildInjectedScript(token, generateProxyToken(instance.id));
         const injected = html.includes('</head>')
           ? html.replace('</head>', script + '</head>')
           : script + html;
@@ -239,6 +258,10 @@ export async function proxyRoutes(app: FastifyInstance) {
       const instance = findInstance(app, parsed.id);
       if (!instance) {
         socket.close(1011, 'Instance not found');
+        return;
+      }
+      if (request.user && !hasProfileAccess(request.user, instance.id)) {
+        socket.close(1008, 'Forbidden');
         return;
       }
 
@@ -319,6 +342,9 @@ export async function proxyRoutes(app: FastifyInstance) {
           error: `Instance ${request.params.id} not found`,
           code: 'INSTANCE_NOT_FOUND',
         });
+      }
+      if (!ensureProxyAccess(request, reply, instance.id)) {
+        return;
       }
 
       return reply.redirect(`/proxy/${request.params.id}/`);

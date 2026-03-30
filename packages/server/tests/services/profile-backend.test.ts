@@ -212,6 +212,13 @@ describe('ProfileBackend — runtime env', () => {
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
     vi.mocked(fs.renameSync).mockReturnValue(undefined);
     vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('unreachable')));
+    const mockServer = {
+      listen: vi.fn((_port: number, cb: () => void) => cb()),
+      close: vi.fn((cb: () => void) => cb()),
+      on: vi.fn(),
+    };
+    vi.mocked(net.createServer).mockReturnValue(mockServer as any);
   });
 
   afterEach(() => {

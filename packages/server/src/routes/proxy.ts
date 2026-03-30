@@ -207,7 +207,7 @@ export async function proxyRoutes(app: FastifyInstance) {
         const html = Buffer.concat(chunks).toString('utf-8');
         // The embedded Control UI needs both the gateway token and the manager's
         // Basic Auth credentials for its proxied websocket bootstrap.
-        const script = buildInjectedScript(token, generateProxyToken());
+        const script = buildInjectedScript(token, generateProxyToken(instance.id));
         const injected = html.includes('</head>')
           ? html.replace('</head>', script + '</head>')
           : script + html;

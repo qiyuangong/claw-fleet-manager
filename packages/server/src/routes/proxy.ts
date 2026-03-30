@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { request as undiciRequest } from 'undici';
 import WebSocket from 'ws';
 import { generateProxyToken } from '../auth.js';
+import { hasProfileAccess } from '../authorize.js';
 
 const HOP_BY_HOP = new Set([
   'connection',
@@ -91,6 +92,21 @@ function findWildcardInstance(app: FastifyInstance, request: FastifyRequest<Prox
   return { parsed, instance };
 }
 
+function ensureProxyAccess(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  instanceId: string,
+): boolean {
+  if (!request.user) {
+    return true;
+  }
+  if (hasProfileAccess(request.user, instanceId)) {
+    return true;
+  }
+  reply.status(403).send({ error: 'Forbidden', code: 'FORBIDDEN' });
+  return false;
+}
+
 function buildInjectedScript(token: string, proxyToken: string): string {
   return (
     `<script>(function(){` +
@@ -146,6 +162,9 @@ export async function proxyRoutes(app: FastifyInstance) {
         error: `Instance ${request.params.id} not found`,
         code: 'INSTANCE_NOT_FOUND',
       });
+    }
+    if (!ensureProxyAccess(request, reply, instance.id)) {
+      return;
     }
 
     const body = ['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase())
@@ -241,6 +260,10 @@ export async function proxyRoutes(app: FastifyInstance) {
         socket.close(1011, 'Instance not found');
         return;
       }
+      if (request.user && !hasProfileAccess(request.user, instance.id)) {
+        socket.close(1008, 'Forbidden');
+        return;
+      }
 
       socket._socket?.on('error', () => {
         // Ignore raw socket resets from browser disconnects or failed upgrades.
@@ -319,6 +342,9 @@ export async function proxyRoutes(app: FastifyInstance) {
           error: `Instance ${request.params.id} not found`,
           code: 'INSTANCE_NOT_FOUND',
         });
+      }
+      if (!ensureProxyAccess(request, reply, instance.id)) {
+        return;
       }
 
       return reply.redirect(`/proxy/${request.params.id}/`);

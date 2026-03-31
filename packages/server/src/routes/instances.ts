@@ -45,7 +45,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       const instance = status.instances.find((item) => item.id === id);
       return { ok: true, instance };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message, code: 'START_FAILED' });
+      return reply.status(500).send({ error: `Failed to start instance ${id}: ${error.message}`, code: 'START_FAILED' });
     }
   });
 
@@ -60,7 +60,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       const instance = status.instances.find((item) => item.id === id);
       return { ok: true, instance };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message, code: 'STOP_FAILED' });
+      return reply.status(500).send({ error: `Failed to stop instance ${id}: ${error.message}`, code: 'STOP_FAILED' });
     }
   });
 
@@ -75,7 +75,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       const instance = status.instances.find((item) => item.id === id);
       return { ok: true, instance };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message, code: 'RESTART_FAILED' });
+      return reply.status(500).send({ error: `Failed to restart instance ${id}: ${error.message}`, code: 'RESTART_FAILED' });
     }
   });
 
@@ -88,7 +88,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       const stdout = await app.backend.execInstanceCommand(id, ['devices', 'list']);
       return { pending: parsePendingDevices(stdout) };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message, code: 'DEVICES_LIST_FAILED' });
+      return reply.status(500).send({ error: `Failed to list devices for instance ${id}: ${error.message}`, code: 'DEVICES_LIST_FAILED' });
     }
   });
 
@@ -107,7 +107,7 @@ export async function instanceRoutes(app: FastifyInstance) {
         await app.backend.execInstanceCommand(id, ['devices', 'approve', requestId]);
         return { ok: true };
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message, code: 'APPROVE_FAILED' });
+        return reply.status(500).send({ error: `Failed to approve device ${requestId} for instance ${id}: ${error.message}`, code: 'APPROVE_FAILED' });
       }
     },
   );
@@ -121,7 +121,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       const stdout = await app.backend.execInstanceCommand(id, ['pairing', 'list', 'feishu']);
       return { pending: parseFeishuPairing(stdout), raw: stdout };
     } catch (error: any) {
-      return reply.status(500).send({ error: error.message, code: 'FEISHU_LIST_FAILED' });
+      return reply.status(500).send({ error: `Failed to list Feishu pairings for instance ${id}: ${error.message}`, code: 'FEISHU_LIST_FAILED' });
     }
   });
 
@@ -140,7 +140,7 @@ export async function instanceRoutes(app: FastifyInstance) {
         await app.backend.execInstanceCommand(id, ['pairing', 'approve', 'feishu', code]);
         return { ok: true };
       } catch (error: any) {
-        return reply.status(500).send({ error: error.message, code: 'FEISHU_APPROVE_FAILED' });
+        return reply.status(500).send({ error: `Failed to approve Feishu pairing ${code} for instance ${id}: ${error.message}`, code: 'FEISHU_APPROVE_FAILED' });
       }
     },
   );
@@ -155,7 +155,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       request.log.info({ instance: id }, 'Token revealed');
       return { token };
     } catch {
-      return reply.status(404).send({ error: 'Token not found', code: 'TOKEN_NOT_FOUND' });
+      return reply.status(404).send({ error: `Token not found for instance ${id}`, code: 'TOKEN_NOT_FOUND' });
     }
   });
 }

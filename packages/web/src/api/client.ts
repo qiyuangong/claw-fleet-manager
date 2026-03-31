@@ -82,8 +82,9 @@ export async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> 
   });
 
   if (!response.ok) {
+    const method = (opts?.method ?? 'GET').toUpperCase();
     const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error ?? `Request failed: ${response.status}`);
+    throw new Error(error.error ?? `${method} ${path} failed: ${response.status} ${response.statusText}`);
   }
 
   return response.json();

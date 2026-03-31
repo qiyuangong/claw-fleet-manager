@@ -4,7 +4,7 @@ import { useLogs } from '../../hooks/useLogs';
 
 export function LogsTab({ instanceId }: { instanceId: string }) {
   const { t } = useTranslation();
-  const { lines, connected, clear } = useLogs(instanceId);
+  const { lines, connected, reconnectFailed, resetAndReconnect, clear } = useLogs(instanceId);
   const [autoScroll, setAutoScroll] = useState(true);
   const [filter, setFilter] = useState('');
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -45,6 +45,13 @@ export function LogsTab({ instanceId }: { instanceId: string }) {
           {t('autoScroll')}
         </label>
       </div>
+
+      {reconnectFailed && (
+        <div className="ws-reconnect-failed-banner">
+          <span>{t('logStreamingFailed')}</span>
+          <button className="secondary-button" onClick={resetAndReconnect}>{t('reload')}</button>
+        </div>
+      )}
 
       <div ref={containerRef} className="log-viewer">
         {filtered.length === 0 ? t('waitingForLogs') : null}

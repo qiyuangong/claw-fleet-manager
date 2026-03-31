@@ -68,6 +68,8 @@ const en = {
   download: 'Download',
   autoScroll: 'Auto-scroll',
   waitingForLogs: 'Waiting for logs...',
+  logStreamingFailed: 'Log streaming disconnected — reload the tab to reconnect.',
+  reload: 'Reload',
 
   // Config Tab
   loadingConfig: 'Loading config...',

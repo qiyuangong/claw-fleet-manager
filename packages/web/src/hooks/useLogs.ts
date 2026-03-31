@@ -15,16 +15,22 @@ function wsAuthQuery(): string {
   return `?auth=${encodeURIComponent(token)}`;
 }
 
+const MAX_RETRIES = 3;
+
 export function useLogs(instanceId: string | null) {
   const [lines, setLines] = useState<LogEntry[]>([]);
   const [connected, setConnected] = useState(false);
+  const [reconnectFailed, setReconnectFailed] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef(0);
+  const connectRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!instanceId) return undefined;
 
     let cancelled = false;
+    retryRef.current = 0;
+    setReconnectFailed(false);
 
     const connect = () => {
       if (cancelled) return;
@@ -35,6 +41,7 @@ export function useLogs(instanceId: string | null) {
 
       socket.onopen = () => {
         setConnected(true);
+        setReconnectFailed(false);
         retryRef.current = 0;
       };
 
@@ -52,7 +59,11 @@ export function useLogs(instanceId: string | null) {
 
       socket.onclose = () => {
         setConnected(false);
-        if (cancelled || retryRef.current >= 3) return;
+        if (cancelled) return;
+        if (retryRef.current >= MAX_RETRIES) {
+          setReconnectFailed(true);
+          return;
+        }
         retryRef.current += 1;
         window.setTimeout(connect, 1000 * retryRef.current);
       };
@@ -60,18 +71,31 @@ export function useLogs(instanceId: string | null) {
       socket.onerror = () => socket.close();
     };
 
+    connectRef.current = connect;
     connect();
 
     return () => {
       cancelled = true;
       wsRef.current?.close();
       wsRef.current = null;
+      connectRef.current = null;
     };
   }, [instanceId]);
+
+  const resetAndReconnect = () => {
+    wsRef.current?.close();
+    wsRef.current = null;
+    retryRef.current = 0;
+    setReconnectFailed(false);
+    setConnected(false);
+    connectRef.current?.();
+  };
 
   return {
     lines,
     connected,
+    reconnectFailed,
+    resetAndReconnect,
     clear: () => setLines([]),
   };
 }

@@ -68,6 +68,8 @@ const zh = {
   download: '下载',
   autoScroll: '自动滚动',
   waitingForLogs: '等待日志...',
+  logStreamingFailed: '日志流已断开 — 请重新加载以重新连接。',
+  reload: '重新连接',
 
   // Config Tab
   loadingConfig: '加载配置...',

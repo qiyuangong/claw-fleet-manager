@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
 import { Shell } from './components/layout/Shell';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
@@ -15,6 +16,7 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <Shell />
+        <Toaster position="bottom-right" richColors />
       </QueryClientProvider>
     </ErrorBoundary>
   );

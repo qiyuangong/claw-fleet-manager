@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { restartInstance, revealToken, startInstance, stopInstance } from '../../api/fleet';
 import type { FleetInstance } from '../../types';
 import { MaskedValue } from '../common/MaskedValue';
@@ -28,9 +29,21 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
     void queryClient.invalidateQueries({ queryKey: ['fleet'] });
   };
 
-  const start = useMutation({ mutationFn: () => startInstance(instance.id), onSuccess: invalidate });
-  const stop = useMutation({ mutationFn: () => stopInstance(instance.id), onSuccess: invalidate });
-  const restart = useMutation({ mutationFn: () => restartInstance(instance.id), onSuccess: invalidate });
+  const start = useMutation({
+    mutationFn: () => startInstance(instance.id),
+    onSuccess: () => { invalidate(); toast.success(`${instance.id} started`); },
+    onError: (err: Error) => toast.error(`Failed to start ${instance.id}: ${err.message}`),
+  });
+  const stop = useMutation({
+    mutationFn: () => stopInstance(instance.id),
+    onSuccess: () => { invalidate(); toast.success(`${instance.id} stopped`); },
+    onError: (err: Error) => toast.error(`Failed to stop ${instance.id}: ${err.message}`),
+  });
+  const restart = useMutation({
+    mutationFn: () => restartInstance(instance.id),
+    onSuccess: () => { invalidate(); toast.success(`${instance.id} restarted`); },
+    onError: (err: Error) => toast.error(`Failed to restart ${instance.id}: ${err.message}`),
+  });
 
   const cpuPercent = Math.max(0, Math.min(instance.cpu, 100));
   const memPercent = instance.memory.limit > 0

@@ -1,7 +1,7 @@
 {
   "_comment_docker_mode": "Default mode — requires Docker",
   "port": 3001,
-  "auth": { "username": "admin", "password": "change-me" },
+  "auth": { "username": "admin", "password": "changeme" },
   "fleetDir": "/path/to/your/openclaw-fleet",
   "deploymentMode": "docker",
 

@@ -52,6 +52,8 @@ export function MaskedValue({ masked, onReveal }: Props) {
     }
   };
 
+  const value = revealed ?? masked;
+
   const handleCopy = async () => {
     setError(null);
 
@@ -75,7 +77,6 @@ export function MaskedValue({ masked, onReveal }: Props) {
     }
   };
 
-  const value = revealed ?? masked;
   const copyLabel = copyState === 'copied' ? t('copied') : copyState === 'failed' ? t('copyFailed') : t('copy');
 
   return (

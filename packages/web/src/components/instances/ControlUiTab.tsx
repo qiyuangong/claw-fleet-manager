@@ -18,7 +18,11 @@ export function ControlUiTab({ instance }: Props) {
   const { data: devicesData } = useQuery({
     queryKey: ['devices', instance.id],
     queryFn: () => getPendingDevices(instance.id),
-    refetchInterval: 5000,
+    refetchInterval: () => (
+      typeof document !== 'undefined' && document.visibilityState === 'hidden'
+        ? false
+        : 5_000
+    ),
   });
   const pendingDevices = devicesData?.pending ?? [];
 
@@ -144,6 +148,10 @@ export function ControlUiTab({ instance }: Props) {
           ))}
         </div>
       )}
+
+      {pendingDevices.length === 0 ? (
+        <p className="muted" style={{ marginTop: '1rem' }}>{t('noPendingDeviceApprovals')}</p>
+      ) : null}
 
       <div className="action-row" style={{ marginTop: '1rem' }}>
         <button

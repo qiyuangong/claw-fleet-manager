@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -99,28 +99,43 @@ export function Shell() {
     }
   };
 
+  const handleLoginKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter' && !loggingIn) {
+      void handleSignIn();
+    }
+  };
+
   if (!currentUser && (loggedOut || currentUserError) && !currentUserLoading) {
     return (
       <main className="empty-state">
-        <section className="panel-card">
+        <section className="panel-card auth-card">
           <h2 style={{ marginTop: 0 }}>{t('signedOut')}</h2>
           <p className="muted">{t('signInAgain')}</p>
+          <p className="muted">{t('signInHelp')}</p>
           <div className="field-grid" style={{ marginTop: '0.75rem' }}>
-            <input
-              className="text-input"
-              placeholder={t('usernamePlaceholder')}
-              value={loginUsername}
-              onChange={(event) => setLoginUsername(event.target.value)}
-            />
-            <input
-              className="text-input"
-              type="password"
-              placeholder={t('passwordPlaceholder')}
-              value={loginPassword}
-              onChange={(event) => setLoginPassword(event.target.value)}
-            />
+            <label className="field-label">
+              <span>{t('usernameLabel')}</span>
+              <input
+                className="text-input"
+                placeholder={t('usernamePlaceholder')}
+                value={loginUsername}
+                onChange={(event) => setLoginUsername(event.target.value)}
+                onKeyDown={handleLoginKeyDown}
+              />
+            </label>
+            <label className="field-label">
+              <span>{t('passwordLabel')}</span>
+              <input
+                className="text-input"
+                type="password"
+                placeholder={t('passwordPlaceholder')}
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                onKeyDown={handleLoginKeyDown}
+              />
+            </label>
           </div>
-          <div className="action-row" style={{ marginTop: '1rem' }}>
+          <div className="action-row stacked-actions" style={{ marginTop: '1rem' }}>
             <button className="primary-button" onClick={() => void handleSignIn()} disabled={loggingIn}>
               {loggingIn ? t('signingIn') : t('signIn')}
             </button>

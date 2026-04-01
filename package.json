@@ -2,15 +2,19 @@
   "name": "claw-fleet-manager",
   "private": true,
   "license": "Apache-2.0",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "test:e2e": "playwright test"
   },
   "packageManager": "npm@11.9.0",
   "devDependencies": {
+    "@playwright/test": "^1.59.0",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0"
   }

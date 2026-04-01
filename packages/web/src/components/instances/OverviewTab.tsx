@@ -49,6 +49,7 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
   const memPercent = instance.memory.limit > 0
     ? Math.max(0, Math.min((instance.memory.used / instance.memory.limit) * 100, 100))
     : 0;
+  const memoryLimitLabel = instance.memory.limit > 0 ? formatBytes(instance.memory.limit) : t('noLimit');
 
   return (
     <div className="field-grid">
@@ -113,7 +114,7 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
         </div>
         <div className="metric-card">
           <p className="metric-label">{t('memory')}</p>
-          <p className="metric-value">{formatBytes(instance.memory.used)} / {formatBytes(instance.memory.limit)}</p>
+          <p className="metric-value">{formatBytes(instance.memory.used)} / {memoryLimitLabel}</p>
           <div className="progress-track">
             <div className="progress-bar" style={{ width: `${memPercent}%` }} />
           </div>

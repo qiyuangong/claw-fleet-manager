@@ -190,6 +190,7 @@ button {
 
 .main-panel {
   padding: 1.5rem;
+  min-width: 0;
 }
 
 .main-panel-topbar {
@@ -470,6 +471,7 @@ select.text-input {
   place-items: center;
   min-height: 60vh;
   text-align: center;
+  padding: 1.5rem;
 }
 
 .empty-state h2 {
@@ -497,6 +499,15 @@ select.text-input {
 
 .table-shell {
   overflow-x: auto;
+  border-radius: 18px;
+}
+
+.auth-card {
+  width: min(100%, 34rem);
+}
+
+.stacked-actions > * {
+  flex: 1 1 12rem;
 }
 
 .profile-list {
@@ -572,12 +583,69 @@ select.text-input {
     min-height: auto;
   }
 
+  .sidebar-footer {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .sidebar-footer .primary-button,
+  .sidebar-footer .secondary-button {
+    width: 100%;
+  }
+
   .section-grid {
     grid-template-columns: 1fr;
   }
 
   .form-row {
     grid-template-columns: 1fr;
+  }
+
+  .main-panel {
+    padding: 1rem;
+  }
+
+  .main-panel-topbar {
+    justify-content: stretch;
+  }
+
+  .account-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .account-actions > * {
+    width: 100%;
+  }
+
+  .tab-row {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 0.25rem;
+  }
+
+  .tab-button {
+    white-space: nowrap;
+  }
+
+  .token-value {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ws-reconnect-failed-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .data-table {
+    min-width: 48rem;
+  }
+
+  .dialog-card {
+    width: min(100%, 100vw - 2rem);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
   }
 }
 

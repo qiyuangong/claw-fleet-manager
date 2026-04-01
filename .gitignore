@@ -7,3 +7,5 @@ certs/
 .superpowers/
 .env.local
 .worktrees/
+playwright-report/
+test-results/

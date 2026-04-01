@@ -19,10 +19,16 @@ const MAX_CACHED_INSTANCES = 24;
 const historyByInstance = new Map<string, HistoryCacheEntry>();
 
 function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
   if (bytes === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
   const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / 1024 ** index).toFixed(1)} ${units[index]}`;
+}
+
+function sanitizeNumber(value: number, fallback = 0): number {
+  if (!Number.isFinite(value)) return fallback;
+  return value;
 }
 
 export function MetricsTab({ instance }: { instance: FleetInstance }) {
@@ -74,7 +80,9 @@ export function MetricsTab({ instance }: { instance: FleetInstance }) {
 }
 
 function getHistory(instance: FleetInstance): DataPoint[] {
-  const sampleKey = `${instance.cpu}:${instance.memory.used}`;
+  const cpu = Math.max(0, Math.min(sanitizeNumber(instance.cpu), 100));
+  const memoryUsed = Math.max(0, sanitizeNumber(instance.memory.used));
+  const sampleKey = `${cpu}:${memoryUsed}`;
   const cached = historyByInstance.get(instance.id);
   if (cached?.sampleKey === sampleKey) {
     cached.lastUpdatedAt = Date.now();
@@ -83,8 +91,8 @@ function getHistory(instance: FleetInstance): DataPoint[] {
 
   const point: DataPoint = {
     time: new Date().toLocaleTimeString(),
-    cpu: instance.cpu,
-    memory: instance.memory.used / (1024 * 1024),
+    cpu,
+    memory: memoryUsed / (1024 * 1024),
   };
   const points = [...(cached?.points ?? []), point].slice(-MAX_POINTS);
   historyByInstance.set(instance.id, {

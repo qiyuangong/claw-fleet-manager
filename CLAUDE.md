@@ -25,6 +25,18 @@ npm run lint             # ESLint on web package
 1. `cp packages/server/server.config.example.json packages/server/server.config.json` — set `fleetDir` to your `openclaw` directory, auth credentials, and optionally `tailscale.hostname`
 2. `cp packages/web/.env.example packages/web/.env.local` — set `VITE_BASIC_AUTH_USER` / `VITE_BASIC_AUTH_PASSWORD` to match server config
 
+## Local Deployment Conventions
+
+- The long-lived local deploy lives in `../claw-fleet-manager-deploy` relative to the main repo checkout (`/Users/syslab/Develop/gitremote/claw-fleet-manager-deploy` on this machine). Treat it as the runtime/deploy directory, not the active dev worktree.
+- The deployed server is expected to run under tmux session `fleet-runtime-https`.
+- Before redeploying, check the existing deploy first:
+  - inspect tmux (`tmux ls`, `tmux capture-pane -pt fleet-runtime-https:0`)
+  - inspect the current runtime PID/logs in the deploy dir (`.runtime.pid`, `.runtime.log`)
+  - confirm HTTPS/server health on `https://localhost:3001/`
+- Redeploys should normally sync/copy refreshed source into `../claw-fleet-manager-deploy`, while preserving deploy-only files such as `packages/server/server.config.json`, `certs/`, and runtime logs/PID files.
+- After syncing, run `npm install` and `npm run build` in `../claw-fleet-manager-deploy`, then restart `node packages/server/dist/index.js` inside tmux session `fleet-runtime-https`.
+- Prefer validating the deployed app against the live HTTPS endpoint (`https://localhost:3001`) after restart, including both the SPA shell/assets and authenticated API/proxy checks when credentials are available.
+
 ## Architecture
 
 This is an npm workspaces monorepo (Turbo build) with two packages:

@@ -27,14 +27,20 @@ npm run lint             # ESLint on web package
 
 ## Local Deployment Conventions
 
-- The long-lived local deploy lives in `../claw-fleet-manager-deploy` relative to the main repo checkout (`/Users/syslab/Develop/gitremote/claw-fleet-manager-deploy` on this machine). Treat it as the runtime/deploy directory, not the active dev worktree.
+- The long-lived local deploy lives in a sibling directory named `../claw-fleet-manager-deploy` relative to the main repo checkout. Treat it as the runtime/deploy directory, not the active dev worktree.
+- The deploy directory is typically a synced runtime copy rather than a git working tree. Do git operations in the real repo checkout first, then sync/copy files into the deploy directory.
 - The deployed server is expected to run under tmux session `fleet-runtime-https`.
+- Prefer HTTPS deployments over HTTP. When local TLS is available, validate and use `https://localhost:3001` rather than `http://localhost:3001`.
 - Before redeploying, check the existing deploy first:
   - inspect tmux (`tmux ls`, `tmux capture-pane -pt fleet-runtime-https:0`)
   - inspect the current runtime PID/logs in the deploy dir (`.runtime.pid`, `.runtime.log`)
   - confirm HTTPS/server health on `https://localhost:3001/`
+- Prefer `.runtime.log` over tmux pane capture when investigating runtime behavior; the log is usually more informative than the visible pane contents.
 - Redeploys should normally sync/copy refreshed source into `../claw-fleet-manager-deploy`, while preserving deploy-only files such as `packages/server/server.config.json`, `certs/`, and runtime logs/PID files.
 - After syncing, run `npm install` and `npm run build` in `../claw-fleet-manager-deploy`, then restart `node packages/server/dist/index.js` inside tmux session `fleet-runtime-https`.
+- Before choosing deployment mode, check whether the local profile-based setup exists and is usable. If local profiles are not present, fall back to Docker mode instead of assuming profile mode will work.
+- A fleet-manager restart may adopt already-running profile gateways instead of recreating them. Check the runtime log before assuming instance processes were restarted.
+- Do not assume the bootstrap auth values in `server.config.json` are still the active login credentials. If auth checks fail, inspect the live users data under the configured `fleetDir` before concluding the deploy is unhealthy.
 - Prefer validating the deployed app against the live HTTPS endpoint (`https://localhost:3001`) after restart, including both the SPA shell/assets and authenticated API/proxy checks when credentials are available.
 
 ## Architecture

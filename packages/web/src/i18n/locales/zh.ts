@@ -2,6 +2,9 @@ const zh = {
   // Shell / Auth
   signedOut: '已退出登录',
   signInAgain: '请重新登录以继续。',
+  signInHelp: '请输入 Fleet 用户名和密码。如果此设备应使用内置管理员引导凭据，可尝试“使用默认凭据”。',
+  usernameLabel: '用户名',
+  passwordLabel: '密码',
   usernamePlaceholder: '用户名',
   passwordPlaceholder: '密码',
   signingIn: '登录中...',
@@ -58,6 +61,7 @@ const zh = {
   health: '健康状态',
   cpu: 'CPU',
   memory: '内存',
+  noLimit: '无限制',
   gatewayToken: '网关令牌',
 
   // Logs Tab
@@ -76,6 +80,10 @@ const zh = {
   saving: '保存中...',
   save: '保存',
   saved: '已保存',
+  formatJson: '格式化 JSON',
+  resetChanges: '重置',
+  unsavedChanges: '有未保存的更改',
+  configEditorHelp: '请谨慎编辑实例 JSON。如有需要，可先格式化再保存。',
 
   // Metrics Tab
   cpuHistory: 'CPU 历史',
@@ -103,6 +111,7 @@ const zh = {
   launchUrlCopied: '启动链接已复制到剪贴板。',
   launchUrlPrepared: '启动链接已准备好，请从提示框中复制。',
   failedBuildLaunchUrl: '构建启动链接失败',
+  noPendingDeviceApprovals: '当前没有待批准的设备请求。',
 
   // Feishu Tab
   feishuChannel: '飞书频道',
@@ -119,11 +128,17 @@ const zh = {
   saveConfig: '保存配置',
   pendingPairingRequests: '待处理配对请求',
   noPendingPairing: '暂无待处理的配对请求。',
+  feishuConfigHelp: '先在这里保存凭据，出现新的飞书配对请求后再进行批准。',
+  latestPairingOutput: '最近一次配对输出',
 
   // Plugins Tab
   plugins: '插件',
   pluginsDesc: '为此配置安装或移除插件。更改将写入配置文件。',
   installPlugin: '安装插件',
+  pluginSpec: '插件包名或路径',
+  pluginInstallHelp: '可填写 npm 包名，或 Fleet 主机上的本地路径。',
+  workspaceDir: '工作区目录',
+  installedPluginsCount: '已安装 {{count}} 个插件',
   pluginSpecPlaceholder: '@openclaw/feishu 或本地路径',
   installing: '安装中...',
   install: '安装',
@@ -170,6 +185,10 @@ const zh = {
   profiles: '配置',
   delete: '删除',
   addUser: '添加用户',
+  addUserHelp: '先创建账户，再按需在下方分配配置访问权限。',
+  createUserUsername: '用户名',
+  createUserPassword: '密码',
+  createUserRole: '角色',
   adding: '添加中...',
   add: '添加',
   adminAccessRequired: '用户管理需要管理员权限。',
@@ -219,9 +238,17 @@ const zh = {
   memLimit: '内存限制',
   portStep: '端口步长',
   timezone: '时区',
+  apiKeyStatus: 'API Key',
+  configured: '已配置',
+  notConfigured: '未配置',
+  configBase: '配置目录',
+  workspaceBase: '工作区目录',
   saveConfigBtn: '保存配置',
+  saveFailed: '保存更改失败',
   scaleFleet: '扩缩 Fleet',
   currentlyTracking: '当前追踪 {{count}} 个实例。',
+  targetCount: '目标实例数量',
+  scaleFleetHelp: '增加数量会创建更多受管实例。减少数量会停止并移除实例，但保留数据卷。',
   scalingEllipsis: '扩缩中...',
   apply: '应用',
   scaleDownFleet: '缩减 Fleet',

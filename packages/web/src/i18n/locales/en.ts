@@ -2,6 +2,9 @@ const en = {
   // Shell / Auth
   signedOut: 'Signed out',
   signInAgain: 'Sign in again to continue.',
+  signInHelp: 'Use your fleet username and password. If this device should use the built-in admin bootstrap, try Default Auth.',
+  usernameLabel: 'Username',
+  passwordLabel: 'Password',
   usernamePlaceholder: 'Username',
   passwordPlaceholder: 'Password',
   signingIn: 'Signing In...',
@@ -58,6 +61,7 @@ const en = {
   health: 'Health',
   cpu: 'CPU',
   memory: 'Memory',
+  noLimit: 'No limit',
   gatewayToken: 'Gateway Token',
 
   // Logs Tab
@@ -76,6 +80,10 @@ const en = {
   saving: 'Saving...',
   save: 'Save',
   saved: 'Saved',
+  formatJson: 'Format JSON',
+  resetChanges: 'Reset',
+  unsavedChanges: 'Unsaved changes',
+  configEditorHelp: 'Edit raw instance JSON carefully. Format before saving if needed.',
 
   // Metrics Tab
   cpuHistory: 'CPU History',
@@ -103,6 +111,7 @@ const en = {
   launchUrlCopied: 'Launch URL copied to clipboard.',
   launchUrlPrepared: 'Launch URL prepared. Copy it from the prompt.',
   failedBuildLaunchUrl: 'Failed to build launch URL',
+  noPendingDeviceApprovals: 'No device approvals are waiting right now.',
 
   // Feishu Tab
   feishuChannel: 'Feishu Channel',
@@ -119,11 +128,17 @@ const en = {
   saveConfig: 'Save Config',
   pendingPairingRequests: 'Pending Pairing Requests',
   noPendingPairing: 'No pending pairing requests.',
+  feishuConfigHelp: 'Save credentials here, then approve new Feishu pairing requests when they appear.',
+  latestPairingOutput: 'Latest pairing output',
 
   // Plugins Tab
   plugins: 'Plugins',
   pluginsDesc: 'Install or remove plugins for this profile. Changes are written into the profile config.',
   installPlugin: 'Install Plugin',
+  pluginSpec: 'Plugin package or path',
+  pluginInstallHelp: 'Use an npm package name or a local path on the fleet host.',
+  workspaceDir: 'Workspace Directory',
+  installedPluginsCount: '{{count}} installed plugin(s)',
   pluginSpecPlaceholder: '@openclaw/feishu or local path',
   installing: 'Installing...',
   install: 'Install',
@@ -170,6 +185,10 @@ const en = {
   profiles: 'Profiles',
   delete: 'Delete',
   addUser: 'Add User',
+  addUserHelp: 'Create a new account, then optionally assign profile access below.',
+  createUserUsername: 'Username',
+  createUserPassword: 'Password',
+  createUserRole: 'Role',
   adding: 'Adding...',
   add: 'Add',
   adminAccessRequired: 'User management requires admin access.',
@@ -219,9 +238,17 @@ const en = {
   memLimit: 'Memory Limit',
   portStep: 'Port Step',
   timezone: 'Timezone',
+  apiKeyStatus: 'API Key',
+  configured: 'Configured',
+  notConfigured: 'Not configured',
+  configBase: 'Config Base',
+  workspaceBase: 'Workspace Base',
   saveConfigBtn: 'Save Config',
+  saveFailed: 'Failed to save changes',
   scaleFleet: 'Scale Fleet',
   currentlyTracking: 'Currently tracking {{count}} instance(s).',
+  targetCount: 'Target instance count',
+  scaleFleetHelp: 'Increasing count creates more managed instances. Decreasing count stops and removes instances, but keeps volumes.',
   scalingEllipsis: 'Scaling...',
   apply: 'Apply',
   scaleDownFleet: 'Scale Down Fleet',

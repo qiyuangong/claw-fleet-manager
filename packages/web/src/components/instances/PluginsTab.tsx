@@ -91,14 +91,22 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
 
       <div className="metric-card" style={{ marginBottom: '1rem' }}>
         <p className="metric-label">{t('installPlugin')}</p>
-        <div className="action-row">
+        <p className="muted" style={{ marginTop: 0 }}>{t('pluginInstallHelp')}</p>
+        {pluginsQuery.data?.workspaceDir ? (
+          <p className="muted mono" style={{ marginTop: 0 }}>
+            {t('workspaceDir')}: {pluginsQuery.data.workspaceDir}
+          </p>
+        ) : null}
+        <label className="field-label" style={{ marginBottom: '0.75rem' }}>
+          <span>{t('pluginSpec')}</span>
           <input
-            className="mock-input"
-            style={{ flex: 1, minWidth: '18rem' }}
+            className="text-input"
             value={spec}
             onChange={(e) => setSpec(e.target.value)}
             placeholder={t('pluginSpecPlaceholder')}
           />
+        </label>
+        <div className="action-row">
           <button
             className="primary-button"
             onClick={() => installMutation.mutate(spec.trim())}
@@ -124,6 +132,10 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
         <div className="panel-card error-text">
           {pluginsQuery.error instanceof Error ? pluginsQuery.error.message : t('failedLoadPlugins')}
         </div>
+      ) : null}
+
+      {!pluginsQuery.isLoading ? (
+        <p className="muted" style={{ marginTop: 0 }}>{t('installedPluginsCount', { count: plugins.length })}</p>
       ) : null}
 
       <div className="section-grid">

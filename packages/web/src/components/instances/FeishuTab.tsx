@@ -68,7 +68,11 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
   const { data: pairingData } = useQuery({
     queryKey: ['feishuPairing', instanceId],
     queryFn: () => getFeishuPairing(instanceId),
-    refetchInterval: 5000,
+    refetchInterval: () => (
+      typeof document !== 'undefined' && document.visibilityState === 'hidden'
+        ? false
+        : 5_000
+    ),
   });
   const pending = pairingData?.pending ?? [];
   const rawOutput = pairingData?.raw ?? '';
@@ -95,6 +99,7 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
 
       {/* Config */}
       <div style={{ marginBottom: '1.5rem' }}>
+        <p className="muted" style={{ marginTop: 0 }}>{t('feishuConfigHelp')}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
           <p className="metric-label" style={{ margin: 0 }}>{t('appCredentials')}</p>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', cursor: 'pointer' }}>
@@ -111,7 +116,7 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
           <div>
             <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('appId')}</label>
             <input
-              className="mock-input"
+              className="text-input"
               style={{ width: '100%', boxSizing: 'border-box' }}
               value={appId}
               onChange={(e) => setAppId(e.target.value)}
@@ -121,7 +126,7 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
           <div>
             <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('appSecret')}</label>
             <input
-              className="mock-input"
+              className="text-input"
               style={{ width: '100%', boxSizing: 'border-box' }}
               type="password"
               value={appSecret}
@@ -135,7 +140,7 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
           <div>
             <label className="label" style={{ display: 'block', marginBottom: '0.25rem' }}>{t('groupPolicy')}</label>
             <select
-              className="mock-input"
+              className="text-input"
               style={{ width: '100%', boxSizing: 'border-box' }}
               value={groupPolicy}
               onChange={(e) => setGroupPolicy(e.target.value)}
@@ -176,9 +181,12 @@ export function FeishuTab({ instanceId }: { instanceId: string }) {
 
         {pending.length === 0 ? (
           rawOutput.trim() ? (
-            <pre className="muted" style={{ fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {rawOutput}
-            </pre>
+            <div className="metric-card">
+              <p className="metric-label">{t('latestPairingOutput')}</p>
+              <pre className="muted" style={{ fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all', marginBottom: 0 }}>
+                {rawOutput}
+              </pre>
+            </div>
           ) : (
             <p className="muted" style={{ fontSize: '0.875rem' }}>{t('noPendingPairing')}</p>
           )

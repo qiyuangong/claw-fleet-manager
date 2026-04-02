@@ -135,28 +135,38 @@ export function UserManagementPanel() {
 
       <div className="panel-card" style={{ marginTop: '1.25rem' }}>
         <h3 style={{ marginTop: 0 }}>{t('addUser')}</h3>
+        <p className="muted" style={{ marginTop: 0 }}>{t('addUserHelp')}</p>
         <div className="form-row">
-          <input
-            className="text-input"
-            placeholder={t('username')}
-            value={newUsername}
-            onChange={(event) => setNewUsername(event.target.value.toLowerCase())}
-          />
-          <input
-            className="text-input"
-            type="password"
-            placeholder={t('passwordPlaceholder')}
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-          />
-          <select
-            className="text-input"
-            value={newRole}
-            onChange={(event) => setNewRole(event.target.value as 'admin' | 'user')}
-          >
-            <option value="user">user</option>
-            <option value="admin">admin</option>
-          </select>
+          <label className="field-label">
+            <span>{t('createUserUsername')}</span>
+            <input
+              className="text-input"
+              placeholder={t('username')}
+              value={newUsername}
+              onChange={(event) => setNewUsername(event.target.value.toLowerCase())}
+            />
+          </label>
+          <label className="field-label">
+            <span>{t('createUserPassword')}</span>
+            <input
+              className="text-input"
+              type="password"
+              placeholder={t('passwordPlaceholder')}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </label>
+          <label className="field-label">
+            <span>{t('createUserRole')}</span>
+            <select
+              className="text-input"
+              value={newRole}
+              onChange={(event) => setNewRole(event.target.value as 'admin' | 'user')}
+            >
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+          </label>
           <button
             className="primary-button"
             disabled={createMutation.isPending || !newUsername.trim() || !newPassword}

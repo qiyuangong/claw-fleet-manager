@@ -16,6 +16,7 @@ export function FleetConfigPanel() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [scaling, setScaling] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!data) return;
@@ -33,9 +34,14 @@ export function FleetConfigPanel() {
   const currentCount = fleetData?.instances.length ?? 0;
 
   const handleSave = async () => {
-    await save(form);
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1500);
+    setError(null);
+    try {
+      await save(form);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 1500);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : t('saveFailed'));
+    }
   };
 
   const doScale = async () => {
@@ -74,6 +80,21 @@ export function FleetConfigPanel() {
       </div>
 
       <div className="fleet-form">
+        <div className="section-grid">
+          <div className="metric-card">
+            <p className="metric-label">{t('apiKeyStatus')}</p>
+            <p className="metric-value">{data?.apiKey ? t('configured') : t('notConfigured')}</p>
+          </div>
+          <div className="metric-card">
+            <p className="metric-label">{t('configBase')}</p>
+            <p className="metric-value mono">{data?.configBase || '-'}</p>
+          </div>
+          <div className="metric-card">
+            <p className="metric-label">{t('workspaceBase')}</p>
+            <p className="metric-value mono">{data?.workspaceBase || '-'}</p>
+          </div>
+        </div>
+
         <div className="field-grid">
           {fieldLabels.map(([key, label]) => (
             <label className="field-label" key={key}>
@@ -92,20 +113,24 @@ export function FleetConfigPanel() {
             {saving ? t('saving') : t('saveConfigBtn')}
           </button>
           {saved ? <span className="success-text">{t('saved')}</span> : null}
+          {error ? <span className="error-text">{error}</span> : null}
         </div>
 
         <section className="panel-card">
           <h3 style={{ marginTop: 0 }}>{t('scaleFleet')}</h3>
           <p className="muted">{t('currentlyTracking', { count: currentCount })}</p>
-          <div className="field-row">
+          <label className="field-label" style={{ maxWidth: '16rem' }}>
+            <span>{t('targetCount')}</span>
             <input
               className="number-input"
               type="number"
               min={1}
               value={scaleCount}
               onChange={(event) => setScaleCount(parseInt(event.target.value, 10) || 1)}
-              style={{ maxWidth: '7rem' }}
             />
+          </label>
+          <p className="muted" style={{ marginTop: '0.75rem' }}>{t('scaleFleetHelp')}</p>
+          <div className="field-row">
             <button
               className="primary-button"
               disabled={scaling || scaleCount === currentCount}

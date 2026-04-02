@@ -94,6 +94,30 @@ npm run dev      # start server (port 3001) and dashboard (port 5173)
 npm run build    # compile both packages
 npm run test     # run server tests
 npm run lint     # lint the web package
+npm run test:e2e # run Playwright smoke tests against a configured deployment
+```
+
+## Playwright Smoke Tests
+
+`npm run test:e2e` needs either a running dashboard URL or a command that Playwright can use to start one:
+
+```bash
+# Point at an existing deployment
+PLAYWRIGHT_BASE_URL=https://localhost:3001 npm run test:e2e
+
+# Or let Playwright boot the app for the test run
+PLAYWRIGHT_SERVER_COMMAND="npm run dev" PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e
+```
+
+The auth smoke tests also read credentials from environment variables and skip cleanly when they are not provided:
+
+```bash
+PLAYWRIGHT_USER_USERNAME=qiyuan \
+PLAYWRIGHT_USER_PASSWORD=1234qwer \
+PLAYWRIGHT_ADMIN_USERNAME=admin \
+PLAYWRIGHT_ADMIN_PASSWORD=bigdl123 \
+PLAYWRIGHT_BASE_URL=https://localhost:3001 \
+npm run test:e2e
 ```
 
 ## License

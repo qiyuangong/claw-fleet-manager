@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "test:e2e": "playwright test"
+    "test:e2e": "node scripts/run-playwright.mjs"
   },
   "packageManager": "npm@11.9.0",
   "devDependencies": {

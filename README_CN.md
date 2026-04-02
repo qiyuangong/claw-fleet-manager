@@ -94,6 +94,30 @@ npm run dev      # 启动服务端（3001 端口）和管理面板（5173 端口
 npm run build    # 编译两个包
 npm run test     # 运行服务端测试
 npm run lint     # 检查前端代码
+npm run test:e2e # 运行 Playwright 冒烟测试
+```
+
+## Playwright 冒烟测试
+
+`npm run test:e2e` 需要以下两类环境变量中的至少一种：
+
+```bash
+# 指向一个已经启动的部署
+PLAYWRIGHT_BASE_URL=https://localhost:3001 npm run test:e2e
+
+# 或让 Playwright 在测试期间启动应用
+PLAYWRIGHT_SERVER_COMMAND="npm run dev" PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e
+```
+
+认证冒烟测试会从环境变量读取账号信息；如果未提供，会自动跳过而不是失败：
+
+```bash
+PLAYWRIGHT_USER_USERNAME=qiyuan \
+PLAYWRIGHT_USER_PASSWORD=1234qwer \
+PLAYWRIGHT_ADMIN_USERNAME=admin \
+PLAYWRIGHT_ADMIN_PASSWORD=bigdl123 \
+PLAYWRIGHT_BASE_URL=https://localhost:3001 \
+npm run test:e2e
 ```
 
 ## 许可证

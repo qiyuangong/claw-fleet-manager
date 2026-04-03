@@ -2,12 +2,20 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAdmin, requireProfileAccess } from '../authorize.js';
+import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
 
 const createProfileSchema = z.object({
-  name: z.string().regex(PROFILE_NAME_RE, 'name must be lowercase alphanumeric with hyphens'),
+  name: z.string().superRefine((value, ctx) => {
+    if (!isValidManagedProfileName(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: getManagedProfileNameError(value),
+      });
+    }
+  }),
   port: z.number().int().positive().optional(),
   config: z.record(z.string(), z.unknown()).optional(),
 });

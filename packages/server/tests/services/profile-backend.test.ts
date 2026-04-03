@@ -55,20 +55,32 @@ describe('ProfileBackend — registry', () => {
     const backend = makeBackend();
     await backend.initialize();
     await expect(backend.createInstance({ name: 'INVALID NAME!' }))
-      .rejects.toThrow('Invalid profile name');
+      .rejects.toThrow('lowercase alphanumeric with hyphens');
   });
 
-  it('createInstance() rejects duplicate names', async () => {
+  it('createInstance() rejects the reserved main profile name', async () => {
+    vi.mocked(fs.readFileSync).mockImplementation(() => { throw Object.assign(new Error(), { code: 'ENOENT' }); });
+    const mockServer = { listen: vi.fn((_port: number, cb: () => void) => cb()), close: vi.fn((cb: () => void) => cb()) };
+    vi.mocked(net.createServer).mockReturnValue(mockServer as any);
+    vi.mocked(childProcess.execFile).mockImplementation((_f, _a, _o, cb: any) => { cb(null, { stdout: '', stderr: '' }); return {} as any; });
+
+    const backend = makeBackend();
+    await backend.initialize();
+    await expect(backend.createInstance({ name: 'main' }))
+      .rejects.toThrow('reserved');
+  });
+
+  it('createInstance() rejects duplicate non-reserved names', async () => {
     const registry = JSON.stringify({
-      profiles: { main: { name: 'main', port: 18789, pid: null, configPath: '/tmp/configs/main/openclaw.json', stateDir: '/tmp/states/main' } },
+      profiles: { rescue: { name: 'rescue', port: 18789, pid: null, configPath: '/tmp/configs/rescue/openclaw.json', stateDir: '/tmp/states/rescue' } },
       nextPort: 18809,
     });
     vi.mocked(fs.readFileSync).mockReturnValue(registry);
 
     const backend = makeBackend();
     await backend.initialize();
-    await expect(backend.createInstance({ name: 'main' }))
-      .rejects.toThrow('Profile "main" already exists');
+    await expect(backend.createInstance({ name: 'rescue' }))
+      .rejects.toThrow('Profile "rescue" already exists');
   });
 
   it('createInstance() writes an isolated workspace path into the generated profile config', async () => {
@@ -76,7 +88,7 @@ describe('ProfileBackend — registry', () => {
       if (String(path).endsWith('/tmp/fleet/profiles.json')) {
         throw Object.assign(new Error(), { code: 'ENOENT' });
       }
-      if (String(path).endsWith('/tmp/configs/main/openclaw.json')) {
+      if (String(path).endsWith('/tmp/configs/rescue/openclaw.json')) {
         return JSON.stringify({
           agents: {
             defaults: {
@@ -105,16 +117,16 @@ describe('ProfileBackend — registry', () => {
 
     const backend = makeBackend();
     await backend.initialize();
-    await backend.createInstance({ name: 'main' });
+    await backend.createInstance({ name: 'rescue' });
 
-    const writeCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) => String(path).endsWith('/tmp/configs/main/openclaw.json.tmp'));
+    const writeCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) => String(path).endsWith('/tmp/configs/rescue/openclaw.json.tmp'));
     expect(writeCall).toBeTruthy();
     const written = JSON.parse(String(writeCall?.[1]));
-    expect(written.agents.defaults.workspace).toBe('/tmp/states/main/workspace');
+    expect(written.agents.defaults.workspace).toBe('/tmp/states/rescue/workspace');
 
-    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/main/workspace/MEMORY.md', expect.any(String), 'utf-8');
-    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/main/workspace/CLAUDE.md', expect.any(String), 'utf-8');
-    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/main/workspace/.gitignore', expect.any(String), 'utf-8');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/MEMORY.md', expect.any(String), 'utf-8');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/CLAUDE.md', expect.any(String), 'utf-8');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/.gitignore', expect.any(String), 'utf-8');
   });
 
   it('initialize() migrates existing profile config workspace path and seeds workspace files', async () => {

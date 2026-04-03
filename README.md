@@ -43,6 +43,7 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 3. Edit `packages/server/server.config.json`:
    - Set `fleetDir` to your fleet directory
    - Set `deploymentMode` to `"profiles"` (recommended) or `"docker"`
+   - In profile mode, avoid using `main` as a managed profile name. OpenClaw reserves that standalone default profile under `~/.openclaw`, which conflicts with fleet-managed profile directories.
    - `auth.username` / `auth.password` seed the first admin account on startup
    - **TLS** — TLS is required for the Control UI (device auth needs a secure context). Generate a self-signed cert for local development:
      ```bash

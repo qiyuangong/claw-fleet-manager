@@ -9,10 +9,10 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { DeploymentBackend, LogHandle, CreateInstanceOpts } from './backend.js';
 import { getDirectorySize } from './dir-utils.js';
 import { FleetConfigService } from './fleet-config.js';
+import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
 import type { FleetInstance, FleetStatus, ProfilesConfig } from '../types.js';
 
 const execFileAsync = promisify(execFile);
-const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const WORKSPACE_GITIGNORE = `node_modules/
 dist/
 .turbo/
@@ -254,8 +254,8 @@ export class ProfileBackend implements DeploymentBackend {
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
     const name = opts.name ?? '';
-    if (!PROFILE_NAME_RE.test(name)) {
-      throw new Error(`Invalid profile name: "${name}". Must match /^[a-z0-9][a-z0-9-]{0,62}$/`);
+    if (!isValidManagedProfileName(name)) {
+      throw new Error(getManagedProfileNameError(name));
     }
     if (this.registry.profiles[name]) {
       throw new Error(`Profile "${name}" already exists`);

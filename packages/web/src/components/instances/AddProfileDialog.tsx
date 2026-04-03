@@ -26,7 +26,8 @@ export function AddProfileDialog({ onClose }: Props) {
     onError: (err: Error) => setError(err.message),
   });
 
-  const nameValid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name);
+  const nameValid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name) && name !== 'main';
+  const reservedName = name === 'main';
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
@@ -43,6 +44,7 @@ export function AddProfileDialog({ onClose }: Props) {
           placeholder={t('profileNamePlaceholder')}
           autoFocus
         />
+        {reservedName ? <p className="error-text" style={{ marginTop: '0.5rem' }}>{t('profileNameReserved')}</p> : null}
 
         <label className="field-label" style={{ marginTop: '0.75rem' }}>
           {t('gatewayPort')} <span className="muted">{t('gatewayPortHint')}</span>

@@ -83,12 +83,14 @@ describe('ComposeGenerator', () => {
     );
     expect(config1.gateway.auth.allowTailscale).toBe(true);
     expect(config1.gateway.controlUi.allowInsecureAuth).toBe(true);
-    expect(config1.allowedOrigins).toContain('https://machine.tailnet.ts.net:8800');
+    expect(config1.gateway.controlUi.allowedOrigins).toContain('https://machine.tailnet.ts.net:8800');
+    expect(config1.gateway.controlUi.allowedOrigins).toContain('http://127.0.0.1:18789');
+    expect(config1.gateway.controlUi.allowedOrigins).toContain('http://localhost:18789');
 
     const config2 = JSON.parse(
       readFileSync(join(dir, 'instances', '2', 'openclaw.json'), 'utf-8'),
     );
-    expect(config2.allowedOrigins).toContain('https://machine.tailnet.ts.net:8801');
+    expect(config2.gateway.controlUi.allowedOrigins).toContain('https://machine.tailnet.ts.net:8801');
   });
 
   it('does not overwrite existing openclaw.json on re-scale', () => {
@@ -172,6 +174,8 @@ describe('ComposeGenerator', () => {
     expect(config.models.providers.default.baseUrl).toBe('https://api.example.com/v1');
     expect(config.gateway.auth.allowTailscale).toBe(true);
     expect(config.gateway.controlUi.allowInsecureAuth).toBe(true);
-    expect(config.allowedOrigins).toContain('https://machine.tailnet.ts.net:8800');
+    expect(config.gateway.controlUi.allowedOrigins).toContain('https://machine.tailnet.ts.net:8800');
+    expect(config.gateway.controlUi.allowedOrigins).toContain('http://127.0.0.1:18789');
+    expect(config.gateway.controlUi.allowedOrigins).toContain('http://localhost:18789');
   });
 });

@@ -198,4 +198,58 @@ describe('ComposeGenerator', () => {
     // controlUi.allowedOrigins has only the two localhost origins
     expect(config.gateway.controlUi.allowedOrigins).toHaveLength(2);
   });
+
+  it('writes literal OPENCLAW_IMAGE from fleet.env into compose', () => {
+    writeFileSync(join(dir, 'config', 'fleet.env'), [
+      'OPENCLAW_IMAGE=myrepo/openclaw:v2',
+      'CPU_LIMIT=2',
+      'MEM_LIMIT=4G',
+      'PORT_STEP=20',
+      `CONFIG_BASE=${join(dir, 'instances')}`,
+      `WORKSPACE_BASE=${join(dir, 'workspaces')}`,
+    ].join('\n'));
+
+    const gen = new ComposeGenerator(dir);
+    gen.generate(1);
+
+    const content = readFileSync(join(dir, 'docker-compose.yml'), 'utf-8');
+    expect(content).toContain('image: myrepo/openclaw:v2');
+    expect(content).not.toContain('${OPENCLAW_IMAGE');
+  });
+
+  it('defaults image to openclaw:local when OPENCLAW_IMAGE is absent', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(1);
+
+    const content = readFileSync(join(dir, 'docker-compose.yml'), 'utf-8');
+    expect(content).toContain('image: openclaw:local');
+  });
+
+  it('adds .npm mount per instance when ENABLE_NPM_PACKAGES=true', () => {
+    writeFileSync(join(dir, 'config', 'fleet.env'), [
+      'ENABLE_NPM_PACKAGES=true',
+      'CPU_LIMIT=2',
+      'MEM_LIMIT=4G',
+      'PORT_STEP=20',
+      `CONFIG_BASE=${join(dir, 'instances')}`,
+      `WORKSPACE_BASE=${join(dir, 'workspaces')}`,
+    ].join('\n'));
+
+    const gen = new ComposeGenerator(dir);
+    gen.generate(2);
+
+    const content = readFileSync(join(dir, 'docker-compose.yml'), 'utf-8');
+    const npmMount1 = `${join(dir, 'instances')}/1/.npm:/home/node/.npm`;
+    const npmMount2 = `${join(dir, 'instances')}/2/.npm:/home/node/.npm`;
+    expect(content).toContain(npmMount1);
+    expect(content).toContain(npmMount2);
+  });
+
+  it('does not add .npm mount when ENABLE_NPM_PACKAGES is absent', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(2);
+
+    const content = readFileSync(join(dir, 'docker-compose.yml'), 'utf-8');
+    expect(content).not.toContain('.npm:/home/node/.npm');
+  });
 });

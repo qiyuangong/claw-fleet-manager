@@ -18,6 +18,8 @@ export class ComposeGenerator {
     const portStep = parseInt(vars.PORT_STEP ?? '20', 10);
     const cpuLimit = vars.CPU_LIMIT ?? '4';
     const memLimit = vars.MEM_LIMIT ?? '8G';
+    const openclawImage = vars.OPENCLAW_IMAGE ?? 'openclaw:local';
+    const enableNpmPackages = vars.ENABLE_NPM_PACKAGES === 'true';
     const configBase = vars.CONFIG_BASE ?? join(process.env.HOME ?? '', 'openclaw-instances');
     const workspaceBase = vars.WORKSPACE_BASE ?? join(process.env.HOME ?? '', 'openclaw-workspaces');
     const existingTokens = this.fleetConfig.readTokens();
@@ -93,9 +95,12 @@ export class ComposeGenerator {
       const gwPort = BASE_GW_PORT + (i - 1) * portStep;
       const configDir = join(configBase, String(i));
       const workspaceDir = join(workspaceBase, String(i));
+      const npmMount = enableNpmPackages
+        ? `      - ${configDir}/.npm:/home/node/.npm\n`
+        : '';
 
       services.push(`  ${service}:
-    image: \${OPENCLAW_IMAGE:-openclaw:local}
+    image: ${openclawImage}
     pull_policy: never
     container_name: ${service}
     networks:
@@ -108,7 +113,7 @@ export class ComposeGenerator {
     volumes:
       - ${configDir}:/home/node/.openclaw
       - ${workspaceDir}:/home/node/.openclaw/workspace
-    ports:
+${npmMount}    ports:
       - "${gwPort}:18789"
     deploy:
       resources:

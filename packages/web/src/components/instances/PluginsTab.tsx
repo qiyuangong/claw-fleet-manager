@@ -21,7 +21,7 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
   const pluginsQuery = useQuery({
     queryKey: ['plugins', instance.id],
     queryFn: () => getProfilePlugins(instance.id),
-    enabled: Boolean(instance.profile),
+    enabled: true,
   });
 
   const refresh = () => {
@@ -69,14 +69,6 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
       setError(cause instanceof Error ? cause.message : t('failedRestartInstance'));
     },
   });
-
-  if (!instance.profile) {
-    return (
-      <section className="panel-card">
-        <p className="muted">{t('profileModeOnly')}</p>
-      </section>
-    );
-  }
 
   const plugins = pluginsQuery.data?.plugins ?? [];
 
@@ -194,7 +186,7 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
         title={t('removePlugin')}
         message={
           pendingRemoval
-            ? t('removePluginConfirm', { plugin: pluginLabel(pendingRemoval), profile: instance.profile })
+            ? t('removePluginConfirm', { plugin: pluginLabel(pendingRemoval), profile: instance.id })
             : ''
         }
         confirmLabel={t('remove')}

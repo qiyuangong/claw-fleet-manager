@@ -17,18 +17,22 @@ export function FleetConfigPanel() {
   const [scaling, setScaling] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState('');
+  const [enableNpmPackages, setEnableNpmPackages] = useState(false);
 
   useEffect(() => {
     if (!data) return;
     setForm({
       BASE_URL: data.baseUrl,
       MODEL_ID: data.modelId,
+      OPENCLAW_IMAGE: data.openclawImage,
       CPU_LIMIT: data.cpuLimit,
       MEM_LIMIT: data.memLimit,
       PORT_STEP: String(data.portStep),
       TZ: data.tz,
     });
     setScaleCount(data.count);
+    setEnableNpmPackages(data.enableNpmPackages ?? false);
   }, [data]);
 
   const currentCount = fleetData?.instances.length ?? 0;
@@ -36,7 +40,13 @@ export function FleetConfigPanel() {
   const handleSave = async () => {
     setError(null);
     try {
-      await save(form);
+      const payload = {
+        ...form,
+        ...(apiKey.trim() ? { API_KEY: apiKey.trim() } : {}),
+        ENABLE_NPM_PACKAGES: enableNpmPackages ? 'true' : 'false',
+      };
+      await save(payload);
+      setApiKey('');
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
@@ -63,6 +73,7 @@ export function FleetConfigPanel() {
   const fieldLabels: [string, string][] = [
     ['BASE_URL', t('baseUrl')],
     ['MODEL_ID', t('modelId')],
+    ['OPENCLAW_IMAGE', t('openclawImage')],
     ['CPU_LIMIT', t('cpuLimit')],
     ['MEM_LIMIT', t('memLimit')],
     ['PORT_STEP', t('portStep')],
@@ -106,7 +117,30 @@ export function FleetConfigPanel() {
               />
             </label>
           ))}
+          <label className="field-label">
+            <span>{t('apiKey')}</span>
+            <input
+              className="text-input mono"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={t('apiKeyPlaceholder')}
+              autoComplete="new-password"
+            />
+          </label>
         </div>
+
+        <label className="field-label" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
+          <input
+            type="checkbox"
+            checked={enableNpmPackages}
+            onChange={(e) => setEnableNpmPackages(e.target.checked)}
+          />
+          <span>{t('enableNpmPackages')}</span>
+        </label>
+        <p className="muted" style={{ marginTop: 0 }}>
+          {t('enableNpmPackagesHint')}
+        </p>
 
         <div className="action-row">
           <button className="primary-button" onClick={() => void handleSave()} disabled={saving}>

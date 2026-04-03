@@ -161,6 +161,11 @@ const zh = {
   removePluginConfirm: '从配置 "{{profile}}" 中移除插件 "{{plugin}}"？\n\n之后请重启实例以从运行中的网关卸载插件。',
   remove: '移除',
   profileModeOnly: '插件管理仅适用于配置模式的实例。',
+  openclawImage: 'Docker 镜像',
+  apiKey: 'API 密钥',
+  apiKeyPlaceholder: '留空则保持不变',
+  enableNpmPackages: '启用 npm 包支持',
+  enableNpmPackagesHint: '为每个实例添加 .npm 缓存挂载。需要重新执行 docker compose up -d 生效。',
 
   // Add Profile Dialog
   addProfileTitle: '添加配置',

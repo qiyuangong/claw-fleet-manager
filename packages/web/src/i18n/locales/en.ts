@@ -161,6 +161,11 @@ const en = {
   removePluginConfirm: 'Remove plugin "{{plugin}}" from profile "{{profile}}"?\n\nRestart the instance afterwards to unload it from the running gateway.',
   remove: 'Remove',
   profileModeOnly: 'Plugin management is available only for profile-mode instances.',
+  openclawImage: 'Docker Image',
+  apiKey: 'API Key',
+  apiKeyPlaceholder: 'leave blank to keep existing',
+  enableNpmPackages: 'Enable npm packages',
+  enableNpmPackagesHint: 'Adds a per-instance .npm cache mount. Requires docker compose up -d to apply.',
 
   // Add Profile Dialog
   addProfileTitle: 'Add Profile',

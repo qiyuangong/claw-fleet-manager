@@ -20,6 +20,8 @@ export class FleetConfigService {
       configBase: vars.CONFIG_BASE ?? join(process.env.HOME ?? '', 'openclaw-instances'),
       workspaceBase: vars.WORKSPACE_BASE ?? join(process.env.HOME ?? '', 'openclaw-workspaces'),
       tz: vars.TZ ?? 'Asia/Shanghai',
+      openclawImage: vars.OPENCLAW_IMAGE ?? 'openclaw:local',
+      enableNpmPackages: vars.ENABLE_NPM_PACKAGES === 'true',
     };
   }
 

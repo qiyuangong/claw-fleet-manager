@@ -148,8 +148,6 @@ export class DockerBackend implements DeploymentBackend {
     }
 
     const config = this.fleetConfig.readFleetConfig();
-    const newCount = newIndex;
-
     const vars = this.fleetConfig.readFleetEnvRaw();
     const tokens = this.fleetConfig.readTokens();
     const token = tokens[newIndex] ?? randomToken();
@@ -180,6 +178,7 @@ export class DockerBackend implements DeploymentBackend {
       cpuLimit: config.cpuLimit,
       memLimit: config.memLimit,
     });
+    this.writeFleetCount(newIndex, vars);
 
     if (this.tailscale) {
       const gwPort = BASE_GW_PORT + (newIndex - 1) * config.portStep;
@@ -213,6 +212,7 @@ export class DockerBackend implements DeploymentBackend {
     } catch {
       // already removed
     }
+    this.writeFleetCount(highestIndex - 1);
     await this.refresh();
   }
 
@@ -329,6 +329,12 @@ export class DockerBackend implements DeploymentBackend {
       if (fallback) lines.push(...fallback.split('\n').map((l) => l.trim()).filter(Boolean));
     }
     return lines;
+  }
+
+  private writeFleetCount(count: number, baseVars?: Record<string, string>): void {
+    const vars = { ...(baseVars ?? this.fleetConfig.readFleetEnvRaw()) };
+    vars.COUNT = String(Math.max(0, count));
+    this.fleetConfig.writeFleetConfig(vars);
   }
 }
 

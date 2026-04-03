@@ -60,6 +60,14 @@ describe('FleetConfigService', () => {
       expect(config.memLimit).toBe('4G');
       expect(config.portStep).toBe(20);
     });
+
+    it('uses the provided count override when COUNT is absent', () => {
+      writeFileSync(join(dir, 'config', 'fleet.env'), 'BASE_URL=https://api.example.com/v1\n');
+
+      const config = svc.readFleetConfig(1);
+
+      expect(config.count).toBe(1);
+    });
   });
 
   describe('readTokens', () => {

@@ -165,7 +165,7 @@ const en = {
   apiKey: 'API Key',
   apiKeyPlaceholder: 'leave blank to keep existing',
   enableNpmPackages: 'Enable npm packages',
-  enableNpmPackagesHint: 'Adds a per-instance .npm cache mount. Requires docker compose up -d to apply.',
+  enableNpmPackagesHint: 'Adds a per-instance .npm cache mount.',
 
   // Add Profile Dialog
   addProfileTitle: 'Add Profile',

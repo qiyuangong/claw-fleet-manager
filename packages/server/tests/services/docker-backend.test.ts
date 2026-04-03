@@ -6,6 +6,8 @@ const mockDocker = {
   startContainer: vi.fn().mockResolvedValue(undefined),
   stopContainer: vi.fn().mockResolvedValue(undefined),
   restartContainer: vi.fn().mockResolvedValue(undefined),
+  createManagedContainer: vi.fn().mockResolvedValue(undefined),
+  removeContainer: vi.fn().mockResolvedValue(undefined),
   listFleetContainers: vi.fn().mockResolvedValue([]),
   getContainerStats: vi.fn().mockResolvedValue({ cpu: 0, memory: { used: 0, limit: 0 } }),
   inspectContainer: vi.fn().mockResolvedValue({ status: 'running', health: 'healthy', image: 'openclaw:local', uptime: 100 }),
@@ -28,6 +30,7 @@ const mockFleetConfig = {
   readFleetEnvRaw: vi.fn().mockReturnValue({}),
   readTokens: vi.fn().mockReturnValue({ 1: 'token-abc123' }),
   writeTokens: vi.fn(),
+  writeFleetConfig: vi.fn(),
   readInstanceConfig: vi.fn().mockReturnValue({ gateway: {} }),
   writeInstanceConfig: vi.fn(),
   ensureFleetDirectories: vi.fn(),
@@ -113,5 +116,26 @@ describe('DockerBackend', () => {
     await backend.refresh();
     expect(backend.getCachedStatus()).not.toBeNull();
     expect(backend.getCachedStatus()?.mode).toBe('docker');
+  });
+
+  it('createInstance() persists COUNT after successful creation', async () => {
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'openclaw-1', id: 'a', state: 'running' }]);
+
+    await backend.createInstance({});
+
+    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalledWith(expect.objectContaining({ COUNT: '1' }));
+  });
+
+  it('removeInstance() persists COUNT after successful removal', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'a', state: 'running' },
+      { name: 'openclaw-2', id: 'b', state: 'running' },
+    ]);
+
+    await backend.removeInstance('openclaw-2');
+
+    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalledWith(expect.objectContaining({ COUNT: '1' }));
   });
 });

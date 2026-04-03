@@ -165,7 +165,7 @@ const zh = {
   apiKey: 'API 密钥',
   apiKeyPlaceholder: '留空则保持不变',
   enableNpmPackages: '启用 npm 包支持',
-  enableNpmPackagesHint: '为每个实例添加 .npm 缓存挂载。需要重新执行 docker compose up -d 生效。',
+  enableNpmPackagesHint: '为每个实例添加 .npm 缓存挂载。',
 
   // Add Profile Dialog
   addProfileTitle: '添加配置',

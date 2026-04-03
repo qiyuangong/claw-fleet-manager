@@ -5,15 +5,14 @@ import type { FleetConfig } from '../types.js';
 export class FleetConfigService {
   constructor(private fleetDir: string) {}
 
-  readFleetConfig(): FleetConfig {
+  readFleetConfig(countOverride?: number): FleetConfig {
     const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
-    const tokenCount = Object.keys(this.readTokens()).length;
 
     return {
       baseUrl: vars.BASE_URL ?? '',
       apiKey: vars.API_KEY ? FleetConfigService.maskToken(vars.API_KEY) : '',
       modelId: vars.MODEL_ID ?? '',
-      count: parseInt(vars.COUNT ?? String(tokenCount || 2), 10),
+      count: parseInt(vars.COUNT ?? String(countOverride ?? 2), 10),
       cpuLimit: vars.CPU_LIMIT ?? '4',
       memLimit: vars.MEM_LIMIT ?? '4G',
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),

@@ -8,7 +8,15 @@ const fleetConfigBodySchema = z.record(z.string(), z.string());
 const instanceConfigBodySchema = z.record(z.string(), z.unknown());
 
 export async function configRoutes(app: FastifyInstance) {
-  app.get('/api/config/fleet', { preHandler: requireAdmin }, async () => app.fleetConfig.readFleetConfig());
+  app.get('/api/config/fleet', { preHandler: requireAdmin }, async () => {
+    if (app.deploymentMode !== 'docker') {
+      return app.fleetConfig.readFleetConfig();
+    }
+
+    const cached = app.backend.getCachedStatus();
+    const liveCount = cached?.mode === 'docker' ? cached.instances.length : undefined;
+    return app.fleetConfig.readFleetConfig(liveCount);
+  });
 
   app.put('/api/config/fleet', { preHandler: requireAdmin }, async (request, reply) => {
     const parsed = fleetConfigBodySchema.safeParse(request.body);

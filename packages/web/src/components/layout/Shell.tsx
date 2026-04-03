@@ -11,6 +11,7 @@ import {
 import { getCurrentUser } from '../../api/users';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
+import { InstanceManagementPanel } from '../instances/InstanceManagementPanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
 import { UserHomePanel } from '../users/UserHomePanel';
 import { UserManagementPanel } from '../users/UserManagementPanel';
@@ -24,6 +25,7 @@ export function Shell() {
   const activeView = useAppStore((state) => state.activeView);
   const selectInstance = useAppStore((state) => state.selectInstance);
   const selectAccount = useAppStore((state) => state.selectAccount);
+  const selectInstances = useAppStore((state) => state.selectInstances);
   const setCurrentUser = useAppStore((state) => state.setCurrentUser);
   const { data: currentUser, error: currentUserError, isLoading: currentUserLoading } = useCurrentUser();
   const { data: fleet } = useFleet();
@@ -48,6 +50,13 @@ export function Shell() {
     if (activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)) return;
     selectAccount();
   }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectAccount]);
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'admin' || !fleet) return;
+    if (fleet.mode !== 'profiles') return;
+    if (activeView.type !== 'config') return;
+    selectInstances();
+  }, [activeView.type, currentUser, fleet, selectInstances]);
 
   const handleLogout = () => {
     clearApiClientSessionAuth();
@@ -199,6 +208,8 @@ export function Shell() {
           />
         ) : activeView.type === 'instance' ? (
           <InstancePanel instanceId={activeView.id} />
+        ) : activeView.type === 'instances' ? (
+          <InstanceManagementPanel onOpenInstance={selectInstance} />
         ) : activeView.type === 'users' ? (
           <UserManagementPanel />
         ) : (

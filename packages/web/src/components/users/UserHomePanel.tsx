@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import type { FleetInstance, PublicUser } from '../../types';
 
+import { StatusBadge } from '../common/StatusBadge';
+
 interface Props {
   user: PublicUser;
   instances: FleetInstance[];
@@ -10,6 +12,9 @@ interface Props {
 
 export function UserHomePanel({ user, instances, onOpenInstance, onChangePassword }: Props) {
   const { t } = useTranslation();
+  const profileCountLabel = t(instances.length === 1 ? 'assignedProfilesSingle' : 'assignedProfilesPlural', {
+    count: instances.length,
+  });
 
   return (
     <section className="panel-card">
@@ -17,7 +22,7 @@ export function UserHomePanel({ user, instances, onOpenInstance, onChangePasswor
         <div>
           <p className="pill">{t('myAccountPill')}</p>
           <h2 className="panel-title">{user.username}</h2>
-          <p className="muted">{t('myAccountDesc')}</p>
+          <p className="muted">{t('myAccountDescFriendly', { countLabel: profileCountLabel })}</p>
         </div>
       </div>
 
@@ -40,8 +45,12 @@ export function UserHomePanel({ user, instances, onOpenInstance, onChangePasswor
 
       <div style={{ marginTop: '1.5rem' }}>
         <h3 style={{ marginTop: 0 }}>{t('myProfiles')}</h3>
+        <p className="muted">{t('myProfilesHelp')}</p>
         {instances.length === 0 ? (
-          <p className="muted">{t('noProfileAssigned')}</p>
+          <div className="profile-empty-state">
+            <p style={{ margin: 0 }}>{t('noProfileAssigned')}</p>
+            <p className="muted" style={{ margin: 0 }}>{t('noProfileAssignedHelp')}</p>
+          </div>
         ) : (
           <div className="profile-list">
             {instances.map((instance) => (
@@ -51,10 +60,13 @@ export function UserHomePanel({ user, instances, onOpenInstance, onChangePasswor
                 onClick={() => onOpenInstance(instance.id)}
               >
                 <div>
-                  <div className="mono">{instance.id}</div>
-                  <div className="muted">{instance.status} · {instance.health}</div>
+                  <div className="profile-card-title">
+                    <StatusBadge status={instance.status} />
+                    <span className="mono">{instance.id}</span>
+                  </div>
+                  <div className="muted">{t('profileCardMeta', { health: instance.health, port: instance.port })}</div>
                 </div>
-                <span className="sidebar-item-meta mono">:{instance.port}</span>
+                <span className="profile-card-action">{t('openProfile')}</span>
               </button>
             ))}
           </div>

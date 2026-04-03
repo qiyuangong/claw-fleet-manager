@@ -75,6 +75,13 @@ button {
   color: #94a5c6;
 }
 
+.sidebar-hint {
+  margin: 0.9rem 0 0;
+  color: #94a5c6;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
 .sidebar-nav {
   flex: 1;
   overflow: auto;
@@ -532,6 +539,28 @@ select.text-input {
 
 .profile-card:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.25rem;
+}
+
+.profile-card-action {
+  color: #d9e8ff;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.profile-empty-state {
+  display: grid;
+  gap: 0.4rem;
+  padding: 1rem 1.1rem;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .data-table {

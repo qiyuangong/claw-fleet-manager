@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AddProfileDialog } from '../instances/AddProfileDialog';
 import { useFleet } from '../../hooks/useFleet';
 import { selectedInstanceIdSelector, useAppStore } from '../../store';
 import { SidebarItem } from './SidebarItem';
@@ -13,10 +11,10 @@ export function Sidebar() {
   const currentUser = useAppStore((state) => state.currentUser);
   const selectedInstanceId = useAppStore(selectedInstanceIdSelector);
   const selectInstance = useAppStore((state) => state.selectInstance);
+  const selectInstances = useAppStore((state) => state.selectInstances);
   const selectConfig = useAppStore((state) => state.selectConfig);
   const selectUsers = useAppStore((state) => state.selectUsers);
   const selectAccount = useAppStore((state) => state.selectAccount);
-  const [showAddProfile, setShowAddProfile] = useState(false);
 
   const visibleInstances = data?.instances.filter((instance) => {
     if (!currentUser || currentUser.role === 'admin') return true;
@@ -24,7 +22,15 @@ export function Sidebar() {
   }) ?? [];
 
   const isProfileMode = data?.mode === 'profiles';
-  const canManageFleet = currentUser?.role === 'admin';
+  const instanceSectionLabel = isProfileMode ? t('profiles') : t('instances');
+  const manageInstancesLabel = isProfileMode ? t('manageProfiles') : t('manageInstances');
+  const subtitle = data
+    ? isProfileMode
+      ? t('profilesRunning', { running: data.totalRunning, total: visibleInstances.length })
+      : t('running', { running: data.totalRunning, total: visibleInstances.length })
+    : isLoading
+      ? t('loadingFleet')
+      : t('awaitingServer');
 
   return (
     <aside className="sidebar">
@@ -42,13 +48,8 @@ export function Sidebar() {
           </select>
         </div>
         <h1 className="sidebar-title">{t('clawFleet')}</h1>
-        <p className="sidebar-subtitle">
-          {data
-            ? t('running', { running: data.totalRunning, total: visibleInstances.length })
-            : isLoading
-              ? t('loadingFleet')
-              : t('awaitingServer')}
-        </p>
+        <p className="sidebar-subtitle">{subtitle}</p>
+        {isProfileMode ? <p className="sidebar-subtitle">{t('profileModeSummary')}</p> : null}
         {error ? <p className="error-text">{error.message}</p> : null}
       </div>
 
@@ -65,7 +66,7 @@ export function Sidebar() {
           </>
         ) : null}
 
-        <p className="sidebar-section">{t('instances')}</p>
+        <p className="sidebar-section">{instanceSectionLabel}</p>
         {visibleInstances.map((instance) => (
           <SidebarItem
             key={instance.id}
@@ -79,29 +80,30 @@ export function Sidebar() {
           <>
             <p className="sidebar-section">{t('admin')}</p>
             <button
+              className={`sidebar-nav-item${activeView.type === 'instances' ? ' selected' : ''}`}
+              onClick={selectInstances}
+            >
+              {manageInstancesLabel}
+            </button>
+            <button
               className={`sidebar-nav-item${activeView.type === 'users' ? ' selected' : ''}`}
               onClick={selectUsers}
             >
               {t('users')}
+            </button>
+            <button
+              className={`sidebar-nav-item${activeView.type === 'config' ? ' selected' : ''}`}
+              onClick={selectConfig}
+            >
+              {t('fleetConfig')}
             </button>
           </>
         ) : null}
       </nav>
 
       <div className="sidebar-footer">
-        {isProfileMode && canManageFleet ? (
-          <button className="primary-button" onClick={() => setShowAddProfile(true)}>
-            {t('addProfile')}
-          </button>
-        ) : null}
-        {canManageFleet ? (
-          <button className="secondary-button" onClick={selectConfig}>
-            {t('fleetConfig')}
-          </button>
-        ) : null}
+        {isProfileMode ? <p className="sidebar-hint">{t('profileModeHint')}</p> : null}
       </div>
-
-      {showAddProfile ? <AddProfileDialog onClose={() => setShowAddProfile(false)} /> : null}
     </aside>
   );
 }

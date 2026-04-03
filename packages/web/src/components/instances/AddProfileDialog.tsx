@@ -33,6 +33,7 @@ export function AddProfileDialog({ onClose }: Props) {
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
         <h2 style={{ margin: '0 0 1rem' }}>{t('addProfileTitle')}</h2>
+        <p className="muted" style={{ marginTop: 0 }}>{t('addProfileHelp')}</p>
 
         <label className="field-label">
           {t('profileName')} <span className="muted">{t('profileNameHint')}</span>
@@ -44,6 +45,9 @@ export function AddProfileDialog({ onClose }: Props) {
           placeholder={t('profileNamePlaceholder')}
           autoFocus
         />
+        {!reservedName && name && !nameValid ? (
+          <p className="error-text" style={{ marginTop: '0.5rem' }}>{t('profileNameInvalid')}</p>
+        ) : null}
         {reservedName ? <p className="error-text" style={{ marginTop: '0.5rem' }}>{t('profileNameReserved')}</p> : null}
 
         <label className="field-label" style={{ marginTop: '0.75rem' }}>
@@ -52,7 +56,7 @@ export function AddProfileDialog({ onClose }: Props) {
         <input
           className="text-input"
           value={port}
-          onChange={(e) => setPort(e.target.value)}
+          onChange={(e) => setPort(e.target.value.replace(/[^\d]/g, ''))}
           placeholder={t('gatewayPortPlaceholder')}
           type="number"
         />
@@ -65,7 +69,7 @@ export function AddProfileDialog({ onClose }: Props) {
             onClick={() => create.mutate()}
             disabled={!nameValid || create.isPending}
           >
-            {create.isPending ? t('creating') : t('create')}
+            {create.isPending ? t('creating') : t('createProfileCta')}
           </button>
           <button className="secondary-button" onClick={onClose}>
             {t('cancel')}

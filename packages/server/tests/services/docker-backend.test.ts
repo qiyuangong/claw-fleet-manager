@@ -14,15 +14,26 @@ const mockDocker = {
 };
 
 const mockFleetConfig = {
-  readFleetConfig: vi.fn().mockReturnValue({ count: 3, portStep: 20, configBase: '/tmp/cfg', workspaceBase: '/tmp/ws' }),
+  readFleetConfig: vi.fn().mockReturnValue({
+    count: 3,
+    portStep: 20,
+    configBase: '/tmp/cfg',
+    workspaceBase: '/tmp/ws',
+    openclawImage: 'openclaw:local',
+    tz: 'Asia/Shanghai',
+    enableNpmPackages: false,
+    cpuLimit: '4',
+    memLimit: '4G',
+  }),
+  readFleetEnvRaw: vi.fn().mockReturnValue({}),
   readTokens: vi.fn().mockReturnValue({ 1: 'token-abc123' }),
+  writeTokens: vi.fn(),
   readInstanceConfig: vi.fn().mockReturnValue({ gateway: {} }),
   writeInstanceConfig: vi.fn(),
+  ensureFleetDirectories: vi.fn(),
   getConfigBase: vi.fn().mockReturnValue('/tmp/cfg'),
   getWorkspaceBase: vi.fn().mockReturnValue('/tmp/ws'),
 };
-
-const mockComposeGen = { generate: vi.fn() };
 
 describe('DockerBackend', () => {
   let backend: DockerBackend;
@@ -31,7 +42,6 @@ describe('DockerBackend', () => {
     vi.clearAllMocks();
     backend = new DockerBackend(
       mockDocker as any,
-      mockComposeGen as any,
       mockFleetConfig as any,
       '/tmp/fleet',
       null, // no tailscale
@@ -77,6 +87,15 @@ describe('DockerBackend', () => {
   it('writeInstanceConfig() delegates to fleetConfig', async () => {
     await backend.writeInstanceConfig('openclaw-1', { gateway: { port: 18789 } });
     expect(mockFleetConfig.writeInstanceConfig).toHaveBeenCalledWith(1, { gateway: { port: 18789 } });
+  });
+
+  it('createInstance() rejects non-sequential docker instance ids', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'abc', state: 'running' },
+    ]);
+
+    await expect(backend.createInstance({ name: 'openclaw-7' }))
+      .rejects.toThrow('expected "openclaw-2"');
   });
 
   it('refresh() returns FleetStatus with mode=docker', async () => {

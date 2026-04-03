@@ -1,4 +1,4 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FleetConfig } from '../types.js';
 
@@ -7,15 +7,15 @@ export class FleetConfigService {
 
   readFleetConfig(): FleetConfig {
     const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
-    const composeCount = this.readComposeInstanceCount();
+    const tokenCount = Object.keys(this.readTokens()).length;
 
     return {
       baseUrl: vars.BASE_URL ?? '',
       apiKey: vars.API_KEY ? FleetConfigService.maskToken(vars.API_KEY) : '',
       modelId: vars.MODEL_ID ?? '',
-      count: parseInt(vars.COUNT ?? String(composeCount ?? 2), 10),
+      count: parseInt(vars.COUNT ?? String(tokenCount || 2), 10),
       cpuLimit: vars.CPU_LIMIT ?? '4',
-      memLimit: vars.MEM_LIMIT ?? '8G',
+      memLimit: vars.MEM_LIMIT ?? '4G',
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),
       configBase: vars.CONFIG_BASE ?? join(process.env.HOME ?? '', 'openclaw-instances'),
       workspaceBase: vars.WORKSPACE_BASE ?? join(process.env.HOME ?? '', 'openclaw-workspaces'),
@@ -30,10 +30,19 @@ export class FleetConfigService {
   }
 
   writeFleetConfig(vars: Record<string, string>): void {
+    this.ensureFleetDirectories();
     const envPath = join(this.fleetDir, 'config', 'fleet.env');
     const lines = Object.entries(vars)
       .filter(([, value]) => value !== '')
       .map(([key, value]) => `${key}=${value}`);
+    this.atomicWrite(envPath, lines.join('\n') + '\n');
+  }
+
+  writeTokens(tokens: Record<number, string>): void {
+    const envPath = join(this.fleetDir, '.env');
+    const lines = Object.entries(tokens)
+      .sort(([a], [b]) => parseInt(a, 10) - parseInt(b, 10))
+      .map(([idx, token]) => `TOKEN_${idx}=${token}`);
     this.atomicWrite(envPath, lines.join('\n') + '\n');
   }
 
@@ -76,7 +85,14 @@ export class FleetConfigService {
   writeInstanceConfig(index: number, config: unknown): void {
     const configBase = this.getConfigBase();
     const path = join(configBase, String(index), 'openclaw.json');
+    mkdirSync(join(configBase, String(index)), { recursive: true });
     this.atomicWrite(path, JSON.stringify(config, null, 2) + '\n');
+  }
+
+  ensureFleetDirectories(): void {
+    mkdirSync(join(this.fleetDir, 'config'), { recursive: true });
+    mkdirSync(this.getConfigBase(), { recursive: true });
+    mkdirSync(this.getWorkspaceBase(), { recursive: true });
   }
 
   static maskToken(token: string): string {
@@ -108,15 +124,5 @@ export class FleetConfigService {
     const tmpPath = `${path}.tmp`;
     writeFileSync(tmpPath, content, 'utf-8');
     renameSync(tmpPath, path);
-  }
-
-  private readComposeInstanceCount(): number | null {
-    try {
-      const compose = readFileSync(join(this.fleetDir, 'docker-compose.yml'), 'utf-8');
-      const matches = compose.match(/^\s{2}openclaw-\d+:/gm);
-      return matches?.length ?? null;
-    } catch {
-      return null;
-    }
   }
 }

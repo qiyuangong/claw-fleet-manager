@@ -17,7 +17,6 @@ import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
 import { DockerBackend } from './services/docker-backend.js';
 import { ProfileBackend } from './services/profile-backend.js';
-import { ComposeGenerator } from './services/compose-generator.js';
 import { DockerService } from './services/docker.js';
 import { FleetConfigService } from './services/fleet-config.js';
 import { UserService } from './services/user.js';
@@ -67,7 +66,6 @@ const backend = config.deploymentMode === 'profiles'
     }, app.log)
   : new DockerBackend(
       new DockerService(),
-      new ComposeGenerator(config.fleetDir),
       fleetConfig,
       config.fleetDir,
       tailscale,

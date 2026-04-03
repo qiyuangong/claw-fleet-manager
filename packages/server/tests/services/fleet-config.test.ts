@@ -57,7 +57,7 @@ describe('FleetConfigService', () => {
       expect(config.modelId).toBe('gpt-4');
       expect(config.count).toBe(3);
       expect(config.cpuLimit).toBe('4');
-      expect(config.memLimit).toBe('8G');
+      expect(config.memLimit).toBe('4G');
       expect(config.portStep).toBe(20);
     });
   });
@@ -70,6 +70,16 @@ describe('FleetConfigService', () => {
       ].join('\n'));
 
       expect(svc.readTokens()).toEqual({ 1: 'abc123def', 2: 'xyz789ghi' });
+    });
+  });
+
+  describe('writeFleetConfig', () => {
+    it('creates config directory before writing fleet.env', () => {
+      rmSync(join(dir, 'config'), { recursive: true, force: true });
+
+      svc.writeFleetConfig({ OPENCLAW_IMAGE: 'openclaw:local' });
+
+      expect(readFileSync(join(dir, 'config', 'fleet.env'), 'utf-8')).toContain('OPENCLAW_IMAGE=openclaw:local');
     });
   });
 

@@ -11,6 +11,7 @@ import { fleetRoutes } from './routes/fleet.js';
 import { healthRoutes } from './routes/health.js';
 import { instanceRoutes } from './routes/instances.js';
 import { logRoutes } from './routes/logs.js';
+import { pluginRoutes } from './routes/plugins.js';
 import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
@@ -91,6 +92,7 @@ await app.register(instanceRoutes);
 await app.register(userRoutes);
 await app.register(logRoutes);
 await app.register(proxyRoutes);
+await app.register(pluginRoutes);
 
 if (config.deploymentMode === 'profiles') {
   const { profileRoutes } = await import('./routes/profiles.js');

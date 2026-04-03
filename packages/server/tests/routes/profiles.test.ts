@@ -71,6 +71,16 @@ describe('Profile routes', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('POST /api/fleet/profiles rejects the reserved main profile name', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/profiles',
+      payload: { name: 'main', port: 19001 },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('reserved');
+  });
+
   it('DELETE /api/fleet/profiles/:name removes a profile', async () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/fleet/profiles/rescue' });
     expect(res.statusCode).toBe(200);

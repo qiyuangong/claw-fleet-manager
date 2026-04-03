@@ -54,7 +54,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
       </div>
 
       <div className="tab-row">
-        {[...baseTabs, ...(instance.profile ? (['plugins'] as const) : [])].map((tab) => (
+        {[...baseTabs, 'plugins' as const].map((tab) => (
           <button
             key={tab}
             className={`tab-button ${activeTab === tab ? 'active' : ''}`}

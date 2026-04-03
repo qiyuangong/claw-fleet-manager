@@ -42,6 +42,8 @@ export function FleetConfigPanel() {
     try {
       const payload = {
         ...form,
+        CONFIG_BASE: data?.configBase ?? '',
+        WORKSPACE_BASE: data?.workspaceBase ?? '',
         ...(apiKey.trim() ? { API_KEY: apiKey.trim() } : {}),
         ENABLE_NPM_PACKAGES: enableNpmPackages ? 'true' : 'false',
       };

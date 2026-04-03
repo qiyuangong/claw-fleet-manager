@@ -9,12 +9,8 @@ const instanceConfigBodySchema = z.record(z.string(), z.unknown());
 
 export async function configRoutes(app: FastifyInstance) {
   app.get('/api/config/fleet', { preHandler: requireAdmin }, async () => {
-    if (app.deploymentMode !== 'docker') {
-      return app.fleetConfig.readFleetConfig();
-    }
-
     const cached = app.backend.getCachedStatus();
-    const liveCount = cached?.mode === 'docker' ? cached.instances.length : undefined;
+    const liveCount = cached?.instances.filter((instance) => instance.mode === 'docker').length;
     return app.fleetConfig.readFleetConfig(liveCount);
   });
 
@@ -23,13 +19,21 @@ export async function configRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Body must be a Record<string, string>', code: 'INVALID_BODY' });
     }
-    app.fleetConfig.writeFleetConfig(parsed.data);
+    const { BASE_DIR, ...vars } = parsed.data;
+    if (BASE_DIR !== undefined) {
+      try {
+        app.fleetConfig.updateBaseDir(BASE_DIR);
+      } catch (error: any) {
+        return reply.status(400).send({ error: error.message, code: 'INVALID_BASE_DIR' });
+      }
+    }
+    app.fleetConfig.writeFleetConfig(vars);
     return { ok: true };
   });
 
   app.get<{ Params: { id: string } }>('/api/fleet/:id/config', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
-    if (!validateInstanceId(id, app.deploymentMode)) {
+    if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
     try {
@@ -41,7 +45,7 @@ export async function configRoutes(app: FastifyInstance) {
 
   app.put<{ Params: { id: string } }>('/api/fleet/:id/config', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
-    if (!validateInstanceId(id, app.deploymentMode)) {
+    if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
     const parsed = instanceConfigBodySchema.safeParse(request.body);

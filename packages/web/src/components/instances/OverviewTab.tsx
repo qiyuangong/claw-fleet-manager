@@ -87,6 +87,10 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
             <p className="metric-value">{formatUptime(instance.uptime)}</p>
           </div>
           <div className="metric-card">
+            <p className="metric-label">{t('type')}</p>
+            <p className="metric-value">{instance.mode === 'docker' ? t('dockerInstanceType') : t('profileInstanceType')}</p>
+          </div>
+          <div className="metric-card">
             <p className="metric-label">{instance.profile ? t('profile') : t('image')}</p>
             <p className="metric-value mono">{instance.profile ?? instance.image}</p>
           </div>

@@ -26,10 +26,11 @@ const WORKSPACE_MEMORY_MD = `# MEMORY.md
 `;
 
 interface DockerProvisionInput {
+  instanceId: string;
   index: number;
   portStep: number;
-  configBase: string;
-  workspaceBase: string;
+  configDir: string;
+  workspaceDir: string;
   vars: Record<string, string>;
   token: string;
   tailscaleConfig?: TailscaleConfig;
@@ -37,13 +38,11 @@ interface DockerProvisionInput {
 }
 
 export function provisionDockerInstance(input: DockerProvisionInput): void {
-  const configDir = join(input.configBase, String(input.index));
-  const workspaceDir = join(input.workspaceBase, String(input.index));
-  const configFile = join(configDir, 'openclaw.json');
+  const configFile = join(input.configDir, 'openclaw.json');
 
-  mkdirSync(configDir, { recursive: true });
-  mkdirSync(workspaceDir, { recursive: true });
-  seedWorkspaceFiles(workspaceDir);
+  mkdirSync(input.configDir, { recursive: true });
+  mkdirSync(input.workspaceDir, { recursive: true });
+  seedWorkspaceFiles(input.workspaceDir);
 
   if (existsSync(configFile)) {
     return;

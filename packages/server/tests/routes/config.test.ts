@@ -8,6 +8,7 @@ const mockFleetConfig = {
     baseUrl: 'https://api.example.com',
     apiKey: 'sk-***123',
     modelId: 'gpt-4',
+    baseDir: '/tmp/managed',
     count: 3,
     cpuLimit: '4',
     memLimit: '8G',
@@ -17,14 +18,16 @@ const mockFleetConfig = {
     tz: 'UTC',
   }),
   writeFleetConfig: vi.fn(),
+  updateBaseDir: vi.fn(),
 };
 
 const mockBackend = {
   getCachedStatus: vi.fn().mockReturnValue({
-    mode: 'docker',
+    mode: 'hybrid',
     instances: [
-      { id: 'openclaw-1' },
-      { id: 'openclaw-2' },
+      { id: 'openclaw-1', mode: 'docker' },
+      { id: 'openclaw-2', mode: 'docker' },
+      { id: 'team-alpha', mode: 'profile' },
     ],
     totalRunning: 2,
     updatedAt: Date.now(),
@@ -33,13 +36,13 @@ const mockBackend = {
   writeInstanceConfig: vi.fn().mockResolvedValue(undefined),
 };
 
-describe('Config routes — docker mode', () => {
+describe('Config routes — hybrid mode', () => {
   const app = Fastify();
 
   beforeAll(async () => {
     app.decorate('fleetConfig', mockFleetConfig);
     app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'docker');
+    app.decorate('deploymentMode', 'hybrid');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
     });
@@ -53,6 +56,7 @@ describe('Config routes — docker mode', () => {
     const res = await app.inject({ method: 'GET', url: '/api/config/fleet' });
     expect(res.statusCode).toBe(200);
     expect(res.json().apiKey).toBe('sk-***123');
+    expect(res.json().baseDir).toBe('/tmp/managed');
     expect(mockFleetConfig.readFleetConfig).toHaveBeenCalledWith(2);
   });
 
@@ -60,10 +64,11 @@ describe('Config routes — docker mode', () => {
     const res = await app.inject({
       method: 'PUT',
       url: '/api/config/fleet',
-      payload: { BASE_URL: 'https://new.api.com', API_KEY: 'sk-new' },
+      payload: { BASE_URL: 'https://new.api.com', BASE_DIR: '/srv/openclaw' },
     });
     expect(res.statusCode).toBe(200);
-    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalled();
+    expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw');
+    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalledWith({ BASE_URL: 'https://new.api.com' });
   });
 
   it('GET /api/fleet/:id/config returns instance config', async () => {
@@ -108,33 +113,10 @@ describe('Config routes — docker mode', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
   });
-});
-
-describe('Config routes — profile mode', () => {
-  const app = Fastify();
-
-  beforeAll(async () => {
-    app.decorate('fleetConfig', mockFleetConfig);
-    app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'profiles');
-    app.addHook('onRequest', async (request) => {
-      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
-    });
-    await app.register(configRoutes);
-    await app.ready();
-  });
-
-  afterAll(() => app.close());
 
   it('accepts profile name as instance id', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/fleet/main/config' });
     expect(res.statusCode).toBe(200);
     expect(mockBackend.readInstanceConfig).toHaveBeenCalledWith('main');
-  });
-
-  it('does not override count in profile mode', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/config/fleet' });
-    expect(res.statusCode).toBe(200);
-    expect(mockFleetConfig.readFleetConfig).toHaveBeenCalledWith();
   });
 });

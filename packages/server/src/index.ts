@@ -4,7 +4,7 @@ import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { loadConfig } from './config.js';
+import { loadConfig, resolveConfigPath } from './config.js';
 import { registerAuth } from './auth.js';
 import { configRoutes } from './routes/config.js';
 import { fleetRoutes } from './routes/fleet.js';
@@ -16,6 +16,7 @@ import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
 import { DockerBackend } from './services/docker-backend.js';
+import { HybridBackend } from './services/hybrid-backend.js';
 import { ProfileBackend } from './services/profile-backend.js';
 import { DockerService } from './services/docker.js';
 import { FleetConfigService } from './services/fleet-config.js';
@@ -28,7 +29,7 @@ const config = loadConfig();
 
 // ── Tailscale preflight (Docker mode only) ──────────────────────────────────
 let tailscale: TailscaleService | null = null;
-if (config.deploymentMode !== 'profiles' && config.tailscale) {
+if (config.tailscale) {
   try {
     await execFileAsync('tailscale', ['version']);
   } catch {
@@ -49,33 +50,33 @@ const httpsOptions = config.tls
 const app = Fastify({ logger: true, ...(httpsOptions ? { https: httpsOptions } : {}) });
 
 // ── Shared services ──────────────────────────────────────────────────────────
-const fleetConfig = new FleetConfigService(config.fleetDir);
+const fleetConfig = new FleetConfigService(config.fleetDir, config.baseDir, resolveConfigPath());
 const userService = new UserService(config.fleetDir);
 await userService.initialize(config.auth);
 
 // ── Backend factory ──────────────────────────────────────────────────────────
-const backend = config.deploymentMode === 'profiles'
-  ? new ProfileBackend(config.fleetDir, config.profiles ?? {
-      openclawBinary: 'openclaw',
-      basePort: 18789,
-      portStep: 20,
-      stateBaseDir: `${process.env.HOME}/.openclaw-states`,
-      configBaseDir: `${process.env.HOME}/.openclaw-configs`,
-      autoRestart: true,
-      stopTimeoutMs: 10000,
-    }, app.log)
-  : new DockerBackend(
-      new DockerService(),
-      fleetConfig,
-      config.fleetDir,
-      tailscale,
-      config.tailscale?.hostname ?? null,
-      app.log,
-    );
+const dockerBackend = new DockerBackend(
+  new DockerService(),
+  fleetConfig,
+  config.fleetDir,
+  tailscale,
+  config.tailscale?.hostname ?? null,
+  app.log,
+);
+const profileBackend = new ProfileBackend(config.fleetDir, config.profiles ?? {
+  openclawBinary: 'openclaw',
+  basePort: 18789,
+  portStep: 20,
+  stateBaseDir: `${process.env.HOME}/.openclaw-states`,
+  configBaseDir: `${process.env.HOME}/.openclaw-configs`,
+  autoRestart: true,
+  stopTimeoutMs: 10000,
+}, config.baseDir, app.log);
+const backend = new HybridBackend(dockerBackend, profileBackend);
 
 // ── Decorators ───────────────────────────────────────────────────────────────
 app.decorate('backend', backend as DeploymentBackend);
-app.decorate('deploymentMode', config.deploymentMode ?? 'docker');
+app.decorate('deploymentMode', 'hybrid');
 app.decorate('fleetConfig', fleetConfig);
 app.decorate('fleetDir', config.fleetDir);
 app.decorate('userService', userService);
@@ -92,10 +93,8 @@ await app.register(logRoutes);
 await app.register(proxyRoutes);
 await app.register(pluginRoutes);
 
-if (config.deploymentMode === 'profiles') {
-  const { profileRoutes } = await import('./routes/profiles.js');
-  await app.register(profileRoutes);
-}
+const { profileRoutes } = await import('./routes/profiles.js');
+await app.register(profileRoutes);
 
 const webDist = resolve(import.meta.dirname, '..', '..', 'web', 'dist');
 if (existsSync(webDist)) {

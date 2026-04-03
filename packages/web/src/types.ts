@@ -1,6 +1,7 @@
 // packages/web/src/types.ts
 export interface FleetInstance {
   id: string;
+  mode: 'docker' | 'profile';
   index?: number;
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;
@@ -17,7 +18,7 @@ export interface FleetInstance {
 }
 
 export interface FleetStatus {
-  mode: 'docker' | 'profiles';
+  mode: 'docker' | 'profiles' | 'hybrid';
   instances: FleetInstance[];
   totalRunning: number;
   updatedAt: number;
@@ -27,6 +28,7 @@ export interface FleetConfig {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  baseDir: string;
   count: number;
   cpuLimit: string;
   memLimit: string;

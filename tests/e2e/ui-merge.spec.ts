@@ -1,10 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
 type Role = 'admin' | 'user';
-type Mode = 'docker' | 'profiles';
+type Mode = 'docker' | 'profiles' | 'hybrid';
 
 interface FleetInstance {
   id: string;
+  mode: 'docker' | 'profile';
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;
   token: string;
@@ -42,6 +43,7 @@ const sampleFleetConfig = {
   baseUrl: 'https://api.example.test',
   apiKey: 'configured',
   modelId: 'gpt-5.4',
+  baseDir: '/tmp/managed',
   count: 2,
   cpuLimit: '2',
   memLimit: '4g',
@@ -170,6 +172,14 @@ async function mountDashboard(page: Page, opts: MountOptions) {
     });
   });
 
+  await page.route('**/api/fleet/instances', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(instances[0] ?? null),
+    });
+  });
+
   await page.route('**/api/fleet/*/config', async (route) => {
     if (route.request().method() === 'PUT') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
@@ -285,10 +295,11 @@ async function mountDashboard(page: Page, opts: MountOptions) {
 
 test('admin can navigate all admin pages and instance tabs in docker mode', async ({ page }) => {
   await mountDashboard(page, {
-    fleetMode: 'docker',
+    fleetMode: 'hybrid',
     instances: [
       {
         id: 'openclaw-1',
+        mode: 'docker',
         status: 'running',
         port: 3101,
         token: 'masked-token',
@@ -301,6 +312,7 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
       },
       {
         id: 'openclaw-2',
+        mode: 'docker',
         status: 'stopped',
         port: 3121,
         token: 'masked-token-2',
@@ -323,6 +335,9 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   await expect(page.getByRole('heading', { name: 'Add Instance' })).toBeVisible();
   await expect(page.locator('.table-shell').getByRole('button', { name: 'Open' })).toHaveCount(2);
   await expect(page.getByRole('button', { name: '+ Add Instance' })).toBeVisible();
+  await page.getByRole('button', { name: '+ Add Instance' }).click();
+  await expect(page.getByRole('button', { name: 'Create Docker Instance' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create Profile' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Users' }).click();
   await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
@@ -331,8 +346,22 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
 
   await page.getByRole('button', { name: 'Fleet Config' }).click();
   await expect(page.getByRole('heading', { name: 'Control Plane' })).toBeVisible();
+  const fleetConfigPanel = page.locator('section.panel-card').filter({ has: page.getByRole('heading', { name: 'Control Plane' }) });
+  await expect(fleetConfigPanel.getByLabel('Base Directory')).toBeVisible();
+  await expect(fleetConfigPanel.getByLabel('Docker Image')).toHaveCount(0);
+  await expect(fleetConfigPanel.getByText('Workspace Base', { exact: true })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Manage Instances' }).click();
+  await page.getByRole('button', { name: '+ Add Instance' }).click();
+  await page.getByRole('button', { name: 'Create Docker Instance' }).click();
+  await expect(page.getByRole('heading', { name: 'Add Docker Instance' })).toBeVisible();
+  await expect(page.getByText('Docker Image')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Advanced Docker Config' }).click();
   await expect(page.getByText('Docker Image')).toBeVisible();
-  await expect(page.getByText('Workspace Base')).toBeVisible();
+  await expect(page.getByText('CPU Limit')).toBeVisible();
+  await expect(page.getByText('Memory Limit')).toBeVisible();
+  await expect(page.getByText('Port Step')).toBeVisible();
+  await page.locator('.dialog-overlay').click({ position: { x: 12, y: 12 } });
 
   await page.getByRole('button', { name: /^openclaw-1/i }).click();
   await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();
@@ -368,12 +397,13 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   await expect(page.getByText('/tmp/workspace/openclaw-1')).toBeVisible();
 });
 
-test('profile mode keeps the same shell and scopes profile actions to management', async ({ page }) => {
+test('hybrid fleet keeps one shell and shows both instance kinds together', async ({ page }) => {
   await mountDashboard(page, {
-    fleetMode: 'profiles',
+    fleetMode: 'hybrid',
     instances: [
       {
         id: 'team-alpha',
+        mode: 'profile',
         status: 'running',
         port: 18789,
         token: 'masked-token',
@@ -386,15 +416,30 @@ test('profile mode keeps the same shell and scopes profile actions to management
         profile: 'team-alpha',
         pid: 4242,
       },
+      {
+        id: 'openclaw-7',
+        mode: 'docker',
+        status: 'running',
+        port: 18829,
+        token: 'masked-token-2',
+        uptime: 3600,
+        cpu: 3,
+        memory: { used: 1024 * 1024 * 128, limit: 1024 * 1024 * 1024 },
+        disk: { config: 50, workspace: 60 },
+        health: 'healthy',
+        image: 'openclaw:local',
+      },
     ],
   });
 
-  await expect(page.getByText('1/1 instances ready')).toBeVisible();
+  await expect(page.getByText('2/2 instances ready')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Manage Instances' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Manage Instances' }).click();
   await expect(page.getByRole('heading', { name: 'Add Instance' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
+  await expect(page.locator('.table-shell').getByRole('button', { name: 'Delete' })).toHaveCount(2);
+  await expect(page.getByText('Docker')).toBeVisible();
+  await expect(page.getByText('Profile')).toBeVisible();
 
   await page.getByRole('button', { name: /^team-alpha/i }).click();
   await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();
@@ -406,10 +451,11 @@ test('non-admin can access the account page and assigned instance only', async (
   await mountDashboard(page, {
     role: 'user',
     assignedProfiles: ['team-alpha'],
-    fleetMode: 'profiles',
+    fleetMode: 'hybrid',
     instances: [
       {
         id: 'team-alpha',
+        mode: 'profile',
         status: 'running',
         port: 18789,
         token: 'masked-token',
@@ -428,7 +474,7 @@ test('non-admin can access the account page and assigned instance only', async (
   await expect(page.getByRole('button', { name: 'My Account' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Users' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Fleet Config' })).toHaveCount(0);
-  await expect(page.getByText('You currently have 1 assigned profile and can jump back into them from here.')).toBeVisible();
+  await expect(page.getByText('You currently have 1 assigned instance and can jump back into them from here.')).toBeVisible();
   await expect(page.locator('.profile-list').getByRole('button', { name: /^team-alpha/i })).toBeVisible();
 
   await page.locator('.profile-list').getByRole('button', { name: /^team-alpha/i }).click();

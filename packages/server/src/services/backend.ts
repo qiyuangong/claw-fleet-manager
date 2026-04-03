@@ -1,14 +1,22 @@
 // packages/server/src/services/backend.ts
-import type { FleetInstance, FleetStatus } from '../types.js';
+import type { FleetInstance, FleetStatus, InstanceMode } from '../types.js';
 
 export interface LogHandle {
   stop(): void;
 }
 
 export interface CreateInstanceOpts {
-  name?: string;    // profile mode: required. Docker mode: ignored.
-  port?: number;    // profile mode: auto-assign if omitted. Docker mode: ignored.
-  config?: object;  // profile mode: written to openclaw.json. Docker mode: ignored.
+  kind?: InstanceMode;
+  name?: string;
+  port?: number;
+  config?: object;
+  // Docker-only per-instance overrides; ignored by profile creation for now.
+  apiKey?: string;
+  image?: string;
+  cpuLimit?: string;
+  memoryLimit?: string;
+  portStep?: number;
+  enableNpmPackages?: boolean;
 }
 
 export interface DeploymentBackend {

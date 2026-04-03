@@ -2,23 +2,67 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { createInstance } from '../../api/fleet';
+import { useFleetConfig } from '../../hooks/useFleetConfig';
 
 interface Props {
   kind: 'docker' | 'profile';
   onClose: () => void;
 }
 
+interface DockerOverridesForm {
+  image: string;
+  cpuLimit: string;
+  memoryLimit: string;
+  portStep: string;
+  enableNpmPackages: boolean;
+}
+
+const emptyDockerOverrides: DockerOverridesForm = {
+  image: '',
+  cpuLimit: '',
+  memoryLimit: '',
+  portStep: '',
+  enableNpmPackages: false,
+};
+
 export function AddInstanceDialog({ kind, onClose }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { data: fleetConfig } = useFleetConfig();
   const [name, setName] = useState('');
   const [port, setPort] = useState('');
   const [error, setError] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [dockerOverrides, setDockerOverrides] = useState<DockerOverridesForm>(emptyDockerOverrides);
+
+  const hydrateDockerOverrides = () => {
+    if (kind !== 'docker' || !fleetConfig) return;
+    setDockerOverrides((prev) => {
+      if (prev.image || prev.cpuLimit || prev.memoryLimit || prev.portStep) {
+        return prev;
+      }
+      return {
+        image: fleetConfig.openclawImage ?? '',
+        cpuLimit: fleetConfig.cpuLimit ?? '',
+        memoryLimit: fleetConfig.memLimit ?? '',
+        portStep: fleetConfig.portStep ? String(fleetConfig.portStep) : '',
+        enableNpmPackages: fleetConfig.enableNpmPackages ?? false,
+      };
+    });
+  };
 
   const create = useMutation({
     mutationFn: () => createInstance({
+      kind,
       name,
       port: kind === 'profile' && port ? parseInt(port, 10) : undefined,
+      ...(kind === 'docker' && showAdvanced ? {
+        image: dockerOverrides.image.trim() || undefined,
+        cpuLimit: dockerOverrides.cpuLimit.trim() || undefined,
+        memoryLimit: dockerOverrides.memoryLimit.trim() || undefined,
+        portStep: dockerOverrides.portStep ? parseInt(dockerOverrides.portStep, 10) : undefined,
+        enableNpmPackages: dockerOverrides.enableNpmPackages,
+      } : {}),
     }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['fleet'] });
@@ -30,6 +74,7 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
 
   const nameValid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name) && (kind === 'docker' || name !== 'main');
   const reservedName = kind === 'profile' && name === 'main';
+  const portStepValid = !showAdvanced || !dockerOverrides.portStep || Number.parseInt(dockerOverrides.portStep, 10) > 0;
   const titleKey = kind === 'docker' ? 'addDockerInstanceTitle' : 'addProfileTitle';
   const helpKey = kind === 'docker' ? 'addDockerInstanceHelp' : 'addProfileHelp';
   const ctaKey = kind === 'docker' ? 'createDockerInstanceCta' : 'createProfileCta';
@@ -70,13 +115,89 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
           </>
         ) : null}
 
+        {kind === 'docker' ? (
+          <div style={{ marginTop: '1rem' }}>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                if (!showAdvanced) {
+                  hydrateDockerOverrides();
+                }
+                setShowAdvanced((prev) => !prev);
+              }}
+            >
+              {showAdvanced ? t('hideDockerConfig') : t('showDockerConfig')}
+            </button>
+
+            {showAdvanced ? (
+              <div className="field-grid" style={{ marginTop: '1rem' }}>
+                <p className="muted" style={{ margin: 0 }}>{t('dockerAdvancedHelp')}</p>
+                <label className="field-label">
+                  <span>{t('openclawImage')}</span>
+                  <input
+                    className="text-input mono"
+                    value={dockerOverrides.image}
+                    onChange={(event) => setDockerOverrides((prev) => ({ ...prev, image: event.target.value }))}
+                  />
+                </label>
+                <label className="field-label">
+                  <span>{t('cpuLimit')}</span>
+                  <input
+                    className="text-input mono"
+                    value={dockerOverrides.cpuLimit}
+                    onChange={(event) => setDockerOverrides((prev) => ({ ...prev, cpuLimit: event.target.value }))}
+                  />
+                </label>
+                <label className="field-label">
+                  <span>{t('memLimit')}</span>
+                  <input
+                    className="text-input mono"
+                    value={dockerOverrides.memoryLimit}
+                    onChange={(event) => setDockerOverrides((prev) => ({ ...prev, memoryLimit: event.target.value }))}
+                  />
+                </label>
+                <label className="field-label">
+                  <span>{t('portStep')}</span>
+                  <input
+                    className="text-input mono"
+                    value={dockerOverrides.portStep}
+                    onChange={(event) => setDockerOverrides((prev) => ({
+                      ...prev,
+                      portStep: event.target.value.replace(/[^\d]/g, ''),
+                    }))}
+                    type="number"
+                  />
+                </label>
+                {!portStepValid ? (
+                  <p className="error-text" style={{ marginTop: 0 }}>{t('portStepInvalid')}</p>
+                ) : null}
+                <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={dockerOverrides.enableNpmPackages}
+                    onChange={(event) => setDockerOverrides((prev) => ({
+                      ...prev,
+                      enableNpmPackages: event.target.checked,
+                    }))}
+                  />
+                  <span>{t('enableNpmPackages')}</span>
+                </label>
+                <p className="muted" style={{ marginTop: 0 }}>
+                  {t('enableNpmPackagesHint')}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {error ? <p className="error-text" style={{ marginTop: '0.5rem' }}>{error}</p> : null}
 
         <div className="action-row" style={{ marginTop: '1.25rem' }}>
           <button
             className="primary-button"
             onClick={() => create.mutate()}
-            disabled={!nameValid || create.isPending}
+            disabled={!nameValid || !portStepValid || create.isPending}
           >
             {create.isPending ? t('creating') : t(ctaKey)}
           </button>

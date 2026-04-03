@@ -26,6 +26,10 @@ function makeBackend() {
   return new ProfileBackend('/tmp/fleet', config);
 }
 
+function makeBaseDirBackend() {
+  return new ProfileBackend('/tmp/fleet', config, '/tmp/managed');
+}
+
 describe('ProfileBackend — registry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -127,6 +131,49 @@ describe('ProfileBackend — registry', () => {
     expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/MEMORY.md', expect.any(String), 'utf-8');
     expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/CLAUDE.md', expect.any(String), 'utf-8');
     expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/.gitignore', expect.any(String), 'utf-8');
+  });
+
+  it('createInstance() uses baseDir/<name> for profile config and workspace when configured', async () => {
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (String(path).endsWith('/tmp/fleet/profiles.json')) {
+        throw Object.assign(new Error(), { code: 'ENOENT' });
+      }
+      if (String(path).endsWith('/tmp/managed/rescue/openclaw.json')) {
+        return JSON.stringify({
+          agents: {
+            defaults: {
+              workspace: '/Users/syslab/.openclaw/workspace',
+            },
+          },
+          gateway: { auth: { token: 'abc' } },
+        });
+      }
+      throw Object.assign(new Error(), { code: 'ENOENT' });
+    });
+
+    const mockServer = { listen: vi.fn((_port: number, cb: () => void) => cb()), close: vi.fn((cb: () => void) => cb()) };
+    vi.mocked(net.createServer).mockReturnValue(mockServer as any);
+    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
+    vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
+      const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+      if (file === 'which') {
+        cb(null, '/usr/local/bin/openclaw\n', '');
+        return {} as any;
+      }
+      cb(null, '', '');
+      return {} as any;
+    });
+
+    const backend = makeBaseDirBackend();
+    await backend.initialize();
+    await backend.createInstance({ name: 'rescue' });
+
+    const writeCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) => String(path).endsWith('/tmp/managed/rescue/openclaw.json.tmp'));
+    expect(writeCall).toBeTruthy();
+    const written = JSON.parse(String(writeCall?.[1]));
+    expect(written.agents.defaults.workspace).toBe('/tmp/managed/rescue/workspace');
+    expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/managed/rescue/workspace/MEMORY.md', expect.any(String), 'utf-8');
   });
 
   it('initialize() migrates existing profile config workspace path and seeds workspace files', async () => {

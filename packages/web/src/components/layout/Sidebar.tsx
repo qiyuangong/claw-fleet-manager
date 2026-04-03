@@ -22,9 +22,7 @@ export function Sidebar() {
   }) ?? [];
 
   const subtitle = data
-    ? data.mode === 'profiles'
-      ? t('instancesReady', { running: data.totalRunning, total: visibleInstances.length })
-      : t('running', { running: data.totalRunning, total: visibleInstances.length })
+    ? t('instancesReady', { running: data.totalRunning, total: visibleInstances.length })
     : isLoading
       ? t('loadingFleet')
       : t('awaitingServer');

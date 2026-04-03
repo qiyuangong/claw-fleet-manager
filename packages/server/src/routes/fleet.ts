@@ -7,9 +7,16 @@ import { MANAGED_INSTANCE_ID_RE, validateInstanceId } from '../validate.js';
 
 const scaleSchema = z.object({ count: z.number().int().positive() });
 const createInstanceSchema = z.object({
+  kind: z.enum(['docker', 'profile']),
   name: z.string().min(1),
   port: z.number().int().positive().optional(),
   config: z.record(z.string(), z.unknown()).optional(),
+  apiKey: z.string().min(1).optional(),
+  image: z.string().min(1).optional(),
+  cpuLimit: z.string().min(1).optional(),
+  memoryLimit: z.string().min(1).optional(),
+  portStep: z.number().int().positive().optional(),
+  enableNpmPackages: z.boolean().optional(),
 });
 let scaling = false;
 
@@ -28,13 +35,6 @@ export async function fleetRoutes(app: FastifyInstance) {
   });
 
   app.post('/api/fleet/scale', { preHandler: requireAdmin }, async (request, reply) => {
-    if (app.deploymentMode === 'profiles') {
-      return reply.status(400).send({
-        error: 'scale endpoint not available in profile mode — use POST /api/fleet/profiles',
-        code: 'WRONG_MODE',
-      });
-    }
-
     const parsed = scaleSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'count must be a positive integer', code: 'INVALID_COUNT' });
@@ -65,8 +65,8 @@ export async function fleetRoutes(app: FastifyInstance) {
       });
     }
 
-    const { name, port, config } = parsed.data;
-    if (app.deploymentMode === 'profiles') {
+    const { kind, name, port, config, apiKey, image, cpuLimit, memoryLimit, portStep, enableNpmPackages } = parsed.data;
+    if (kind === 'profile') {
       if (!isValidManagedProfileName(name)) {
         return reply.status(400).send({
           error: getManagedProfileNameError(name),
@@ -81,7 +81,18 @@ export async function fleetRoutes(app: FastifyInstance) {
     }
 
     try {
-      const instance = await app.backend.createInstance({ name, port, config: config as object | undefined });
+      const instance = await app.backend.createInstance({
+        kind,
+        name,
+        port,
+        config: config as object | undefined,
+        apiKey,
+        image,
+        cpuLimit,
+        memoryLimit,
+        portStep,
+        enableNpmPackages,
+      });
       return instance;
     } catch (error: any) {
       const statusCode = error.message?.includes('already exists') || error.message?.includes('in use') ? 409 : 500;
@@ -91,7 +102,7 @@ export async function fleetRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>('/api/fleet/instances/:id', { preHandler: requireAdmin }, async (request, reply) => {
     const { id } = request.params;
-    if (!validateInstanceId(id, app.deploymentMode)) {
+    if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
 

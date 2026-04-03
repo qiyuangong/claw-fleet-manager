@@ -12,7 +12,7 @@ interface Props {
 
 export function UserHomePanel({ user, instances, onOpenInstance, onChangePassword }: Props) {
   const { t } = useTranslation();
-  const profileCountLabel = t(instances.length === 1 ? 'assignedProfilesSingle' : 'assignedProfilesPlural', {
+  const profileCountLabel = t(instances.length === 1 ? 'assignedInstancesSingle' : 'assignedInstancesPlural', {
     count: instances.length,
   });
 
@@ -38,18 +38,18 @@ export function UserHomePanel({ user, instances, onOpenInstance, onChangePasswor
           <p className="metric-value">{user.role}</p>
         </section>
         <section className="metric-card">
-          <p className="metric-label">{t('assignedProfiles')}</p>
+          <p className="metric-label">{t('assignedInstances')}</p>
           <p className="metric-value">{instances.length}</p>
         </section>
       </div>
 
       <div style={{ marginTop: '1.5rem' }}>
-        <h3 style={{ marginTop: 0 }}>{t('myProfiles')}</h3>
-        <p className="muted">{t('myProfilesHelp')}</p>
+        <h3 style={{ marginTop: 0 }}>{t('myInstances')}</h3>
+        <p className="muted">{t('myInstancesHelp')}</p>
         {instances.length === 0 ? (
           <div className="profile-empty-state">
-            <p style={{ margin: 0 }}>{t('noProfileAssigned')}</p>
-            <p className="muted" style={{ margin: 0 }}>{t('noProfileAssignedHelp')}</p>
+            <p style={{ margin: 0 }}>{t('noInstanceAssigned')}</p>
+            <p className="muted" style={{ margin: 0 }}>{t('noInstanceAssignedHelp')}</p>
           </div>
         ) : (
           <div className="profile-list">

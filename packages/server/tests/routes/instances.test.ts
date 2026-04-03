@@ -4,12 +4,12 @@ import Fastify from 'fastify';
 import { instanceRoutes } from '../../src/routes/instances.js';
 
 const mockInstance = {
-  id: 'openclaw-1', index: 1, status: 'running', port: 18789, token: 'abc1***f456',
+  id: 'openclaw-1', mode: 'docker' as const, index: 1, status: 'running', port: 18789, token: 'abc1***f456',
   uptime: 100, cpu: 12, memory: { used: 400, limit: 8000 }, disk: { config: 0, workspace: 0 },
   health: 'healthy', image: 'openclaw:local',
 };
 
-const mockFleetStatus = { mode: 'docker' as const, instances: [mockInstance], totalRunning: 1, updatedAt: Date.now() };
+const mockFleetStatus = { mode: 'hybrid' as const, instances: [mockInstance], totalRunning: 1, updatedAt: Date.now() };
 
 const mockBackend = {
   start: vi.fn().mockResolvedValue(undefined),
@@ -20,12 +20,12 @@ const mockBackend = {
   execInstanceCommand: vi.fn().mockResolvedValue(''),
 };
 
-describe('Instance routes — docker mode', () => {
+describe('Instance routes — hybrid fleet', () => {
   const app = Fastify();
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'docker');
+    app.decorate('deploymentMode', 'hybrid');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
     });
@@ -71,31 +71,14 @@ describe('Instance routes — docker mode', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
   });
-});
-
-describe('Instance routes — profile mode', () => {
-  const app = Fastify();
-
-  beforeAll(async () => {
-    app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'profiles');
-    app.addHook('onRequest', async (request) => {
-      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
-    });
-    await app.register(instanceRoutes);
-    await app.ready();
-  });
-
-  afterAll(() => app.close());
-
   it('accepts profile name as instance id', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/fleet/main/start' });
     expect(res.statusCode).toBe(200);
     expect(mockBackend.start).toHaveBeenCalledWith('main');
   });
 
-  it('rejects docker-style id in profile mode', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/fleet/openclaw-1/start' });
+  it('rejects malformed ids', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/BAD_ID/start' });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
   });

@@ -32,14 +32,15 @@ export class DockerBackend implements DeploymentBackend {
   async initialize(): Promise<void> {
     if (this.tailscale) {
       const containers = await this.docker.listFleetContainers().catch(() => []);
-      const portStep = this.fleetConfig.readFleetConfig().portStep;
+      const defaultPortStep = this.fleetConfig.readFleetConfig().portStep;
       const instances = containers
         .filter((container) => container.index !== undefined)
         .map((container) => {
-        const index = container.index!;
-        const gwPort = BASE_GW_PORT + (index - 1) * portStep;
-        return { index, gwPort };
-      });
+          const index = container.index!;
+          const portStep = this.resolveInstancePortStep(container.name, defaultPortStep);
+          const gwPort = BASE_GW_PORT + (index - 1) * portStep;
+          return { index, gwPort };
+        });
       await this.tailscale.syncAll(instances);
     }
     void this.refresh();
@@ -61,12 +62,11 @@ export class DockerBackend implements DeploymentBackend {
     const containers = await this.docker.listFleetContainers();
     const tokens = this.fleetConfig.readTokens();
     const config = this.fleetConfig.readFleetConfig();
-    const configBase = this.fleetConfig.getConfigBase();
-    const workspaceBase = this.fleetConfig.getWorkspaceBase();
 
     const instances: FleetInstance[] = await Promise.all(
       containers.map(async (container) => {
         const index = container.index;
+        const portStep = this.resolveInstancePortStep(container.name, config.portStep);
         const [stats, inspection] = await Promise.all([
           this.docker.getContainerStats(container.name).catch(() => ({
             cpu: 0,
@@ -82,17 +82,18 @@ export class DockerBackend implements DeploymentBackend {
 
         return {
           id: container.name,
+          mode: 'docker',
           index,
           status: this.mapStatus(inspection.status),
-          port: index !== undefined ? BASE_GW_PORT + (index - 1) * config.portStep : 0,
+          port: index !== undefined ? BASE_GW_PORT + (index - 1) * portStep : 0,
           token: index !== undefined ? FleetConfigService.maskToken(tokens[index] ?? '') : '***',
           tailscaleUrl: index !== undefined ? this.tailscale?.getUrl(index) ?? undefined : undefined,
           uptime: inspection.uptime,
           cpu: stats.cpu,
           memory: stats.memory,
           disk: {
-            config: index !== undefined ? await getDirectorySize(join(configBase, String(index))) : 0,
-            workspace: index !== undefined ? await getDirectorySize(join(workspaceBase, String(index))) : 0,
+            config: await getDirectorySize(this.fleetConfig.getDockerConfigDir(container.name)),
+            workspace: await getDirectorySize(this.fleetConfig.getDockerWorkspaceDir(container.name)),
           },
           health: this.mapHealth(inspection.health),
           image: inspection.image,
@@ -159,7 +160,15 @@ export class DockerBackend implements DeploymentBackend {
     }
 
     const config = this.fleetConfig.readFleetConfig();
-    const vars = this.fleetConfig.readFleetEnvRaw();
+    const resolvedPortStep = opts.portStep ?? config.portStep;
+    const resolvedImage = opts.image ?? config.openclawImage;
+    const resolvedCpuLimit = opts.cpuLimit ?? config.cpuLimit;
+    const resolvedMemoryLimit = opts.memoryLimit ?? config.memLimit;
+    const resolvedEnableNpmPackages = opts.enableNpmPackages ?? config.enableNpmPackages;
+    const vars = {
+      ...this.fleetConfig.readFleetEnvRaw(),
+      ...(opts.apiKey ? { API_KEY: opts.apiKey } : {}),
+    };
     const tokens = this.fleetConfig.readTokens();
     const token = tokens[newIndex] ?? randomToken();
     this.fleetConfig.writeTokens({ ...tokens, [newIndex]: token });
@@ -167,32 +176,37 @@ export class DockerBackend implements DeploymentBackend {
 
     const portMap = this.tailscale?.allocatePorts([newIndex]) ?? new Map<number, number>();
     provisionDockerInstance({
+      instanceId: name,
       index: newIndex,
-      portStep: config.portStep,
-      configBase: config.configBase,
-      workspaceBase: config.workspaceBase,
+      portStep: resolvedPortStep,
+      configDir: this.fleetConfig.getDockerConfigDir(name),
+      workspaceDir: this.fleetConfig.getDockerWorkspaceDir(name),
       vars,
       token,
       tailscaleConfig: this.tailscaleHostname ? { hostname: this.tailscaleHostname, portMap } : undefined,
-      configOverride: opts.config,
+      configOverride: this.mergeConfigOverride(opts.config, {
+        clawFleet: {
+          portStep: resolvedPortStep,
+        },
+      }),
     });
 
     await this.docker.createManagedContainer({
       name,
       index: newIndex,
-      image: config.openclawImage,
-      gatewayPort: BASE_GW_PORT + (newIndex - 1) * config.portStep,
+      image: resolvedImage,
+      gatewayPort: BASE_GW_PORT + (newIndex - 1) * resolvedPortStep,
       token,
       timezone: config.tz,
-      configDir: join(config.configBase, String(newIndex)),
-      workspaceDir: join(config.workspaceBase, String(newIndex)),
-      npmDir: config.enableNpmPackages ? join(config.configBase, String(newIndex), '.npm') : undefined,
-      cpuLimit: config.cpuLimit,
-      memLimit: config.memLimit,
+      configDir: this.fleetConfig.getDockerConfigDir(name),
+      workspaceDir: this.fleetConfig.getDockerWorkspaceDir(name),
+      npmDir: resolvedEnableNpmPackages ? join(this.fleetConfig.getDockerConfigDir(name), '.npm') : undefined,
+      cpuLimit: resolvedCpuLimit,
+      memLimit: resolvedMemoryLimit,
     });
 
     if (this.tailscale) {
-      const gwPort = BASE_GW_PORT + (newIndex - 1) * config.portStep;
+      const gwPort = BASE_GW_PORT + (newIndex - 1) * resolvedPortStep;
       try {
         await this.tailscale.setup(newIndex, gwPort);
       } catch (err) {
@@ -272,13 +286,11 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async readInstanceConfig(id: string): Promise<object> {
-    const index = await this.resolveInstanceIndex(id);
-    return this.fleetConfig.readInstanceConfig(index) as object;
+    return this.fleetConfig.readInstanceConfig(id) as object;
   }
 
   async writeInstanceConfig(id: string, config: object): Promise<void> {
-    const index = await this.resolveInstanceIndex(id);
-    this.fleetConfig.writeInstanceConfig(index, config);
+    this.fleetConfig.writeInstanceConfig(id, config);
   }
 
   async scaleFleet(count: number, _fleetDir: string): Promise<FleetStatus> {
@@ -316,6 +328,25 @@ export class DockerBackend implements DeploymentBackend {
     if (health === 'unhealthy') return 'unhealthy';
     if (health === 'starting') return 'starting';
     return 'none';
+  }
+
+  private resolveInstancePortStep(instanceId: string, fallback: number): number {
+    try {
+      const config = this.fleetConfig.readInstanceConfig(instanceId) as Record<string, unknown>;
+      const clawFleet = config.clawFleet as Record<string, unknown> | undefined;
+      const portStep = clawFleet?.portStep;
+      if (typeof portStep === 'number' && Number.isFinite(portStep) && portStep > 0) {
+        return portStep;
+      }
+    } catch {
+      // Legacy instances may not have per-instance metadata yet.
+    }
+    return fallback;
+  }
+
+  private mergeConfigOverride(base: object | undefined, extra: object): object {
+    if (!base) return extra;
+    return Object.assign({}, base, extra);
   }
 
   private demuxDockerChunk(chunk: Buffer): string[] {

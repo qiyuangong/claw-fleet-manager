@@ -8,34 +8,27 @@ export function FleetConfigPanel() {
   const [form, setForm] = useState<Partial<Record<string, string>>>({});
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState('');
-  const [enableNpmPackagesOverride, setEnableNpmPackagesOverride] = useState<boolean | null>(null);
 
   const formDefaults = useMemo<Record<string, string>>(() => ({
-    BASE_URL: data?.baseUrl ?? '',
-    MODEL_ID: data?.modelId ?? '',
-    OPENCLAW_IMAGE: data?.openclawImage ?? '',
-    CPU_LIMIT: data?.cpuLimit ?? '',
-    MEM_LIMIT: data?.memLimit ?? '',
-    PORT_STEP: data ? String(data.portStep) : '',
+    BASE_DIR: data?.baseDir ?? '',
     TZ: data?.tz ?? '',
   }), [data]);
-
-  const enableNpmPackages = enableNpmPackagesOverride ?? (data?.enableNpmPackages ?? false);
 
   const handleSave = async () => {
     setError(null);
     try {
       const payload = {
+        BASE_URL: data?.baseUrl ?? '',
+        MODEL_ID: data?.modelId ?? '',
+        OPENCLAW_IMAGE: data?.openclawImage ?? '',
+        CPU_LIMIT: data?.cpuLimit ?? '',
+        MEM_LIMIT: data?.memLimit ?? '',
+        PORT_STEP: data ? String(data.portStep) : '',
+        ENABLE_NPM_PACKAGES: data?.enableNpmPackages ? 'true' : 'false',
         ...formDefaults,
         ...form,
-        CONFIG_BASE: data?.configBase ?? '',
-        WORKSPACE_BASE: data?.workspaceBase ?? '',
-        ...(apiKey.trim() ? { API_KEY: apiKey.trim() } : {}),
-        ENABLE_NPM_PACKAGES: enableNpmPackages ? 'true' : 'false',
       };
       await save(payload);
-      setApiKey('');
       setSaved(true);
       window.setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
@@ -48,10 +41,7 @@ export function FleetConfigPanel() {
   }
 
   const fieldLabels: [string, string][] = [
-    ['OPENCLAW_IMAGE', t('openclawImage')],
-    ['CPU_LIMIT', t('cpuLimit')],
-    ['MEM_LIMIT', t('memLimit')],
-    ['PORT_STEP', t('portStep')],
+    ['BASE_DIR', t('baseDir')],
     ['TZ', t('timezone')],
   ];
 
@@ -66,21 +56,6 @@ export function FleetConfigPanel() {
       </div>
 
       <div className="fleet-form">
-        <div className="section-grid">
-          <div className="metric-card">
-            <p className="metric-label">{t('apiKeyStatus')}</p>
-            <p className="metric-value">{data?.apiKey ? t('configured') : t('notConfigured')}</p>
-          </div>
-          <div className="metric-card">
-            <p className="metric-label">{t('configBase')}</p>
-            <p className="metric-value mono">{data?.configBase || '-'}</p>
-          </div>
-          <div className="metric-card">
-            <p className="metric-label">{t('workspaceBase')}</p>
-            <p className="metric-value mono">{data?.workspaceBase || '-'}</p>
-          </div>
-        </div>
-
         <div className="field-grid">
           {fieldLabels.map(([key, label]) => (
             <label className="field-label" key={key}>
@@ -92,29 +67,10 @@ export function FleetConfigPanel() {
               />
             </label>
           ))}
-          <label className="field-label">
-            <span>{t('apiKey')}</span>
-            <input
-              className="text-input mono"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={t('apiKeyPlaceholder')}
-              autoComplete="new-password"
-            />
-          </label>
         </div>
 
-        <label className="field-label" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-          <input
-            type="checkbox"
-            checked={enableNpmPackages}
-            onChange={(e) => setEnableNpmPackagesOverride(e.target.checked)}
-          />
-          <span>{t('enableNpmPackages')}</span>
-        </label>
         <p className="muted" style={{ marginTop: 0 }}>
-          {t('enableNpmPackagesHint')}
+          {t('fleetConfigScopeHint')}
         </p>
 
         <div className="action-row">

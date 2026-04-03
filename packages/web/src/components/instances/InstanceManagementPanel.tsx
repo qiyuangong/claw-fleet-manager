@@ -20,8 +20,6 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
-  const isProfileMode = fleet?.mode === 'profiles';
-
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteInstance(id),
     onSuccess: async () => {
@@ -53,94 +51,46 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
         </div>
       </div>
 
-      {isProfileMode ? (
-        <div className="panel-card" style={{ marginBottom: '1.25rem' }}>
-          <h3 style={{ marginTop: 0 }}>{t('createInstancePanelTitle')}</h3>
-          <p className="muted" style={{ marginTop: 0 }}>{t('createInstancePanelHelp')}</p>
-          <div className="action-row">
-            <div style={{ position: 'relative' }}>
-              <button className="primary-button" onClick={() => setShowCreateMenu((current) => !current)}>
-                {t('addInstance')}
-              </button>
-              {showCreateMenu ? (
-                <div className="panel-card" style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', left: 0, zIndex: 10, minWidth: '15rem' }}>
-                  <button
-                    className="secondary-button"
-                    style={{ width: '100%', justifyContent: 'flex-start' }}
-                    onClick={() => {
-                      setShowCreateMenu(false);
-                      setCreateKind('docker');
-                    }}
-                    disabled={isProfileMode}
-                  >
-                    {t('createDockerInstance')}
-                  </button>
-                  {!isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0.75rem' }}>{t('dockerModeOnlyAction')}</p>}
-                  <button
-                    className="secondary-button"
-                    style={{ width: '100%', justifyContent: 'flex-start' }}
-                    onClick={() => {
-                      setShowCreateMenu(false);
-                      setCreateKind('profile');
-                    }}
-                    disabled={!isProfileMode}
-                  >
-                    {t('createProfileInstance')}
-                  </button>
-                  {isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0' }}>{t('profileModeOnlyAction')}</p>}
-                </div>
-              ) : null}
-            </div>
+      <div className="panel-card" style={{ marginBottom: '1.25rem' }}>
+        <h3 style={{ marginTop: 0 }}>{t('createInstancePanelTitle')}</h3>
+        <p className="muted" style={{ marginTop: 0 }}>{t('createInstancePanelHelp')}</p>
+        <div className="action-row">
+          <div style={{ position: 'relative' }}>
+            <button className="primary-button" onClick={() => setShowCreateMenu((current) => !current)}>
+              {t('addInstance')}
+            </button>
+            {showCreateMenu ? (
+              <div className="panel-card" style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', left: 0, zIndex: 10, minWidth: '15rem' }}>
+                <button
+                  className="secondary-button"
+                  style={{ width: '100%', justifyContent: 'flex-start' }}
+                  onClick={() => {
+                    setShowCreateMenu(false);
+                    setCreateKind('docker');
+                  }}
+                >
+                  {t('createDockerInstance')}
+                </button>
+                <button
+                  className="secondary-button"
+                  style={{ width: '100%', justifyContent: 'flex-start' }}
+                  onClick={() => {
+                    setShowCreateMenu(false);
+                    setCreateKind('profile');
+                  }}
+                >
+                  {t('createProfileInstance')}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
-      ) : (
-        <div className="panel-card" style={{ marginBottom: '1.25rem' }}>
-          <h3 style={{ marginTop: 0 }}>{t('createInstancePanelTitle')}</h3>
-          <p className="muted" style={{ marginTop: 0 }}>{t('createInstancePanelHelp')}</p>
-          <div className="action-row">
-            <div style={{ position: 'relative' }}>
-              <button className="primary-button" onClick={() => setShowCreateMenu((current) => !current)}>
-                {t('addInstance')}
-              </button>
-              {showCreateMenu ? (
-                <div className="panel-card" style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', left: 0, zIndex: 10, minWidth: '15rem' }}>
-                  <button
-                    className="secondary-button"
-                    style={{ width: '100%', justifyContent: 'flex-start' }}
-                    onClick={() => {
-                      setShowCreateMenu(false);
-                      setCreateKind('docker');
-                    }}
-                    disabled={isProfileMode}
-                  >
-                    {t('createDockerInstance')}
-                  </button>
-                  {!isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0.75rem' }}>{t('dockerModeOnlyAction')}</p>}
-                  <button
-                    className="secondary-button"
-                    style={{ width: '100%', justifyContent: 'flex-start' }}
-                    onClick={() => {
-                      setShowCreateMenu(false);
-                      setCreateKind('profile');
-                    }}
-                    disabled={!isProfileMode}
-                  >
-                    {t('createProfileInstance')}
-                  </button>
-                  {isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0' }}>{t('profileModeOnlyAction')}</p>}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       {fleet.instances.length === 0 ? (
         <div className="profile-empty-state">
-          <p style={{ margin: 0 }}>{t(isProfileMode ? 'noProfilesAvailable' : 'noInstancesAvailable')}</p>
-          <p className="muted" style={{ margin: 0 }}>
-            {t(isProfileMode ? 'noProfilesManagementHelp' : 'noInstancesManagementHelp')}
-          </p>
+          <p style={{ margin: 0 }}>{t('noInstancesAvailable')}</p>
+          <p className="muted" style={{ margin: 0 }}>{t('noInstancesManagementHelp')}</p>
         </div>
       ) : (
         <div className="table-shell">
@@ -148,10 +98,11 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
             <thead>
               <tr>
                 <th>{t('instance')}</th>
+                <th>{t('type')}</th>
                 <th>{t('status')}</th>
                 <th>{t('health')}</th>
                 <th>{t('port')}</th>
-                {isProfileMode ? <th>{t('pid')}</th> : null}
+                <th>{t('pid')}</th>
                 <th>{t('actions')}</th>
               </tr>
             </thead>
@@ -159,10 +110,11 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
               {fleet.instances.map((instance) => (
                 <tr key={instance.id}>
                   <td className="mono">{instance.id}</td>
+                  <td>{instance.mode === 'docker' ? t('dockerInstanceType') : t('profileInstanceType')}</td>
                   <td>{instance.status}</td>
                   <td>{instance.health}</td>
                   <td className="mono">:{instance.port}</td>
-                  {isProfileMode ? <td className="mono">{instance.pid ?? '-'}</td> : null}
+                  <td className="mono">{instance.pid ?? '-'}</td>
                   <td>
                     <div className="action-row">
                       <button className="secondary-button" onClick={() => onOpenInstance(instance.id)}>

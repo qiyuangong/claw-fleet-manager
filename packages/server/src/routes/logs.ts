@@ -10,7 +10,7 @@ export async function logRoutes(app: FastifyInstance) {
     async (socket: any, request) => {
       const { id } = request.params;
 
-      if (!validateInstanceId(id, app.deploymentMode)) {
+      if (!validateInstanceId(id)) {
         socket.send(JSON.stringify({ error: 'Invalid instance id' }));
         socket.close();
         return;

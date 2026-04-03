@@ -78,6 +78,7 @@ export class ProfileBackend implements DeploymentBackend {
   constructor(
     private fleetDir: string,
     private cfg: ProfilesConfig,
+    private baseDir?: string,
     private log?: FastifyBaseLogger,
   ) {}
 
@@ -266,9 +267,9 @@ export class ProfileBackend implements DeploymentBackend {
     await this.probePort(port);
 
     // Paths
-    const configDir = join(this.cfg.configBaseDir, name);
+    const stateDir = this.baseDir ? join(this.baseDir, name) : join(this.cfg.stateBaseDir, name);
+    const configDir = this.baseDir ? stateDir : join(this.cfg.configBaseDir, name);
     const configPath = join(configDir, 'openclaw.json');
-    const stateDir = join(this.cfg.stateBaseDir, name);
 
     // Run setup
     await execFileAsync(this.binaryPath, ['--profile', name, 'setup'], {
@@ -447,6 +448,7 @@ export class ProfileBackend implements DeploymentBackend {
 
     return {
       id: entry.name,
+      mode: 'profile',
       profile: entry.name,
       pid: entry.pid ?? undefined,
       status,

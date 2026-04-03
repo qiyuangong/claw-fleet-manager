@@ -11,7 +11,7 @@ describe('FleetConfigService', () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'fleet-test-'));
     mkdirSync(join(dir, 'config'), { recursive: true });
-    svc = new FleetConfigService(dir);
+    svc = new FleetConfigService(dir, join(dir, 'managed'));
   });
 
   afterEach(() => {
@@ -59,6 +59,7 @@ describe('FleetConfigService', () => {
       expect(config.cpuLimit).toBe('4');
       expect(config.memLimit).toBe('4G');
       expect(config.portStep).toBe(20);
+      expect(config.baseDir).toBe(join(dir, 'managed'));
     });
 
     it('uses the provided count override when COUNT is absent', () => {
@@ -91,6 +92,17 @@ describe('FleetConfigService', () => {
     });
   });
 
+  describe('updateBaseDir', () => {
+    it('updates the in-memory baseDir used by derived paths', () => {
+      svc.updateBaseDir(join(dir, 'next-managed'));
+
+      const config = svc.readFleetConfig();
+      expect(config.baseDir).toBe(join(dir, 'next-managed'));
+      expect(config.configBase).toBe(join(dir, 'next-managed'));
+      expect(config.workspaceBase).toBe(join(dir, 'next-managed', '<instance>', 'workspace'));
+    });
+  });
+
   describe('maskToken', () => {
     it('masks middle of token', () => {
       expect(FleetConfigService.maskToken('abc123def456')).toBe('abc1***f456');
@@ -98,26 +110,24 @@ describe('FleetConfigService', () => {
   });
 
   describe('readInstanceConfig', () => {
-    it('reads openclaw.json for instance', () => {
-      const configBase = join(dir, 'instances');
-      mkdirSync(join(configBase, '1'), { recursive: true });
-      writeFileSync(join(configBase, '1', 'openclaw.json'), '{"gateway":{}}');
-      writeFileSync(join(dir, 'config', 'fleet.env'), `CONFIG_BASE=${configBase}`);
+    it('reads openclaw.json for a docker instance under baseDir/<name>/config', () => {
+      const configDir = join(dir, 'managed', 'openclaw-1', 'config');
+      mkdirSync(configDir, { recursive: true });
+      writeFileSync(join(configDir, 'openclaw.json'), '{"gateway":{}}');
 
-      expect(svc.readInstanceConfig(1)).toEqual({ gateway: {} });
+      expect(svc.readInstanceConfig('openclaw-1')).toEqual({ gateway: {} });
     });
   });
 
   describe('writeInstanceConfig', () => {
-    it('atomically writes openclaw.json', () => {
-      const configBase = join(dir, 'instances');
-      mkdirSync(join(configBase, '2'), { recursive: true });
-      writeFileSync(join(configBase, '2', 'openclaw.json'), '{}');
-      writeFileSync(join(dir, 'config', 'fleet.env'), `CONFIG_BASE=${configBase}`);
+    it('atomically writes openclaw.json under baseDir/<name>/config', () => {
+      const configDir = join(dir, 'managed', 'openclaw-2', 'config');
+      mkdirSync(configDir, { recursive: true });
+      writeFileSync(join(configDir, 'openclaw.json'), '{}');
 
-      svc.writeInstanceConfig(2, { gateway: { mode: 'token' } });
+      svc.writeInstanceConfig('openclaw-2', { gateway: { mode: 'token' } });
 
-      const written = JSON.parse(readFileSync(join(configBase, '2', 'openclaw.json'), 'utf-8'));
+      const written = JSON.parse(readFileSync(join(configDir, 'openclaw.json'), 'utf-8'));
       expect(written.gateway.mode).toBe('token');
     });
   });

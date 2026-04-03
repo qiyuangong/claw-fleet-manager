@@ -23,30 +23,36 @@ const schema = z.object({
     password: z.string().min(1),
   }),
   fleetDir: z.string().min(1),
+  baseDir: z.string().default(join(homedir(), 'openclaw-instances')),
   tailscale: z.object({ hostname: z.string().min(1) }).optional(),
   tls: z.object({
     cert: z.string().min(1),
     key: z.string().min(1),
   }).optional(),
-  deploymentMode: z.enum(['docker', 'profiles']).default('docker'),
+  deploymentMode: z.enum(['docker', 'profiles', 'hybrid']).default('hybrid'),
   profiles: profilesSchema.optional(),
 });
+
+export function resolveConfigPath(): string {
+  return process.env.FLEET_MANAGER_CONFIG
+    ?? resolve(import.meta.dirname, '..', 'server.config.json');
+}
 
 export function expandHome(p: string): string {
   return p.startsWith('~') ? join(homedir(), p.slice(1)) : p;
 }
 
 export function loadConfig(): ServerConfig {
-  const configPath = process.env.FLEET_MANAGER_CONFIG
-    ?? resolve(import.meta.dirname, '..', 'server.config.json');
-
-  const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+  const raw = JSON.parse(readFileSync(resolveConfigPath(), 'utf-8'));
   const parsed = schema.parse(raw) as ServerConfig;
 
   // Expand ~ in profile paths
   if (parsed.profiles) {
     parsed.profiles.stateBaseDir = expandHome(parsed.profiles.stateBaseDir);
     parsed.profiles.configBaseDir = expandHome(parsed.profiles.configBaseDir);
+  }
+  if (parsed.baseDir) {
+    parsed.baseDir = expandHome(parsed.baseDir);
   }
 
   return parsed;

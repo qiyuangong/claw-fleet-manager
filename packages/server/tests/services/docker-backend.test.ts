@@ -1,5 +1,9 @@
 // packages/server/tests/services/docker-backend.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+vi.mock('../../src/services/docker-instance-provisioning.js', () => ({
+  provisionDockerInstance: vi.fn(),
+}));
+import { provisionDockerInstance } from '../../src/services/docker-instance-provisioning.js';
 import { DockerBackend } from '../../src/services/docker-backend.js';
 
 const mockDocker = {
@@ -17,6 +21,7 @@ const mockDocker = {
 
 const mockFleetConfig = {
   readFleetConfig: vi.fn().mockReturnValue({
+    baseDir: '/tmp/managed',
     count: 3,
     portStep: 20,
     configBase: '/tmp/cfg',
@@ -34,8 +39,10 @@ const mockFleetConfig = {
   readInstanceConfig: vi.fn().mockReturnValue({ gateway: {} }),
   writeInstanceConfig: vi.fn(),
   ensureFleetDirectories: vi.fn(),
-  getConfigBase: vi.fn().mockReturnValue('/tmp/cfg'),
-  getWorkspaceBase: vi.fn().mockReturnValue('/tmp/ws'),
+  getConfigBase: vi.fn().mockReturnValue('/tmp/managed'),
+  getWorkspaceBase: vi.fn().mockReturnValue('/tmp/managed/<instance>/workspace'),
+  getDockerConfigDir: vi.fn((id: string) => `/tmp/managed/${id}/config`),
+  getDockerWorkspaceDir: vi.fn((id: string) => `/tmp/managed/${id}/workspace`),
 };
 
 describe('DockerBackend', () => {
@@ -43,6 +50,8 @@ describe('DockerBackend', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFleetConfig.readFleetEnvRaw.mockReturnValue({});
+    mockFleetConfig.readInstanceConfig.mockReturnValue({ gateway: {} });
     backend = new DockerBackend(
       mockDocker as any,
       mockFleetConfig as any,
@@ -85,14 +94,14 @@ describe('DockerBackend', () => {
   it('readInstanceConfig() delegates to fleetConfig', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([{ name: 'openclaw-1', id: 'abc', state: 'running', index: 1 }]);
     const cfg = await backend.readInstanceConfig('openclaw-1');
-    expect(mockFleetConfig.readInstanceConfig).toHaveBeenCalledWith(1);
+    expect(mockFleetConfig.readInstanceConfig).toHaveBeenCalledWith('openclaw-1');
     expect(cfg).toEqual({ gateway: {} });
   });
 
   it('writeInstanceConfig() delegates to fleetConfig', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([{ name: 'openclaw-1', id: 'abc', state: 'running', index: 1 }]);
     await backend.writeInstanceConfig('openclaw-1', { gateway: { port: 18789 } });
-    expect(mockFleetConfig.writeInstanceConfig).toHaveBeenCalledWith(1, { gateway: { port: 18789 } });
+    expect(mockFleetConfig.writeInstanceConfig).toHaveBeenCalledWith('openclaw-1', { gateway: { port: 18789 } });
   });
 
   it('createInstance() accepts named docker instance ids', async () => {
@@ -110,8 +119,61 @@ describe('DockerBackend', () => {
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       name: 'team-alpha',
       index: 2,
+      configDir: '/tmp/managed/team-alpha/config',
+      workspaceDir: '/tmp/managed/team-alpha/workspace',
     }));
     expect(instance.id).toBe('team-alpha');
+  });
+
+  it('createInstance() applies per-instance Docker overrides and persists portStep metadata', async () => {
+    mockFleetConfig.readFleetEnvRaw.mockReturnValue({
+      BASE_URL: 'https://api.example.com/v1',
+      API_KEY: 'fleet-key',
+      MODEL_ID: 'gpt-4',
+    });
+    mockDocker.listFleetContainers.mockResolvedValueOnce([
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
+    ]).mockResolvedValueOnce([
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
+      { name: 'team-beta', id: 'def', state: 'running', index: 2 },
+    ]);
+    mockFleetConfig.readInstanceConfig.mockReturnValue({ clawFleet: { portStep: 25 } });
+
+    const instance = await backend.createInstance({
+      kind: 'docker',
+      name: 'team-beta',
+      apiKey: 'sk-test',
+      image: 'openclaw:latest',
+      cpuLimit: '2',
+      memoryLimit: '2G',
+      portStep: 25,
+      enableNpmPackages: true,
+    });
+
+    expect(provisionDockerInstance).toHaveBeenCalledWith(expect.objectContaining({
+      instanceId: 'team-beta',
+      index: 2,
+      portStep: 25,
+      vars: expect.objectContaining({
+        BASE_URL: 'https://api.example.com/v1',
+        API_KEY: 'sk-test',
+        MODEL_ID: 'gpt-4',
+      }),
+      configOverride: expect.objectContaining({
+        clawFleet: { portStep: 25 },
+      }),
+    }));
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'team-beta',
+      index: 2,
+      image: 'openclaw:latest',
+      gatewayPort: 18814,
+      cpuLimit: '2',
+      memLimit: '2G',
+      npmDir: '/tmp/managed/team-beta/config/.npm',
+    }));
+    expect(instance.port).toBe(18814);
+    expect(instance.id).toBe('team-beta');
   });
 
   it('refresh() returns FleetStatus with mode=docker', async () => {
@@ -123,6 +185,17 @@ describe('DockerBackend', () => {
     expect(status.instances).toHaveLength(1);
     expect(status.instances[0].id).toBe('openclaw-1');
     expect(status.instances[0].index).toBe(1);
+  });
+
+  it('refresh() prefers per-instance portStep metadata when available', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'team-beta', id: 'abc', state: 'running', index: 2 },
+    ]);
+    mockFleetConfig.readInstanceConfig.mockReturnValue({ clawFleet: { portStep: 25 } });
+
+    const status = await backend.refresh();
+
+    expect(status.instances[0].port).toBe(18814);
   });
 
   it('getCachedStatus() returns the last refresh result', async () => {

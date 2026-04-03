@@ -6,12 +6,12 @@ const mockBackend = {
   execInstanceCommand: vi.fn(),
 };
 
-describe('Plugin routes - Docker mode', () => {
+describe('Plugin routes - hybrid mode', () => {
   const app = Fastify();
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'docker');
+    app.decorate('deploymentMode', 'hybrid');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
     });
@@ -83,23 +83,6 @@ describe('Plugin routes - Docker mode', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().plugins[0].id).toBe('feishu');
   });
-});
-
-describe('Plugin routes - Profile mode', () => {
-  const app = Fastify();
-
-  beforeAll(async () => {
-    app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'profiles');
-    app.addHook('onRequest', async (request) => {
-      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
-    });
-    await app.register(pluginRoutes);
-    await app.ready();
-  });
-
-  afterAll(() => app.close());
-
   it('GET /api/fleet/:id/plugins works for profile instance id', async () => {
     mockBackend.execInstanceCommand.mockResolvedValueOnce(
       JSON.stringify({ workspaceDir: '/tmp/ws', plugins: [] }),
@@ -108,8 +91,8 @@ describe('Plugin routes - Profile mode', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('GET /api/fleet/:id/plugins rejects openclaw-N style id in profile mode', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/fleet/openclaw-1/plugins' });
+  it('GET /api/fleet/:id/plugins rejects malformed ids', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/BAD_ID/plugins' });
     expect(res.statusCode).toBe(400);
   });
 });

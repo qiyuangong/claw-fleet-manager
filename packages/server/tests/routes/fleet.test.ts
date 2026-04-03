@@ -18,6 +18,8 @@ const mockBackend = {
   getCachedStatus: vi.fn().mockReturnValue(mockStatus),
   refresh: vi.fn().mockResolvedValue(mockStatus),
   scaleFleet: vi.fn().mockResolvedValue(mockStatus),
+  createInstance: vi.fn().mockResolvedValue(mockStatus.instances[0]),
+  removeInstance: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('Fleet routes', () => {
@@ -83,13 +85,29 @@ describe('Fleet routes', () => {
     expect(second.statusCode).toBe(409);
     expect(firstRes.statusCode).toBe(200);
   });
+
+  it('POST /api/fleet/instances creates a docker instance by name', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/instances', payload: { name: 'team-alpha' } });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.createInstance).toHaveBeenCalledWith({ name: 'team-alpha', port: undefined, config: undefined });
+  });
+
+  it('DELETE /api/fleet/instances/:id removes a named docker instance', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/fleet/instances/team-alpha' });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.removeInstance).toHaveBeenCalledWith('team-alpha');
+  });
 });
 
 describe('Fleet routes — profile mode', () => {
   const app = Fastify();
 
   beforeAll(async () => {
-    app.decorate('backend', { getCachedStatus: vi.fn().mockReturnValue(null) });
+    app.decorate('backend', {
+      getCachedStatus: vi.fn().mockReturnValue(null),
+      createInstance: vi.fn().mockResolvedValue({ id: 'rescue' }),
+      removeInstance: vi.fn().mockResolvedValue(undefined),
+    });
     app.decorate('deploymentMode', 'profiles');
     app.decorate('fleetDir', '/tmp');
     app.addHook('onRequest', async (request) => {
@@ -105,5 +123,11 @@ describe('Fleet routes — profile mode', () => {
     const res = await app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 2 } });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('WRONG_MODE');
+  });
+
+  it('POST /api/fleet/instances validates profile names in profile mode', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/instances', payload: { name: 'main' } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_NAME');
   });
 });

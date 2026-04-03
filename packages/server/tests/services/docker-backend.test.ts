@@ -72,6 +72,7 @@ describe('DockerBackend', () => {
   });
 
   it('revealToken() returns token from fleetConfig', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([{ name: 'openclaw-1', id: 'abc', state: 'running', index: 1 }]);
     const token = await backend.revealToken('openclaw-1');
     expect(token).toBe('token-abc123');
   });
@@ -82,28 +83,40 @@ describe('DockerBackend', () => {
   });
 
   it('readInstanceConfig() delegates to fleetConfig', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([{ name: 'openclaw-1', id: 'abc', state: 'running', index: 1 }]);
     const cfg = await backend.readInstanceConfig('openclaw-1');
     expect(mockFleetConfig.readInstanceConfig).toHaveBeenCalledWith(1);
     expect(cfg).toEqual({ gateway: {} });
   });
 
   it('writeInstanceConfig() delegates to fleetConfig', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([{ name: 'openclaw-1', id: 'abc', state: 'running', index: 1 }]);
     await backend.writeInstanceConfig('openclaw-1', { gateway: { port: 18789 } });
     expect(mockFleetConfig.writeInstanceConfig).toHaveBeenCalledWith(1, { gateway: { port: 18789 } });
   });
 
-  it('createInstance() rejects non-sequential docker instance ids', async () => {
+  it('createInstance() accepts named docker instance ids', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([
-      { name: 'openclaw-1', id: 'abc', state: 'running' },
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
+    ]);
+    mockDocker.listFleetContainers.mockResolvedValueOnce([
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
+    ]).mockResolvedValueOnce([
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
+      { name: 'team-alpha', id: 'def', state: 'running', index: 2 },
     ]);
 
-    await expect(backend.createInstance({ name: 'openclaw-7' }))
-      .rejects.toThrow('expected "openclaw-2"');
+    const instance = await backend.createInstance({ name: 'team-alpha' });
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'team-alpha',
+      index: 2,
+    }));
+    expect(instance.id).toBe('team-alpha');
   });
 
   it('refresh() returns FleetStatus with mode=docker', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([
-      { name: 'openclaw-1', id: 'abc', state: 'running' },
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
     ]);
     const status = await backend.refresh();
     expect(status.mode).toBe('docker');
@@ -118,24 +131,31 @@ describe('DockerBackend', () => {
     expect(backend.getCachedStatus()?.mode).toBe('docker');
   });
 
-  it('createInstance() persists COUNT after successful creation', async () => {
+  it('createInstance() uses the next available slot index for named instances', async () => {
     mockDocker.listFleetContainers
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ name: 'openclaw-1', id: 'a', state: 'running' }]);
+      .mockResolvedValueOnce([
+        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
+        { name: 'openclaw-3', id: 'b', state: 'running', index: 3 },
+      ])
+      .mockResolvedValueOnce([
+        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
+        { name: 'openclaw-3', id: 'b', state: 'running', index: 3 },
+        { name: 'team-alpha', id: 'c', state: 'running', index: 2 },
+      ]);
 
-    await backend.createInstance({});
+    await backend.createInstance({ name: 'team-alpha' });
 
-    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalledWith(expect.objectContaining({ COUNT: '1' }));
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({ index: 2 }));
   });
 
-  it('removeInstance() persists COUNT after successful removal', async () => {
+  it('removeInstance() removes a named docker instance directly', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([
-      { name: 'openclaw-1', id: 'a', state: 'running' },
-      { name: 'openclaw-2', id: 'b', state: 'running' },
+      { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
+      { name: 'team-alpha', id: 'b', state: 'running', index: 2 },
     ]);
 
-    await backend.removeInstance('openclaw-2');
+    await backend.removeInstance('team-alpha');
 
-    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalledWith(expect.objectContaining({ COUNT: '1' }));
+    expect(mockDocker.removeContainer).toHaveBeenCalledWith('team-alpha');
   });
 });

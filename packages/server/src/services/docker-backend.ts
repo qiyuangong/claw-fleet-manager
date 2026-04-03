@@ -11,6 +11,7 @@ import { provisionDockerInstance } from './docker-instance-provisioning.js';
 import type { TailscaleService } from './tailscale.js';
 import { getDirectorySize } from './dir-utils.js';
 import type { FleetInstance, FleetStatus } from '../types.js';
+import { MANAGED_INSTANCE_ID_RE } from '../validate.js';
 
 const execFileAsync = promisify(execFile);
 export const BASE_GW_PORT = 18789;
@@ -32,8 +33,10 @@ export class DockerBackend implements DeploymentBackend {
     if (this.tailscale) {
       const containers = await this.docker.listFleetContainers().catch(() => []);
       const portStep = this.fleetConfig.readFleetConfig().portStep;
-      const instances = containers.map((c) => {
-        const index = parseInt(c.name.replace('openclaw-', ''), 10);
+      const instances = containers
+        .filter((container) => container.index !== undefined)
+        .map((container) => {
+        const index = container.index!;
         const gwPort = BASE_GW_PORT + (index - 1) * portStep;
         return { index, gwPort };
       });
@@ -63,7 +66,7 @@ export class DockerBackend implements DeploymentBackend {
 
     const instances: FleetInstance[] = await Promise.all(
       containers.map(async (container) => {
-        const index = parseInt(container.name.replace('openclaw-', ''), 10);
+        const index = container.index;
         const [stats, inspection] = await Promise.all([
           this.docker.getContainerStats(container.name).catch(() => ({
             cpu: 0,
@@ -81,15 +84,15 @@ export class DockerBackend implements DeploymentBackend {
           id: container.name,
           index,
           status: this.mapStatus(inspection.status),
-          port: BASE_GW_PORT + (index - 1) * config.portStep,
-          token: FleetConfigService.maskToken(tokens[index] ?? ''),
-          tailscaleUrl: this.tailscale?.getUrl(index) ?? undefined,
+          port: index !== undefined ? BASE_GW_PORT + (index - 1) * config.portStep : 0,
+          token: index !== undefined ? FleetConfigService.maskToken(tokens[index] ?? '') : '***',
+          tailscaleUrl: index !== undefined ? this.tailscale?.getUrl(index) ?? undefined : undefined,
           uptime: inspection.uptime,
           cpu: stats.cpu,
           memory: stats.memory,
           disk: {
-            config: await getDirectorySize(join(configBase, String(index))),
-            workspace: await getDirectorySize(join(workspaceBase, String(index))),
+            config: index !== undefined ? await getDirectorySize(join(configBase, String(index))) : 0,
+            workspace: index !== undefined ? await getDirectorySize(join(workspaceBase, String(index))) : 0,
           },
           health: this.mapHealth(inspection.health),
           image: inspection.image,
@@ -141,10 +144,18 @@ export class DockerBackend implements DeploymentBackend {
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
     const containers = await this.docker.listFleetContainers();
-    const newIndex = containers.length + 1;
-    const expectedId = `openclaw-${newIndex}`;
-    if (opts.name && opts.name !== expectedId) {
-      throw new Error(`Docker mode requires sequential instance ids; expected "${expectedId}"`);
+    const usedIndexes = containers
+      .map((container) => container.index)
+      .filter((index): index is number => index !== undefined)
+      .sort((a, b) => a - b);
+    const newIndex = nextAvailableIndex(usedIndexes);
+    const name = opts.name?.trim() || `openclaw-${newIndex}`;
+
+    if (!MANAGED_INSTANCE_ID_RE.test(name)) {
+      throw new Error('name must be lowercase alphanumeric with hyphens');
+    }
+    if (containers.some((container) => container.name === name)) {
+      throw new Error(`Instance "${name}" already exists`);
     }
 
     const config = this.fleetConfig.readFleetConfig();
@@ -167,7 +178,8 @@ export class DockerBackend implements DeploymentBackend {
     });
 
     await this.docker.createManagedContainer({
-      name: expectedId,
+      name,
+      index: newIndex,
       image: config.openclawImage,
       gatewayPort: BASE_GW_PORT + (newIndex - 1) * config.portStep,
       token,
@@ -178,7 +190,6 @@ export class DockerBackend implements DeploymentBackend {
       cpuLimit: config.cpuLimit,
       memLimit: config.memLimit,
     });
-    this.writeFleetCount(newIndex, vars);
 
     if (this.tailscale) {
       const gwPort = BASE_GW_PORT + (newIndex - 1) * config.portStep;
@@ -190,29 +201,24 @@ export class DockerBackend implements DeploymentBackend {
     }
 
     const status = await this.refresh();
-    const instance = status.instances.find((i) => i.index === newIndex);
-    if (!instance) throw new Error(`Instance openclaw-${newIndex} not found after creation`);
+    const instance = status.instances.find((i) => i.id === name);
+    if (!instance) throw new Error(`Instance "${name}" not found after creation`);
     return instance;
   }
 
   async removeInstance(id: string): Promise<void> {
-    const containers = await this.docker.listFleetContainers();
-    if (containers.length === 0) return;
+    const container = await this.findContainer(id);
+    if (!container) return;
 
-    const highestIndex = Math.max(...containers.map((c) => parseInt(c.name.replace('openclaw-', ''), 10)));
-    const requestedIndex = parseInt(id.replace('openclaw-', ''), 10);
-    if (requestedIndex !== highestIndex) {
-      throw new Error(`Docker mode can only remove the highest-numbered instance (expected openclaw-${highestIndex})`);
+    if (container.index !== undefined) {
+      await this.tailscale?.teardown(container.index);
     }
 
-    await this.tailscale?.teardown(highestIndex);
-
     try {
-      await this.docker.removeContainer(`openclaw-${highestIndex}`);
+      await this.docker.removeContainer(id);
     } catch {
       // already removed
     }
-    this.writeFleetCount(highestIndex - 1);
     await this.refresh();
   }
 
@@ -259,19 +265,19 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async revealToken(id: string): Promise<string> {
-    const index = parseInt(id.replace('openclaw-', ''), 10);
+    const index = await this.resolveInstanceIndex(id);
     const token = this.fleetConfig.readTokens()[index];
     if (!token) throw new Error(`Token not found for ${id}`);
     return token;
   }
 
   async readInstanceConfig(id: string): Promise<object> {
-    const index = parseInt(id.replace('openclaw-', ''), 10);
+    const index = await this.resolveInstanceIndex(id);
     return this.fleetConfig.readInstanceConfig(index) as object;
   }
 
   async writeInstanceConfig(id: string, config: object): Promise<void> {
-    const index = parseInt(id.replace('openclaw-', ''), 10);
+    const index = await this.resolveInstanceIndex(id);
     this.fleetConfig.writeInstanceConfig(index, config);
   }
 
@@ -331,13 +337,28 @@ export class DockerBackend implements DeploymentBackend {
     return lines;
   }
 
-  private writeFleetCount(count: number, baseVars?: Record<string, string>): void {
-    const vars = { ...(baseVars ?? this.fleetConfig.readFleetEnvRaw()) };
-    vars.COUNT = String(Math.max(0, count));
-    this.fleetConfig.writeFleetConfig(vars);
+  private async resolveInstanceIndex(id: string): Promise<number> {
+    const container = await this.findContainer(id);
+    if (!container?.index) {
+      throw new Error(`Instance "${id}" not found`);
+    }
+    return container.index;
+  }
+
+  private async findContainer(id: string) {
+    const containers = await this.docker.listFleetContainers();
+    return containers.find((container) => container.name === id);
   }
 }
 
 function randomToken(): string {
   return randomBytes(32).toString('hex');
+}
+
+function nextAvailableIndex(usedIndexes: number[]): number {
+  let candidate = 1;
+  for (const index of usedIndexes) {
+    if (index === candidate) candidate += 1;
+  }
+  return candidate;
 }

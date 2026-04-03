@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { getApiClientAuthToken } from '../api/client';
 
 interface LogEntry {
@@ -8,6 +8,49 @@ interface LogEntry {
 }
 
 const MAX_LINES = 1000;
+type LogsState = {
+  lines: LogEntry[];
+  connected: boolean;
+  reconnectFailed: boolean;
+};
+
+type LogsAction =
+  | { type: 'resetConnection' }
+  | { type: 'connected' }
+  | { type: 'disconnected' }
+  | { type: 'append'; entry: LogEntry }
+  | { type: 'reconnectFailed' }
+  | { type: 'clear' };
+
+const initialState: LogsState = {
+  lines: [],
+  connected: false,
+  reconnectFailed: false,
+};
+
+function logsReducer(state: LogsState, action: LogsAction): LogsState {
+  switch (action.type) {
+    case 'resetConnection':
+      return { ...state, connected: false, reconnectFailed: false };
+    case 'connected':
+      return { ...state, connected: true, reconnectFailed: false };
+    case 'disconnected':
+      return { ...state, connected: false };
+    case 'append': {
+      const next = [...state.lines, action.entry];
+      return {
+        ...state,
+        lines: next.length > MAX_LINES ? next.slice(-MAX_LINES) : next,
+      };
+    }
+    case 'reconnectFailed':
+      return { ...state, reconnectFailed: true };
+    case 'clear':
+      return { ...state, lines: [] };
+    default:
+      return state;
+  }
+}
 
 function wsAuthQuery(): string {
   const token = getApiClientAuthToken();
@@ -18,9 +61,7 @@ function wsAuthQuery(): string {
 const MAX_RETRIES = 3;
 
 export function useLogs(instanceId: string | null) {
-  const [lines, setLines] = useState<LogEntry[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [reconnectFailed, setReconnectFailed] = useState(false);
+  const [state, dispatch] = useReducer(logsReducer, initialState);
   const wsRef = useRef<WebSocket | null>(null);
   const retryRef = useRef(0);
   const connectRef = useRef<(() => void) | null>(null);
@@ -30,7 +71,7 @@ export function useLogs(instanceId: string | null) {
 
     let cancelled = false;
     retryRef.current = 0;
-    setReconnectFailed(false);
+    dispatch({ type: 'resetConnection' });
 
     const connect = () => {
       if (cancelled) return;
@@ -40,28 +81,24 @@ export function useLogs(instanceId: string | null) {
       wsRef.current = socket;
 
       socket.onopen = () => {
-        setConnected(true);
-        setReconnectFailed(false);
+        dispatch({ type: 'connected' });
         retryRef.current = 0;
       };
 
       socket.onmessage = (event) => {
         try {
           const entry = JSON.parse(event.data) as LogEntry;
-          setLines((prev) => {
-            const next = [...prev, entry];
-            return next.length > MAX_LINES ? next.slice(-MAX_LINES) : next;
-          });
+          dispatch({ type: 'append', entry });
         } catch {
           // ignore malformed frames
         }
       };
 
       socket.onclose = () => {
-        setConnected(false);
+        dispatch({ type: 'disconnected' });
         if (cancelled) return;
         if (retryRef.current >= MAX_RETRIES) {
-          setReconnectFailed(true);
+          dispatch({ type: 'reconnectFailed' });
           return;
         }
         retryRef.current += 1;
@@ -86,16 +123,15 @@ export function useLogs(instanceId: string | null) {
     wsRef.current?.close();
     wsRef.current = null;
     retryRef.current = 0;
-    setReconnectFailed(false);
-    setConnected(false);
+    dispatch({ type: 'resetConnection' });
     connectRef.current?.();
   };
 
   return {
-    lines,
-    connected,
-    reconnectFailed,
+    lines: state.lines,
+    connected: state.connected,
+    reconnectFailed: state.reconnectFailed,
     resetAndReconnect,
-    clear: () => setLines([]),
+    clear: () => dispatch({ type: 'clear' }),
   };
 }

@@ -1,46 +1,33 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { scaleFleet } from '../../api/fleet';
-import { useFleet } from '../../hooks/useFleet';
 import { useFleetConfig } from '../../hooks/useFleetConfig';
-import { ConfirmDialog } from '../common/ConfirmDialog';
 
 export function FleetConfigPanel() {
   const { t } = useTranslation();
   const { data, isLoading, save, saving } = useFleetConfig();
-  const { data: fleetData } = useFleet();
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [scaleCount, setScaleCount] = useState(1);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [scaling, setScaling] = useState(false);
+  const [form, setForm] = useState<Partial<Record<string, string>>>({});
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
-  const [enableNpmPackages, setEnableNpmPackages] = useState(false);
+  const [enableNpmPackagesOverride, setEnableNpmPackagesOverride] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    if (!data) return;
-    setForm({
-      BASE_URL: data.baseUrl,
-      MODEL_ID: data.modelId,
-      OPENCLAW_IMAGE: data.openclawImage,
-      CPU_LIMIT: data.cpuLimit,
-      MEM_LIMIT: data.memLimit,
-      PORT_STEP: String(data.portStep),
-      TZ: data.tz,
-    });
-    setScaleCount(data.count);
-    setEnableNpmPackages(data.enableNpmPackages ?? false);
-  }, [data]);
+  const formDefaults = useMemo<Record<string, string>>(() => ({
+    BASE_URL: data?.baseUrl ?? '',
+    MODEL_ID: data?.modelId ?? '',
+    OPENCLAW_IMAGE: data?.openclawImage ?? '',
+    CPU_LIMIT: data?.cpuLimit ?? '',
+    MEM_LIMIT: data?.memLimit ?? '',
+    PORT_STEP: data ? String(data.portStep) : '',
+    TZ: data?.tz ?? '',
+  }), [data]);
 
-  const currentCount = fleetData?.instances.length ?? 0;
+  const enableNpmPackages = enableNpmPackagesOverride ?? (data?.enableNpmPackages ?? false);
 
   const handleSave = async () => {
     setError(null);
     try {
       const payload = {
+        ...formDefaults,
         ...form,
         CONFIG_BASE: data?.configBase ?? '',
         WORKSPACE_BASE: data?.workspaceBase ?? '',
@@ -56,25 +43,11 @@ export function FleetConfigPanel() {
     }
   };
 
-  const doScale = async () => {
-    setShowConfirm(false);
-    setScaling(true);
-    try {
-      await scaleFleet(scaleCount);
-      await queryClient.invalidateQueries({ queryKey: ['fleet'] });
-      await queryClient.invalidateQueries({ queryKey: ['fleetConfig'] });
-    } finally {
-      setScaling(false);
-    }
-  };
-
   if (isLoading) {
     return <section className="panel-card muted">{t('loadingConfig')}</section>;
   }
 
   const fieldLabels: [string, string][] = [
-    ['BASE_URL', t('baseUrl')],
-    ['MODEL_ID', t('modelId')],
     ['OPENCLAW_IMAGE', t('openclawImage')],
     ['CPU_LIMIT', t('cpuLimit')],
     ['MEM_LIMIT', t('memLimit')],
@@ -114,7 +87,7 @@ export function FleetConfigPanel() {
               <span>{label}</span>
               <input
                 className="text-input mono"
-                value={form[key] ?? ''}
+                value={form[key] ?? formDefaults[key] ?? ''}
                 onChange={(event) => setForm((prev) => ({ ...prev, [key]: event.target.value }))}
               />
             </label>
@@ -136,7 +109,7 @@ export function FleetConfigPanel() {
           <input
             type="checkbox"
             checked={enableNpmPackages}
-            onChange={(e) => setEnableNpmPackages(e.target.checked)}
+            onChange={(e) => setEnableNpmPackagesOverride(e.target.checked)}
           />
           <span>{t('enableNpmPackages')}</span>
         </label>
@@ -151,46 +124,7 @@ export function FleetConfigPanel() {
           {saved ? <span className="success-text">{t('saved')}</span> : null}
           {error ? <span className="error-text">{error}</span> : null}
         </div>
-
-        <section className="panel-card">
-          <h3 style={{ marginTop: 0 }}>{t('scaleFleet')}</h3>
-          <p className="muted">{t('currentlyTracking', { count: currentCount })}</p>
-          <label className="field-label" style={{ maxWidth: '16rem' }}>
-            <span>{t('targetCount')}</span>
-            <input
-              className="number-input"
-              type="number"
-              min={1}
-              value={scaleCount}
-              onChange={(event) => setScaleCount(parseInt(event.target.value, 10) || 1)}
-            />
-          </label>
-          <p className="muted" style={{ marginTop: '0.75rem' }}>{t('scaleFleetHelp')}</p>
-          <div className="field-row">
-            <button
-              className="primary-button"
-              disabled={scaling || scaleCount === currentCount}
-              onClick={() => {
-                if (scaleCount < currentCount) {
-                  setShowConfirm(true);
-                  return;
-                }
-                void doScale();
-              }}
-            >
-              {scaling ? t('scalingEllipsis') : t('apply')}
-            </button>
-          </div>
-        </section>
       </div>
-
-      <ConfirmDialog
-        open={showConfirm}
-        title={t('scaleDownFleet')}
-        message={t('scaleDownConfirm', { count: currentCount - scaleCount })}
-        onConfirm={() => void doScale()}
-        onCancel={() => setShowConfirm(false)}
-      />
     </section>
   );
 }

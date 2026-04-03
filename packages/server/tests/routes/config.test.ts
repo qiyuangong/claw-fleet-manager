@@ -94,7 +94,7 @@ describe('Config routes — docker mode', () => {
   });
 
   it('rejects invalid docker instance id on GET config', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/fleet/evil-container/config' });
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/BAD_ID/config' });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
   });
@@ -102,7 +102,7 @@ describe('Config routes — docker mode', () => {
   it('rejects invalid docker instance id on PUT config', async () => {
     const res = await app.inject({
       method: 'PUT',
-      url: '/api/fleet/evil-container/config',
+      url: '/api/fleet/BAD_ID/config',
       payload: { key: 'value' },
     });
     expect(res.statusCode).toBe(400);

@@ -36,6 +36,15 @@ describe('Plugin routes - Docker mode', () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it('GET /api/fleet/:id/plugins accepts named Docker instance ids', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce(
+      JSON.stringify({ workspaceDir: '/tmp/ws', plugins: [] }),
+    );
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/team-alpha/plugins' });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('team-alpha', ['plugins', 'list', '--json']);
+  });
+
   it('POST /api/fleet/:id/plugins/install installs a plugin', async () => {
     mockBackend.execInstanceCommand.mockResolvedValueOnce('Installed plugin: feishu');
     const res = await app.inject({

@@ -60,8 +60,14 @@ describe('Instance routes — docker mode', () => {
     expect(res.json().token).toBe('full-token-abc123def456');
   });
 
+  it('accepts named docker instance ids', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/team-alpha/start' });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.start).toHaveBeenCalledWith('team-alpha');
+  });
+
   it('rejects invalid docker instance id', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/fleet/main/start' });
+    const res = await app.inject({ method: 'POST', url: '/api/fleet/BAD_ID/start' });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
   });

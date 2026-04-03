@@ -4,6 +4,7 @@ export interface ContainerInfo {
   name: string;
   id: string;
   state: string;
+  index?: number;
 }
 
 export interface ContainerStats {
@@ -20,6 +21,7 @@ export interface ContainerInspection {
 
 export interface ManagedContainerSpec {
   name: string;
+  index: number;
   image: string;
   gatewayPort: number;
   token: string;
@@ -37,13 +39,23 @@ export class DockerService {
   async listFleetContainers(): Promise<ContainerInfo[]> {
     const containers = await this.docker.listContainers({ all: true });
     return containers
-      .filter((container) => container.Names.some((name) => /^\/openclaw-\d+$/.test(name)))
+      .filter((container) => {
+        const labels = container.Labels ?? {};
+        return labels['dev.claw-fleet.managed'] === 'true'
+          || container.Names.some((name) => /^\/openclaw-\d+$/.test(name));
+      })
       .map((container) => ({
         name: container.Names[0].replace(/^\//, ''),
         id: container.Id,
         state: container.State,
+        index: parseContainerIndex(container),
       }))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      .sort((a, b) => {
+        if (a.index !== undefined && b.index !== undefined) return a.index - b.index;
+        if (a.index !== undefined) return -1;
+        if (b.index !== undefined) return 1;
+        return a.name.localeCompare(b.name, undefined, { numeric: true });
+      });
   }
 
   async startContainer(name: string): Promise<void> {
@@ -78,6 +90,10 @@ export class DockerService {
     const container = await this.docker.createContainer({
       name: spec.name,
       Image: spec.image,
+      Labels: {
+        'dev.claw-fleet.managed': 'true',
+        'dev.claw-fleet.instance-index': String(spec.index),
+      },
       Env: [
         'HOME=/home/node',
         'TERM=xterm-256color',
@@ -195,6 +211,24 @@ export class DockerService {
     });
     return containers.find((container) => container.Names.some((n) => n === `/${name}`)) ?? null;
   }
+}
+
+function parseContainerIndex(container: {
+  Names: string[];
+  Labels?: Record<string, string>;
+}): number | undefined {
+  const labelIndex = container.Labels?.['dev.claw-fleet.instance-index'];
+  if (labelIndex) {
+    const parsed = Number.parseInt(labelIndex, 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  const name = container.Names[0]?.replace(/^\//, '') ?? '';
+  const legacyMatch = name.match(/^openclaw-(\d+)$/);
+  if (!legacyMatch) return undefined;
+
+  const parsed = Number.parseInt(legacyMatch[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseCpuLimit(value: string): number {

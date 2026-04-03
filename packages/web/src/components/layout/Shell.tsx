@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -35,9 +35,12 @@ export function Shell() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
-  const nonAdminAllowedInstances = currentUser && currentUser.role !== 'admin' && fleet
-    ? fleet.instances.filter((instance) => (currentUser.assignedProfiles ?? []).includes(instance.id))
-    : [];
+  const nonAdminAllowedInstances = useMemo(
+    () => (currentUser && currentUser.role !== 'admin' && fleet
+      ? fleet.instances.filter((instance) => (currentUser.assignedProfiles ?? []).includes(instance.id))
+      : []),
+    [currentUser, fleet],
+  );
 
   useEffect(() => {
     setCurrentUser(currentUser ?? null);
@@ -167,8 +170,8 @@ export function Shell() {
         <Sidebar />
         <main className="empty-state">
           <section className="panel-card">
-            <h2 style={{ marginTop: 0 }}>{t('loadingProfile')}</h2>
-            <p className="muted">{t('resolvingProfile')}</p>
+            <h2 style={{ marginTop: 0 }}>{t('loadingInstances')}</h2>
+            <p className="muted">{t('resolvingInstances')}</p>
           </section>
         </main>
       </div>

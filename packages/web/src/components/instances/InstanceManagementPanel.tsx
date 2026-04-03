@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { deleteProfile } from '../../api/fleet';
+import { deleteInstance } from '../../api/fleet';
 import { useFleet } from '../../hooks/useFleet';
 import { useAppStore } from '../../store';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { AddProfileDialog } from './AddProfileDialog';
+import { AddInstanceDialog } from './AddInstanceDialog';
 
 interface Props {
   onOpenInstance: (id: string) => void;
@@ -16,13 +16,14 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
   const currentUser = useAppStore((state) => state.currentUser);
   const { data: fleet, isLoading } = useFleet();
   const queryClient = useQueryClient();
-  const [showAddProfile, setShowAddProfile] = useState(false);
+  const [createKind, setCreateKind] = useState<'docker' | 'profile' | null>(null);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const isProfileMode = fleet?.mode === 'profiles';
 
   const deleteMutation = useMutation({
-    mutationFn: (name: string) => deleteProfile(name),
+    mutationFn: (id: string) => deleteInstance(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['fleet'] });
       await queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -48,21 +49,91 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
         <div>
           <p className="pill">{t('admin')}</p>
           <h2 className="panel-title">{t('instanceManagement')}</h2>
-          <p className="muted">{t(isProfileMode ? 'profileManagementDesc' : 'instanceManagementDesc')}</p>
+          <p className="muted">{t('instanceManagementDesc')}</p>
         </div>
       </div>
 
       {isProfileMode ? (
         <div className="panel-card" style={{ marginBottom: '1.25rem' }}>
-          <h3 style={{ marginTop: 0 }}>{t('createProfilePanelTitle')}</h3>
-          <p className="muted" style={{ marginTop: 0 }}>{t('createProfilePanelHelp')}</p>
+          <h3 style={{ marginTop: 0 }}>{t('createInstancePanelTitle')}</h3>
+          <p className="muted" style={{ marginTop: 0 }}>{t('createInstancePanelHelp')}</p>
           <div className="action-row">
-            <button className="primary-button" onClick={() => setShowAddProfile(true)}>
-              {t('createProfile')}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button className="primary-button" onClick={() => setShowCreateMenu((current) => !current)}>
+                {t('addInstance')}
+              </button>
+              {showCreateMenu ? (
+                <div className="panel-card" style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', left: 0, zIndex: 10, minWidth: '15rem' }}>
+                  <button
+                    className="secondary-button"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      setShowCreateMenu(false);
+                      setCreateKind('docker');
+                    }}
+                    disabled={isProfileMode}
+                  >
+                    {t('createDockerInstance')}
+                  </button>
+                  {!isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0.75rem' }}>{t('dockerModeOnlyAction')}</p>}
+                  <button
+                    className="secondary-button"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      setShowCreateMenu(false);
+                      setCreateKind('profile');
+                    }}
+                    disabled={!isProfileMode}
+                  >
+                    {t('createProfileInstance')}
+                  </button>
+                  {isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0' }}>{t('profileModeOnlyAction')}</p>}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="panel-card" style={{ marginBottom: '1.25rem' }}>
+          <h3 style={{ marginTop: 0 }}>{t('createInstancePanelTitle')}</h3>
+          <p className="muted" style={{ marginTop: 0 }}>{t('createInstancePanelHelp')}</p>
+          <div className="action-row">
+            <div style={{ position: 'relative' }}>
+              <button className="primary-button" onClick={() => setShowCreateMenu((current) => !current)}>
+                {t('addInstance')}
+              </button>
+              {showCreateMenu ? (
+                <div className="panel-card" style={{ position: 'absolute', top: 'calc(100% + 0.5rem)', left: 0, zIndex: 10, minWidth: '15rem' }}>
+                  <button
+                    className="secondary-button"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      setShowCreateMenu(false);
+                      setCreateKind('docker');
+                    }}
+                    disabled={isProfileMode}
+                  >
+                    {t('createDockerInstance')}
+                  </button>
+                  {!isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0.75rem' }}>{t('dockerModeOnlyAction')}</p>}
+                  <button
+                    className="secondary-button"
+                    style={{ width: '100%', justifyContent: 'flex-start' }}
+                    onClick={() => {
+                      setShowCreateMenu(false);
+                      setCreateKind('profile');
+                    }}
+                    disabled={!isProfileMode}
+                  >
+                    {t('createProfileInstance')}
+                  </button>
+                  {isProfileMode ? null : <p className="muted" style={{ margin: '0.5rem 0 0' }}>{t('profileModeOnlyAction')}</p>}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
 
       {fleet.instances.length === 0 ? (
         <div className="profile-empty-state">
@@ -76,7 +147,7 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
           <table className="data-table">
             <thead>
               <tr>
-                <th>{isProfileMode ? t('profile') : t('instance')}</th>
+                <th>{t('instance')}</th>
                 <th>{t('status')}</th>
                 <th>{t('health')}</th>
                 <th>{t('port')}</th>
@@ -95,17 +166,15 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
                   <td>
                     <div className="action-row">
                       <button className="secondary-button" onClick={() => onOpenInstance(instance.id)}>
-                        {t('openProfile')}
+                        {t('openInstance')}
                       </button>
-                      {isProfileMode ? (
-                        <button
-                          className="danger-button"
-                          onClick={() => setPendingDelete(instance.id)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          {t('delete')}
-                        </button>
-                      ) : null}
+                      <button
+                        className="danger-button"
+                        onClick={() => setPendingDelete(instance.id)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        {t('delete')}
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -115,12 +184,12 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
         </div>
       )}
 
-      {showAddProfile ? <AddProfileDialog onClose={() => setShowAddProfile(false)} /> : null}
+      {createKind ? <AddInstanceDialog kind={createKind} onClose={() => setCreateKind(null)} /> : null}
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
-        title={t('deleteProfileTitle')}
-        message={t('deleteProfileConfirm', { profile: pendingDelete ?? '' })}
+        title={t('deleteInstanceTitle')}
+        message={t('deleteInstanceConfirm', { instance: pendingDelete ?? '' })}
         confirmLabel={deleteMutation.isPending ? t('deleting') : t('delete')}
         onCancel={() => {
           if (!deleteMutation.isPending) setPendingDelete(null);
@@ -131,7 +200,7 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
       />
       {deleteMutation.error ? (
         <p className="error-text" style={{ marginBottom: 0 }}>
-          {deleteMutation.error instanceof Error ? deleteMutation.error.message : t('deleteProfileFailed')}
+          {deleteMutation.error instanceof Error ? deleteMutation.error.message : t('deleteInstanceFailed')}
         </p>
       ) : null}
     </section>

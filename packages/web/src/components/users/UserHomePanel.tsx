@@ -66,7 +66,7 @@ export function UserHomePanel({ user, instances, onOpenInstance, onChangePasswor
                   </div>
                   <div className="muted">{t('profileCardMeta', { health: instance.health, port: instance.port })}</div>
                 </div>
-                <span className="profile-card-action">{t('openProfile')}</span>
+                <span className="profile-card-action">{t('openInstance')}</span>
               </button>
             ))}
           </div>

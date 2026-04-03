@@ -178,4 +178,24 @@ describe('ComposeGenerator', () => {
     expect(config.gateway.controlUi.allowedOrigins).toContain('http://127.0.0.1:18789');
     expect(config.gateway.controlUi.allowedOrigins).toContain('http://localhost:18789');
   });
+
+  it('writes base openclaw.json without tailscale fields when instance not in portMap', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(1, {
+      hostname: 'machine.tailnet.ts.net',
+      portMap: new Map(), // instance 1 not in map
+    });
+
+    const config = JSON.parse(
+      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+    );
+    // Base config still written
+    expect(config.gateway.auth.mode).toBe('token');
+    expect(config.gateway.auth.token).toMatch(/^[0-9a-f]{64}$/);
+    // No tailscale fields
+    expect(config.gateway.auth.allowTailscale).toBeUndefined();
+    expect(config.gateway.controlUi.allowInsecureAuth).toBeUndefined();
+    // controlUi.allowedOrigins has only the two localhost origins
+    expect(config.gateway.controlUi.allowedOrigins).toHaveLength(2);
+  });
 });

@@ -73,7 +73,7 @@ export class ComposeGenerator {
               auth.allowTailscale = true;
               const controlUi = gw.controlUi as Record<string, unknown>;
               controlUi.allowInsecureAuth = true;
-              (openclawConfig.gateway as any).controlUi.allowedOrigins.push(
+              (controlUi.allowedOrigins as string[]).push(
                 `https://${tailscaleConfig.hostname}:${tsPort}`,
               );
             }

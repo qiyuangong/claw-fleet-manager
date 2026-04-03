@@ -34,6 +34,8 @@ export interface FleetConfig {
   configBase: string;
   workspaceBase: string;
   tz: string;
+  openclawImage: string;
+  enableNpmPackages: boolean;
 }
 
 export interface PublicUser {

@@ -11,7 +11,7 @@ Claw Fleet Manager is a Turbo/npm-workspaces monorepo for operating `openclaw` i
 
 The server supports two runtime backends behind one shared API surface:
 
-- `docker`: manages `openclaw-N` containers in an existing fleet directory
+- `docker`: manages `openclaw-N` containers directly through the Docker API, plus per-instance config/workspace provisioning inside the fleet directory
 - `profiles`: manages native `openclaw --profile <name>` gateway processes plus per-profile config/state directories
 
 ## System Topology
@@ -29,6 +29,7 @@ flowchart LR
     ProfileBackend["ProfileBackend"]
     UserSvc["UserService<br/>users.json"]
     FleetCfg["FleetConfigService<br/>fleet.env .env openclaw.json"]
+    Provision["docker-instance-provisioning<br/>openclaw.json + workspace bootstrap"]
     Tail["TailscaleService"]
     Docker["Docker daemon"]
     OpenClaw["openclaw profile processes"]
@@ -47,6 +48,8 @@ flowchart LR
     DockerBackend --> Docker
     DockerBackend --> Tail
     DockerBackend --> Files
+    DockerBackend --> Provision
+    Provision --> Files
     ProfileBackend --> OpenClaw
     ProfileBackend --> Files
     UserSvc --> Files
@@ -126,6 +129,7 @@ Authorization is split from authentication in [`packages/server/src/authorize.ts
 | `users.ts` | current user, self password change, admin user CRUD/reset/profile assignment | User bootstrap and password rotation live here |
 | `logs.ts` | `WS /ws/logs/:id`, `WS /ws/logs` | Per-instance logs for assigned users, all logs for admins |
 | `proxy.ts` | `/proxy/:id`, `/proxy/*`, matching WS upgrade path | Reverse proxy for the embedded Control UI |
+| `plugins.ts` | `GET /api/fleet/:id/plugins`, `POST /api/fleet/:id/plugins/install`, `DELETE /api/fleet/:id/plugins/:pluginId` | Available in both modes; routes shell out through `execInstanceCommand()` |
 
 ### Profile-Mode-Only Routes
 
@@ -134,9 +138,6 @@ Registered only when `deploymentMode === 'profiles'`:
 - `GET /api/fleet/profiles`
 - `POST /api/fleet/profiles`
 - `DELETE /api/fleet/profiles/:name`
-- `GET /api/fleet/:id/plugins`
-- `POST /api/fleet/:id/plugins/install`
-- `DELETE /api/fleet/:id/plugins/:pluginId`
 
 ## Deployment Backend Abstraction
 
@@ -149,16 +150,19 @@ Registered only when `deploymentMode === 'profiles'`:
 - polling Docker every 5 seconds and caching `FleetStatus`
 - mapping container names like `openclaw-3` to instance IDs and gateway ports
 - starting, stopping, restarting, and scaling containers
-- regenerating `docker-compose.yml` through `ComposeGenerator`
 - reading tokens and instance config via `FleetConfigService`
+- provisioning new instances through `docker-instance-provisioning`
+- creating managed containers directly through `DockerService`
 - tailing container logs through Docker’s multiplexed log stream
 - optionally allocating and restoring Tailscale HTTPS serve rules
 
 Operational characteristics:
 
 - instance IDs are `openclaw-N`
+- create/scale-up is instance-centric: allocate token, provision files, create one container
 - scale-down stops higher-numbered containers first
-- `docker compose up -d --remove-orphans` is the reconciliation mechanism
+- there is no `docker-compose.yml` reconciliation layer
+- `removeInstance()` currently allows removing only the highest-numbered instance to keep numbering contiguous
 - disk figures come from both filesystem traversal and best-effort Docker volume usage
 
 ### ProfileBackend
@@ -198,7 +202,8 @@ Operational characteristics:
 
 It also:
 
-- derives `count` from `docker-compose.yml` if needed
+- ensures Docker config/workspace base directories exist before writes
+- derives `count` from `COUNT` or the number of persisted `TOKEN_N` entries
 - masks tokens before returning them to the UI
 - performs atomic writes via `*.tmp` + rename
 
@@ -215,18 +220,30 @@ Capabilities:
 - self-service password change
 - assign per-profile access lists
 
-### ComposeGenerator
+### DockerService
 
-[`packages/server/src/services/compose-generator.ts`](../../packages/server/src/services/compose-generator.ts) rebuilds `docker-compose.yml` for Docker mode.
+[`packages/server/src/services/docker.ts`](../../packages/server/src/services/docker.ts) is the Docker-mode runtime adapter built on Dockerode.
 
-Generated services include:
+It is responsible for:
 
-- fixed naming (`openclaw-N`)
-- per-instance config/workspace mounts
-- generated gateway tokens in `.env`
-- resource limits from `fleet.env`
-- `read_only`, `tmpfs`, `cap_drop: ALL`, and `no-new-privileges`
-- a health check hitting `http://127.0.0.1:18789/healthz`
+- listing managed `openclaw-N` containers
+- creating one container at a time with fixed naming, port bindings, and restart policy
+- applying resource limits from `fleet.env` such as CPU and memory
+- mounting per-instance config, workspace, and optional `.npm` cache directories
+- configuring hardening options like `read_only`, `tmpfs`, `cap_drop: ALL`, and `no-new-privileges`
+- attaching a health check that probes `http://127.0.0.1:18789/healthz`
+
+### Docker Instance Provisioning
+
+[`packages/server/src/services/docker-instance-provisioning.ts`](../../packages/server/src/services/docker-instance-provisioning.ts) prepares Docker-mode instance state before the container starts.
+
+It:
+
+- creates per-instance config and workspace directories
+- writes a default `openclaw.json` when one does not already exist
+- seeds workspace helper files such as `.gitignore`, `CLAUDE.md`, and `MEMORY.md`
+- merges model/provider settings from fleet config into the generated gateway config
+- optionally adds Tailscale allowed origins and preserves user-edited config files by skipping overwrite when `openclaw.json` already exists
 
 ### TailscaleService
 
@@ -306,7 +323,7 @@ Main views:
 - `MetricsTab`
 - `ControlUiTab`
 - `FeishuTab`
-- `PluginsTab` only for profile-mode instances
+- `PluginsTab`
 
 ### Frontend Auth Model
 
@@ -323,7 +340,6 @@ For WebSockets, `useLogs` appends `?auth=<base64(username:password)>`, which the
 - `tailscale-ports.json`: optional Docker-mode Tailscale port map
 - `logs/<profile>.log`: profile-mode log files
 - `.env`: Docker-mode gateway tokens
-- `docker-compose.yml`: Docker-mode desired state
 - `config/fleet.env`: Docker-mode fleet config
 
 ### Outside `fleetDir` In Profile Mode
@@ -355,7 +371,8 @@ The server has route and service tests under [`packages/server/tests`](../../pac
 - auth and authorization flows
 - fleet/config/instance routes
 - users and profile routes
+- plugin routes
 - proxy behavior
 - Docker/Profile backend services
-- compose generation
+- Docker instance provisioning
 - tailscale integration logic

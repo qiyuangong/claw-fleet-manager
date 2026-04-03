@@ -18,6 +18,19 @@ export interface ContainerInspection {
   uptime: number;
 }
 
+export interface ManagedContainerSpec {
+  name: string;
+  image: string;
+  gatewayPort: number;
+  token: string;
+  timezone: string;
+  configDir: string;
+  workspaceDir: string;
+  npmDir?: string;
+  cpuLimit: string;
+  memLimit: string;
+}
+
 export class DockerService {
   constructor(private docker: Dockerode = new Dockerode()) {}
 
@@ -43,6 +56,75 @@ export class DockerService {
 
   async restartContainer(name: string): Promise<void> {
     await this.docker.getContainer(name).restart();
+  }
+
+  async createManagedContainer(spec: ManagedContainerSpec): Promise<void> {
+    const existing = await this.findContainer(spec.name);
+    if (existing) {
+      return;
+    }
+
+    const binds = [
+      `${spec.configDir}:/home/node/.openclaw`,
+      `${spec.workspaceDir}:/home/node/.openclaw/workspace`,
+    ];
+    if (spec.npmDir) {
+      binds.push(`${spec.npmDir}:/home/node/.npm`);
+    }
+
+    const cpus = parseCpuLimit(spec.cpuLimit);
+    const memory = parseMemoryLimit(spec.memLimit);
+
+    const container = await this.docker.createContainer({
+      name: spec.name,
+      Image: spec.image,
+      Env: [
+        'HOME=/home/node',
+        'TERM=xterm-256color',
+        `OPENCLAW_GATEWAY_TOKEN=${spec.token}`,
+        `TZ=${spec.timezone}`,
+      ],
+      Cmd: ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'],
+      ExposedPorts: {
+        '18789/tcp': {},
+      },
+      Healthcheck: {
+        Test: [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ],
+        Interval: 30 * 1_000_000_000,
+        Timeout: 5 * 1_000_000_000,
+        Retries: 5,
+        StartPeriod: 20 * 1_000_000_000,
+      },
+      HostConfig: {
+        AutoRemove: false,
+        Binds: binds,
+        PortBindings: {
+          '18789/tcp': [{ HostPort: String(spec.gatewayPort) }],
+        },
+        Init: true,
+        RestartPolicy: { Name: 'unless-stopped' },
+        CapDrop: ['ALL'],
+        SecurityOpt: ['no-new-privileges:true'],
+        ReadonlyRootfs: true,
+        Tmpfs: {
+          '/tmp': 'rw,nosuid,nodev,noexec',
+        },
+        NanoCpus: cpus,
+        Memory: memory,
+      },
+    });
+
+    await container.start();
+  }
+
+  async removeContainer(name: string): Promise<void> {
+    const container = this.docker.getContainer(name);
+    await container.remove({ force: true });
   }
 
   async getContainerStats(name: string): Promise<ContainerStats> {
@@ -105,4 +187,31 @@ export class DockerService {
       timestamps: true,
     });
   }
+
+  private async findContainer(name: string) {
+    const containers = await this.docker.listContainers({
+      all: true,
+      filters: { name: [name] } as any,
+    });
+    return containers.find((container) => container.Names.some((n) => n === `/${name}`)) ?? null;
+  }
+}
+
+function parseCpuLimit(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed * 1_000_000_000) : 0;
+}
+
+function parseMemoryLimit(value: string): number {
+  const trimmed = value.trim().toUpperCase();
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)([KMGT]?)B?$/);
+  if (!match) return 0;
+  const amount = Number.parseFloat(match[1]);
+  const unit = match[2] ?? '';
+  const multiplier = unit === 'K' ? 1024
+    : unit === 'M' ? 1024 ** 2
+    : unit === 'G' ? 1024 ** 3
+    : unit === 'T' ? 1024 ** 4
+    : 1;
+  return Math.round(amount * multiplier);
 }

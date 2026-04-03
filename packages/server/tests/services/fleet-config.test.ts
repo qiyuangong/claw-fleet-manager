@@ -19,6 +19,30 @@ describe('FleetConfigService', () => {
   });
 
   describe('readFleetConfig', () => {
+    it('reads openclawImage from fleet.env', () => {
+      writeFileSync(join(dir, 'config', 'fleet.env'), 'OPENCLAW_IMAGE=myrepo/openclaw:v2\n');
+      const config = svc.readFleetConfig();
+      expect(config.openclawImage).toBe('myrepo/openclaw:v2');
+    });
+
+    it('defaults openclawImage to openclaw:local when absent', () => {
+      writeFileSync(join(dir, 'config', 'fleet.env'), 'BASE_URL=https://api.example.com/v1\n');
+      const config = svc.readFleetConfig();
+      expect(config.openclawImage).toBe('openclaw:local');
+    });
+
+    it('reads enableNpmPackages=true', () => {
+      writeFileSync(join(dir, 'config', 'fleet.env'), 'ENABLE_NPM_PACKAGES=true\n');
+      const config = svc.readFleetConfig();
+      expect(config.enableNpmPackages).toBe(true);
+    });
+
+    it('defaults enableNpmPackages to false when absent', () => {
+      writeFileSync(join(dir, 'config', 'fleet.env'), 'BASE_URL=https://api.example.com/v1\n');
+      const config = svc.readFleetConfig();
+      expect(config.enableNpmPackages).toBe(false);
+    });
+
     it('parses fleet.env with defaults', () => {
       writeFileSync(join(dir, 'config', 'fleet.env'), [
         'BASE_URL=https://api.example.com/v1',
@@ -33,8 +57,16 @@ describe('FleetConfigService', () => {
       expect(config.modelId).toBe('gpt-4');
       expect(config.count).toBe(3);
       expect(config.cpuLimit).toBe('4');
-      expect(config.memLimit).toBe('8G');
+      expect(config.memLimit).toBe('4G');
       expect(config.portStep).toBe(20);
+    });
+
+    it('uses the provided count override when COUNT is absent', () => {
+      writeFileSync(join(dir, 'config', 'fleet.env'), 'BASE_URL=https://api.example.com/v1\n');
+
+      const config = svc.readFleetConfig(1);
+
+      expect(config.count).toBe(1);
     });
   });
 
@@ -46,6 +78,16 @@ describe('FleetConfigService', () => {
       ].join('\n'));
 
       expect(svc.readTokens()).toEqual({ 1: 'abc123def', 2: 'xyz789ghi' });
+    });
+  });
+
+  describe('writeFleetConfig', () => {
+    it('creates config directory before writing fleet.env', () => {
+      rmSync(join(dir, 'config'), { recursive: true, force: true });
+
+      svc.writeFleetConfig({ OPENCLAW_IMAGE: 'openclaw:local' });
+
+      expect(readFileSync(join(dir, 'config', 'fleet.env'), 'utf-8')).toContain('OPENCLAW_IMAGE=openclaw:local');
     });
   });
 

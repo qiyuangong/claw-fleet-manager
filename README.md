@@ -7,7 +7,7 @@ Manage an `openclaw` fleet from a browser — start, stop, configure, and monito
 Two deployment backends are supported:
 
 - **Profile mode** (recommended): manage native `openclaw --profile` gateway processes directly
-- **Docker mode**: manage `openclaw-N` containers in an existing fleet directory
+- **Docker mode**: manage `openclaw-N` containers directly from the fleet manager, including per-instance config and workspace provisioning
 
 ## Features
 
@@ -21,7 +21,7 @@ Two deployment backends are supported:
 | Device approval and Feishu pairing | ✓ | ✓ |
 | Multi-user access with admin/user roles | ✓ | ✓ |
 | Create / remove instances | ✓ | — |
-| Plugin install / uninstall | ✓ | — |
+| Plugin install / uninstall | ✓ | ✓ |
 | Auto-restart on crash | ✓ | — |
 | Fleet-wide scaling | — | ✓ |
 | Tailscale per-instance HTTPS URLs | — | ✓ |
@@ -43,6 +43,7 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 3. Edit `packages/server/server.config.json`:
    - Set `fleetDir` to your fleet directory
    - Set `deploymentMode` to `"profiles"` (recommended) or `"docker"`
+   - In Docker mode, the fleet manager will create `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed. No `docker compose` or external setup script is required.
    - In profile mode, avoid using `main` as a managed profile name. OpenClaw reserves that standalone default profile under `~/.openclaw`, which conflicts with fleet-managed profile directories.
    - `auth.username` / `auth.password` seed the first admin account on startup
    - **TLS** — TLS is required for the Control UI (device auth needs a secure context). Generate a self-signed cert for local development:
@@ -83,7 +84,7 @@ Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001
               ┌───────────────┴───────────────┐
        Profile mode                      Docker mode
    openclaw --profile <name>          openclaw-N containers
-   config / state / workspace         config/N  workspace/N
+   config / state / workspace         per-instance config / workspace
 ```
 
 See [docs/arch/README.md](docs/arch/README.md) for the full architecture walkthrough.

@@ -20,6 +20,15 @@ const mockFleetConfig = {
 };
 
 const mockBackend = {
+  getCachedStatus: vi.fn().mockReturnValue({
+    mode: 'docker',
+    instances: [
+      { id: 'openclaw-1' },
+      { id: 'openclaw-2' },
+    ],
+    totalRunning: 2,
+    updatedAt: Date.now(),
+  }),
   readInstanceConfig: vi.fn().mockResolvedValue({ gateway: { mode: 'token' } }),
   writeInstanceConfig: vi.fn().mockResolvedValue(undefined),
 };
@@ -44,6 +53,7 @@ describe('Config routes — docker mode', () => {
     const res = await app.inject({ method: 'GET', url: '/api/config/fleet' });
     expect(res.statusCode).toBe(200);
     expect(res.json().apiKey).toBe('sk-***123');
+    expect(mockFleetConfig.readFleetConfig).toHaveBeenCalledWith(2);
   });
 
   it('PUT /api/config/fleet writes config', async () => {
@@ -120,5 +130,11 @@ describe('Config routes — profile mode', () => {
     const res = await app.inject({ method: 'GET', url: '/api/fleet/main/config' });
     expect(res.statusCode).toBe(200);
     expect(mockBackend.readInstanceConfig).toHaveBeenCalledWith('main');
+  });
+
+  it('does not override count in profile mode', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/config/fleet' });
+    expect(res.statusCode).toBe(200);
+    expect(mockFleetConfig.readFleetConfig).toHaveBeenCalledWith();
   });
 });

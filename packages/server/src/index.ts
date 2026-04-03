@@ -11,12 +11,12 @@ import { fleetRoutes } from './routes/fleet.js';
 import { healthRoutes } from './routes/health.js';
 import { instanceRoutes } from './routes/instances.js';
 import { logRoutes } from './routes/logs.js';
+import { pluginRoutes } from './routes/plugins.js';
 import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
 import { DockerBackend } from './services/docker-backend.js';
 import { ProfileBackend } from './services/profile-backend.js';
-import { ComposeGenerator } from './services/compose-generator.js';
 import { DockerService } from './services/docker.js';
 import { FleetConfigService } from './services/fleet-config.js';
 import { UserService } from './services/user.js';
@@ -66,7 +66,6 @@ const backend = config.deploymentMode === 'profiles'
     }, app.log)
   : new DockerBackend(
       new DockerService(),
-      new ComposeGenerator(config.fleetDir),
       fleetConfig,
       config.fleetDir,
       tailscale,
@@ -91,6 +90,7 @@ await app.register(instanceRoutes);
 await app.register(userRoutes);
 await app.register(logRoutes);
 await app.register(proxyRoutes);
+await app.register(pluginRoutes);
 
 if (config.deploymentMode === 'profiles') {
   const { profileRoutes } = await import('./routes/profiles.js');

@@ -12,6 +12,7 @@ export function Sidebar() {
   const selectedInstanceId = useAppStore(selectedInstanceIdSelector);
   const selectInstance = useAppStore((state) => state.selectInstance);
   const selectInstances = useAppStore((state) => state.selectInstances);
+  const selectConfig = useAppStore((state) => state.selectConfig);
   const selectUsers = useAppStore((state) => state.selectUsers);
   const selectAccount = useAppStore((state) => state.selectAccount);
 
@@ -89,6 +90,12 @@ export function Sidebar() {
               onClick={selectUsers}
             >
               {t('users')}
+            </button>
+            <button
+              className={`sidebar-nav-item${activeView.type === 'config' ? ' selected' : ''}`}
+              onClick={selectConfig}
+            >
+              {t('fleetConfig')}
             </button>
           </>
         ) : null}

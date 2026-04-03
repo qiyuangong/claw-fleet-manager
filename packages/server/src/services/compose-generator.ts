@@ -31,21 +31,55 @@ export class ComposeGenerator {
         mkdirSync(join(configBase, String(i)), { recursive: true });
         mkdirSync(join(workspaceBase, String(i)), { recursive: true });
 
-        // Write openclaw.json for new instances only (skip if file exists)
-        if (tailscaleConfig) {
-          const configFile = join(configBase, String(i), 'openclaw.json');
-          if (!existsSync(configFile)) {
-            const tsPort = tailscaleConfig.portMap.get(i);
-            if (tsPort === undefined) continue;
-            const openclawConfig = {
-              gateway: {
-                auth: { allowTailscale: true },
-                controlUi: { allowInsecureAuth: true },
+        const configFile = join(configBase, String(i), 'openclaw.json');
+        if (!existsSync(configFile)) {
+          const gwPort = BASE_GW_PORT + (i - 1) * portStep;
+          const baseUrl = vars.BASE_URL ?? '';
+          const apiKey = vars.API_KEY ?? '';
+          const modelId = vars.MODEL_ID ?? '';
+
+          const openclawConfig: Record<string, unknown> = {
+            gateway: {
+              mode: 'local',
+              auth: { mode: 'token', token: tokens[i] },
+              controlUi: {
+                allowedOrigins: [
+                  `http://127.0.0.1:${gwPort}`,
+                  `http://localhost:${gwPort}`,
+                ],
               },
-              allowedOrigins: [`https://${tailscaleConfig.hostname}:${tsPort}`],
+            },
+          };
+
+          if (baseUrl && modelId) {
+            openclawConfig.models = {
+              mode: 'merge',
+              providers: {
+                default: {
+                  baseUrl,
+                  apiKey,
+                  api: 'openai-completions',
+                  models: [{ id: modelId, name: modelId }],
+                },
+              },
             };
-            writeFileSync(configFile, JSON.stringify(openclawConfig, null, 2));
           }
+
+          if (tailscaleConfig) {
+            const tsPort = tailscaleConfig.portMap.get(i);
+            if (tsPort !== undefined) {
+              const gw = openclawConfig.gateway as Record<string, unknown>;
+              const auth = gw.auth as Record<string, unknown>;
+              auth.allowTailscale = true;
+              const controlUi = gw.controlUi as Record<string, unknown>;
+              controlUi.allowInsecureAuth = true;
+              openclawConfig.allowedOrigins = [
+                `https://${tailscaleConfig.hostname}:${tsPort}`,
+              ];
+            }
+          }
+
+          writeFileSync(configFile, JSON.stringify(openclawConfig, null, 2) + '\n');
         }
       }
     }

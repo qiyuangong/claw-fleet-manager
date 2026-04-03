@@ -91,24 +91,6 @@ describe('ComposeGenerator', () => {
     expect(config2.allowedOrigins).toContain('https://machine.tailnet.ts.net:8801');
   });
 
-  it('does not write openclaw.json when tailscaleConfig is absent', () => {
-    const gen = new ComposeGenerator(dir);
-    gen.generate(2);
-    expect(existsSync(join(dir, 'instances', '1', 'openclaw.json'))).toBe(false);
-  });
-
-  it('skips writing openclaw.json when portMap does not contain the instance index', () => {
-    const gen = new ComposeGenerator(dir);
-    // portMap only covers index 1, not index 2
-    gen.generate(2, {
-      hostname: 'machine.tailnet.ts.net',
-      portMap: new Map([[1, 8800]]),
-    });
-    expect(existsSync(join(dir, 'instances', '2', 'openclaw.json'))).toBe(false);
-    // index 1 should still get its config
-    expect(existsSync(join(dir, 'instances', '1', 'openclaw.json'))).toBe(true);
-  });
-
   it('does not overwrite existing openclaw.json on re-scale', () => {
     const gen = new ComposeGenerator(dir);
     gen.generate(1, {
@@ -123,5 +105,73 @@ describe('ComposeGenerator', () => {
     });
     const content = JSON.parse(readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'));
     expect(content.custom).toBe(true);
+  });
+
+  it('writes openclaw.json with gateway token and model config for new instances', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(2);
+
+    const config1 = JSON.parse(
+      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+    );
+    expect(config1.gateway.auth.mode).toBe('token');
+    expect(config1.gateway.auth.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(config1.gateway.mode).toBe('local');
+    expect(config1.gateway.controlUi.allowedOrigins).toContain('http://127.0.0.1:18789');
+    expect(config1.gateway.controlUi.allowedOrigins).toContain('http://localhost:18789');
+    expect(config1.models.providers.default.baseUrl).toBe('https://api.example.com/v1');
+    expect(config1.models.providers.default.apiKey).toBe('sk-test');
+    expect(config1.models.providers.default.models[0].id).toBe('test-model');
+
+    const config2 = JSON.parse(
+      readFileSync(join(dir, 'instances', '2', 'openclaw.json'), 'utf-8'),
+    );
+    expect(config2.gateway.controlUi.allowedOrigins).toContain('http://127.0.0.1:18809');
+  });
+
+  it('omits models block when BASE_URL is blank', () => {
+    writeFileSync(join(dir, 'config', 'fleet.env'), [
+      'PORT_STEP=20',
+      `CONFIG_BASE=${join(dir, 'instances')}`,
+      `WORKSPACE_BASE=${join(dir, 'workspaces')}`,
+    ].join('\n'));
+    const gen = new ComposeGenerator(dir);
+    gen.generate(1);
+
+    const config = JSON.parse(
+      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+    );
+    expect(config.models).toBeUndefined();
+    expect(config.gateway.auth.token).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('does not overwrite existing openclaw.json when regenerating without tailscale', () => {
+    mkdirSync(join(dir, 'instances', '1'), { recursive: true });
+    writeFileSync(join(dir, 'instances', '1', 'openclaw.json'), '{"custom":true}');
+
+    const gen = new ComposeGenerator(dir);
+    gen.generate(2);
+
+    const content = JSON.parse(
+      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+    );
+    expect(content.custom).toBe(true);
+  });
+
+  it('merges tailscale fields on top of base config', () => {
+    const gen = new ComposeGenerator(dir);
+    gen.generate(1, {
+      hostname: 'machine.tailnet.ts.net',
+      portMap: new Map([[1, 8800]]),
+    });
+
+    const config = JSON.parse(
+      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+    );
+    expect(config.gateway.auth.mode).toBe('token');
+    expect(config.models.providers.default.baseUrl).toBe('https://api.example.com/v1');
+    expect(config.gateway.auth.allowTailscale).toBe(true);
+    expect(config.gateway.controlUi.allowInsecureAuth).toBe(true);
+    expect(config.allowedOrigins).toContain('https://machine.tailnet.ts.net:8800');
   });
 });

@@ -34,6 +34,8 @@ Four independent areas of change:
 
 ### Config shape
 
+Minimal — only what openclaw cannot default on its own. All other settings (agents, tools, sandbox, compaction, commands, plugins) use openclaw's built-in defaults, mirroring how profile mode works (profile mode runs `openclaw setup` and patches only the workspace path).
+
 ```json
 {
   "models": {
@@ -43,31 +45,9 @@ Four independent areas of change:
         "baseUrl": "<BASE_URL>",
         "apiKey": "<API_KEY>",
         "api": "openai-completions",
-        "models": [{
-          "id": "<MODEL_ID>",
-          "name": "<MODEL_ID>",
-          "api": "openai-completions",
-          "reasoning": false,
-          "input": ["text"],
-          "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
-          "contextWindow": 200000,
-          "maxTokens": 65536
-        }]
+        "models": [{ "id": "<MODEL_ID>", "name": "<MODEL_ID>" }]
       }
     }
-  },
-  "agents": {
-    "defaults": {
-      "compaction": { "mode": "safeguard" },
-      "sandbox": { "mode": "non-main", "scope": "session" }
-    },
-    "list": [{ "id": "main" }]
-  },
-  "commands": {
-    "native": "auto",
-    "nativeSkills": "auto",
-    "restart": true,
-    "ownerDisplay": "raw"
   },
   "gateway": {
     "mode": "local",
@@ -78,12 +58,7 @@ Four independent areas of change:
         "http://localhost:<GW_PORT>"
       ]
     }
-  },
-  "tools": {
-    "exec": { "security": "deny", "ask": "always" },
-    "fs": { "workspaceOnly": true }
-  },
-  "plugins": { "allow": [] }
+  }
 }
 ```
 

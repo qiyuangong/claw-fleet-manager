@@ -24,7 +24,18 @@ export async function configRoutes(app: FastifyInstance) {
     const currentConfig = app.fleetConfig.readFleetConfig();
 
     if (BASE_DIR !== undefined && BASE_DIR !== currentConfig.baseDir) {
-      const status = app.backend.getCachedStatus() ?? await app.backend.refresh().catch(() => null);
+      const cachedStatus = app.backend.getCachedStatus();
+      let status = cachedStatus;
+      if (!status) {
+        try {
+          status = await app.backend.refresh();
+        } catch {
+          return reply.status(409).send({
+            error: 'Base directory cannot be changed while Docker instance state cannot be verified',
+            code: 'BASE_DIR_UNVERIFIED',
+          });
+        }
+      }
       const hasDockerInstances = status?.instances.some((instance) => instance.mode === 'docker') ?? false;
       if (hasDockerInstances) {
         return reply.status(409).send({

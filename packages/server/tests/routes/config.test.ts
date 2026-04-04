@@ -1,22 +1,10 @@
 // packages/server/tests/routes/config.test.ts
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { configRoutes } from '../../src/routes/config.js';
 
 const mockFleetConfig = {
-  readFleetConfig: vi.fn().mockReturnValue({
-    baseUrl: 'https://api.example.com',
-    apiKey: 'sk-***123',
-    modelId: 'gpt-4',
-    baseDir: '/tmp/managed',
-    count: 3,
-    cpuLimit: '4',
-    memLimit: '8G',
-    portStep: 20,
-    configBase: '/tmp/instances',
-    workspaceBase: '/tmp/workspaces',
-    tz: 'UTC',
-  }),
+  readFleetConfig: vi.fn(),
   readFleetEnvRaw: vi.fn().mockReturnValue({
     BASE_URL: 'https://api.example.com',
     API_KEY: 'sk-test123',
@@ -58,6 +46,53 @@ const mockBackend = {
 
 describe('Config routes — hybrid mode', () => {
   const app = Fastify();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFleetConfig.readFleetConfig.mockImplementation(() => ({
+      baseUrl: 'https://api.example.com',
+      apiKey: 'sk-***123',
+      modelId: 'gpt-4',
+      baseDir: '/tmp/managed',
+      count: 3,
+      cpuLimit: '4',
+      memLimit: '8G',
+      portStep: 20,
+      configBase: '/tmp/instances',
+      workspaceBase: '/tmp/workspaces',
+      tz: 'UTC',
+    }));
+    mockFleetConfig.readFleetEnvRaw.mockReturnValue({
+      BASE_URL: 'https://api.example.com',
+      API_KEY: 'sk-test123',
+      MODEL_ID: 'gpt-4',
+      OPENCLAW_IMAGE: 'openclaw:local',
+      CPU_LIMIT: '4',
+      MEM_LIMIT: '8G',
+      PORT_STEP: '20',
+      TZ: 'UTC',
+    });
+    mockBackend.getCachedStatus.mockReturnValue({
+      mode: 'hybrid',
+      instances: [
+        { id: 'openclaw-1', mode: 'docker' },
+        { id: 'openclaw-2', mode: 'docker' },
+        { id: 'team-alpha', mode: 'profile' },
+      ],
+      totalRunning: 2,
+      updatedAt: Date.now(),
+    });
+    mockBackend.refresh.mockResolvedValue({
+      mode: 'hybrid',
+      instances: [
+        { id: 'openclaw-1', mode: 'docker' },
+        { id: 'openclaw-2', mode: 'docker' },
+        { id: 'team-alpha', mode: 'profile' },
+      ],
+      totalRunning: 2,
+      updatedAt: Date.now(),
+    });
+  });
 
   beforeAll(async () => {
     app.decorate('fleetConfig', mockFleetConfig);
@@ -128,6 +163,30 @@ describe('Config routes — hybrid mode', () => {
 
     expect(res.statusCode).toBe(200);
     expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw');
+  });
+
+  it('PUT /api/config/fleet rejects baseDir changes when docker availability cannot be verified', async () => {
+    const getCachedStatus = vi.fn(() => null);
+    const refresh = vi.fn(async () => {
+      throw new Error('docker unavailable');
+    });
+    (app as any).backend.getCachedStatus = getCachedStatus;
+    (app as any).backend.refresh = refresh;
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/config/fleet',
+      payload: { BASE_DIR: '/srv/openclaw', TZ: 'Asia/Shanghai' },
+    });
+
+    expect(mockFleetConfig.readFleetConfig).toHaveBeenCalled();
+    expect(mockFleetConfig.readFleetConfig.mock.results.at(-1)?.value.baseDir).toBe('/tmp/managed');
+    expect(mockFleetConfig.updateBaseDir).not.toHaveBeenCalled();
+    expect(getCachedStatus).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('BASE_DIR_UNVERIFIED');
+    expect(mockFleetConfig.updateBaseDir).not.toHaveBeenCalled();
   });
 
   it('GET /api/fleet/:id/config returns instance config', async () => {

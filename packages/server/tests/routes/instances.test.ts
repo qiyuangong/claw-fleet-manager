@@ -73,6 +73,9 @@ describe('Instance routes — hybrid fleet', () => {
     expect(auditEntry).toBeDefined();
     expect((auditEntry as any).event).toBe('token_revealed');
     expect((auditEntry as any).instance).toBe('openclaw-1');
+    expect((auditEntry as any).username).toBe('admin');
+    expect((auditEntry as any).ip).toBeTruthy();
+    expect(JSON.stringify(auditEntry)).not.toContain('full-token-abc123def456');
   });
 
   it('accepts named docker instance ids', async () => {

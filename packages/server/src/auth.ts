@@ -6,6 +6,17 @@ import type { UserService } from './services/user.js';
 const PROXY_TOKEN_SECRET = randomBytes(32);
 const PROXY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+interface FailedAttempt {
+  count: number;
+  resetAt: number;
+}
+
+interface AuthOptions {
+  maxFailedAttempts?: number;
+  windowMs?: number;
+  secure?: boolean;
+}
+
 function getProxyTokenPayload(expires: number, instanceId: string): string {
   return `${expires}.${instanceId}`;
 }
@@ -90,12 +101,70 @@ function parseProxyCookie(cookieHeader: string | undefined, cookieName: string):
   return null;
 }
 
-export async function registerAuth(app: FastifyInstance, userService: UserService) {
+export async function registerAuth(
+  app: FastifyInstance,
+  userService: UserService,
+  options: AuthOptions = {},
+) {
   const proxyCookieName = 'x-fleet-proxy-auth';
+  const {
+    maxFailedAttempts = 20,
+    windowMs = 15 * 60 * 1000,
+    secure = false,
+  } = options;
+
+  const failedAttempts = new Map<string, FailedAttempt>();
+
+  const pruneInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of failedAttempts) {
+      if (now >= entry.resetAt) {
+        failedAttempts.delete(ip);
+      }
+    }
+  }, 5 * 60 * 1000);
+  pruneInterval.unref();
+
+  function isRateLimited(ip: string): boolean {
+    const entry = failedAttempts.get(ip);
+    if (!entry) return false;
+    if (Date.now() >= entry.resetAt) {
+      failedAttempts.delete(ip);
+      return false;
+    }
+    return entry.count >= maxFailedAttempts;
+  }
+
+  function recordFailure(ip: string): void {
+    const now = Date.now();
+    const entry = failedAttempts.get(ip);
+    if (!entry || now >= entry.resetAt) {
+      failedAttempts.set(ip, { count: 1, resetAt: now + windowMs });
+      return;
+    }
+
+    failedAttempts.set(ip, { count: entry.count + 1, resetAt: entry.resetAt });
+  }
+
+  function rejectUnauthorized(reply: { header: (name: string, value: string) => unknown }, rawUrl: string, clientIp: string) {
+    recordFailure(clientIp);
+    const suppressBrowserPrompt =
+      rawUrl.startsWith('/api/')
+      || rawUrl.startsWith('/ws/')
+      || rawUrl.startsWith('/proxy/')
+      || rawUrl.startsWith('/proxy-ws/');
+
+    if (!suppressBrowserPrompt) {
+      reply.header('www-authenticate', 'Basic realm="Claw Fleet Manager"');
+    }
+    return reply.status(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+  }
+
   const setProxyCookie = (reply: { header: (name: string, value: string) => unknown }, encoded: string) => {
+    const securePart = secure ? '; Secure' : '';
     reply.header(
       'set-cookie',
-      `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
+      `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict${securePart}`,
     );
   };
 
@@ -108,6 +177,11 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
     // Let the SPA shell and static assets load without browser-level auth prompts.
     if (!isApiPath && !isWsPath && !isProxyPath) {
       return;
+    }
+
+    const clientIp = request.ip;
+    if (isRateLimited(clientIp)) {
+      return reply.status(429).send({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
     }
 
     const headerCredentials = parseBasicAuth(request.headers.authorization);
@@ -150,15 +224,6 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
       }
     }
 
-    const suppressBrowserPrompt =
-      rawUrl.startsWith('/api/')
-      || rawUrl.startsWith('/ws/')
-      || rawUrl.startsWith('/proxy/')
-      || rawUrl.startsWith('/proxy-ws/');
-
-    if (!suppressBrowserPrompt) {
-      reply.header('www-authenticate', 'Basic realm="Claw Fleet Manager"');
-    }
-    return reply.status(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+    return rejectUnauthorized(reply, rawUrl, clientIp);
   });
 }

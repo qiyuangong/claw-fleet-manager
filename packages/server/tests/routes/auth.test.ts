@@ -14,6 +14,13 @@ function encode(user: string, pass: string): string {
 
 const validAuth = `Basic ${encode('admin', 'secret1234')}`;
 
+async function createUserService(username = 'admin', password = 'secret1234') {
+  const dir = mkdtempSync(join(tmpdir(), 'auth-test-'));
+  const service = new UserService(dir);
+  await service.initialize({ username, password });
+  return { dir, service };
+}
+
 describe('Auth middleware', () => {
   const app = Fastify();
 
@@ -139,5 +146,91 @@ describe('Auth middleware', () => {
     const res = await app.inject({ method: 'GET', url: '/ws/logs/openclaw-1' });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toBeUndefined();
+  });
+});
+
+describe('auth rate limiting', () => {
+  const app = Fastify();
+  let tmpDirs: string[] = [];
+
+  beforeAll(async () => {
+    const { dir, service } = await createUserService();
+    tmpDirs.push(dir);
+    await registerAuth(app, service, { maxFailedAttempts: 3, windowMs: 60_000 });
+    app.get('/api/probe', async () => ({ ok: true }));
+    app.get('/proxy/*', async () => ({ ok: true }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    for (const dir of tmpDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('allows requests with valid credentials before lockout', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('returns 429 after maxFailedAttempts bad passwords from the same IP', async () => {
+    const badAuth = `Basic ${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({ method: 'GET', url: '/api/probe', headers: { authorization: badAuth } });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: badAuth },
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
+  });
+
+  it('keeps the IP locked out even when credentials become valid', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+    expect(res.statusCode).toBe(429);
+    expect(res.json().code).toBe('RATE_LIMITED');
+  });
+});
+
+describe('auth secure cookie', () => {
+  const app = Fastify();
+  let tmpDirs: string[] = [];
+
+  beforeAll(async () => {
+    const { dir, service } = await createUserService();
+    tmpDirs.push(dir);
+    await registerAuth(app, service, { secure: true });
+    app.get('/proxy/*', async () => ({ ok: true }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    for (const dir of tmpDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marks the proxy cookie Secure when secure mode is enabled', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/proxy/some-instance/?auth=${encode('admin', 'secret1234')}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['set-cookie']).toContain('Secure');
   });
 });

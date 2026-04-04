@@ -13,7 +13,6 @@ describe('safeError', () => {
   it('keeps short slash-containing non-path messages unchanged', () => {
     expect(safeError(new Error('use createInstance/removeInstance'))).toBe('use createInstance/removeInstance');
   });
-
   it('strips Error messages containing file paths', () => {
     expect(safeError(new Error('ENOENT /home/user/.openclaw/config.json'))).toBe('An internal error occurred');
   });

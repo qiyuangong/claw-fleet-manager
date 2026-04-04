@@ -21,7 +21,6 @@ function isPathLikeMessage(message: string): boolean {
     || /(?:^|[\s"'"'`(])[^\s"'"'`]*\\[^\s"'"'`]+/.test(message)
   );
 }
-
 export function safeError(err: unknown): string {
   if (err instanceof AppError) {
     return err.message;

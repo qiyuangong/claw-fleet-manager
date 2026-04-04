@@ -1,6 +1,6 @@
 import { URL } from 'node:url';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { UserService } from './services/user.js';
 
 const PROXY_TOKEN_SECRET = randomBytes(32);
@@ -125,6 +125,10 @@ export async function registerAuth(
   }, 5 * 60 * 1000);
   pruneInterval.unref();
 
+  app.addHook('onClose', async () => {
+    clearInterval(pruneInterval);
+  });
+
   function isRateLimited(ip: string): boolean {
     const entry = failedAttempts.get(ip);
     if (!entry) return false;
@@ -146,8 +150,7 @@ export async function registerAuth(
     failedAttempts.set(ip, { count: entry.count + 1, resetAt: entry.resetAt });
   }
 
-  function rejectUnauthorized(reply: { header: (name: string, value: string) => unknown }, rawUrl: string, clientIp: string) {
-    recordFailure(clientIp);
+  function sendUnauthorized(reply: FastifyReply, rawUrl: string) {
     const suppressBrowserPrompt =
       rawUrl.startsWith('/api/')
       || rawUrl.startsWith('/ws/')
@@ -160,7 +163,7 @@ export async function registerAuth(
     return reply.status(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
   }
 
-  const setProxyCookie = (reply: { header: (name: string, value: string) => unknown }, encoded: string) => {
+  const setProxyCookie = (reply: FastifyReply, encoded: string) => {
     const securePart = secure ? '; Secure' : '';
     reply.header(
       'set-cookie',
@@ -180,50 +183,74 @@ export async function registerAuth(
     }
 
     const clientIp = request.ip;
-    if (isRateLimited(clientIp)) {
+    const parsedUrl = new URL(rawUrl, 'http://localhost');
+    const basicHeader = request.headers.authorization;
+    const hasBasicAuthAttempt = typeof basicHeader === 'string' && basicHeader.startsWith('Basic ');
+    const proxyToken = isProxyPath ? parsedUrl.searchParams.get('proxyToken') : null;
+    const proxyInstanceId = isProxyPath ? parseProxyInstanceId(rawUrl) : null;
+    const hasProxyToken = Boolean(proxyToken && proxyInstanceId && validateProxyToken(proxyToken, proxyInstanceId));
+    if (hasProxyToken) {
+      return;
+    }
+
+    const hasProxyCookieAttempt = isProxyPath || isWsPath
+      ? (request.headers.cookie?.includes(`${proxyCookieName}=`) ?? false)
+      : false;
+    const hasQueryAuthAttempt = (isProxyPath || isWsPath) && parsedUrl.searchParams.has('auth');
+    const hasCredentialAttempt = hasBasicAuthAttempt || hasProxyCookieAttempt || hasQueryAuthAttempt;
+    let recordedFailure = false;
+    const noteFailure = () => {
+      if (!recordedFailure) {
+        recordFailure(clientIp);
+        recordedFailure = true;
+      }
+    };
+
+    if (hasCredentialAttempt && isRateLimited(clientIp)) {
       return reply.status(429).send({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
     }
 
     const headerCredentials = parseBasicAuth(request.headers.authorization);
-    if (headerCredentials) {
-      const user = await userService.verify(headerCredentials.username, headerCredentials.password);
-      if (user) {
-        request.user = user;
-        setProxyCookie(reply, request.headers.authorization!.slice(6));
-        return;
+    if (hasBasicAuthAttempt) {
+      if (headerCredentials) {
+        const user = await userService.verify(headerCredentials.username, headerCredentials.password);
+        if (user) {
+          request.user = user;
+          setProxyCookie(reply, request.headers.authorization!.slice(6));
+          return;
+        }
       }
+      noteFailure();
     }
 
     if (isProxyPath || isWsPath) {
       const cookieCredentials = parseProxyCookie(request.headers.cookie, proxyCookieName);
-      if (cookieCredentials) {
-        const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
-        if (user) {
-          request.user = user;
-          return;
+      if (hasProxyCookieAttempt) {
+        if (cookieCredentials) {
+          const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
+          if (user) {
+            request.user = user;
+            return;
+          }
         }
+        noteFailure();
       }
 
-      if (isProxyPath) {
-        const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
-        const proxyInstanceId = parseProxyInstanceId(rawUrl);
-        if (proxyToken && proxyInstanceId && validateProxyToken(proxyToken, proxyInstanceId)) {
-          return;
+      if (hasQueryAuthAttempt) {
+        const queryCredentials = parseWebSocketQueryAuth(rawUrl);
+        if (queryCredentials) {
+          const user = await userService.verify(queryCredentials.username, queryCredentials.password);
+          if (user) {
+            request.user = user;
+            const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
+            if (encoded) setProxyCookie(reply, encoded);
+            return;
+          }
         }
-      }
-
-      const queryCredentials = parseWebSocketQueryAuth(rawUrl);
-      if (queryCredentials) {
-        const user = await userService.verify(queryCredentials.username, queryCredentials.password);
-        if (user) {
-          request.user = user;
-          const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
-          if (encoded) setProxyCookie(reply, encoded);
-          return;
-        }
+        noteFailure();
       }
     }
 
-    return rejectUnauthorized(reply, rawUrl, clientIp);
+    return sendUnauthorized(reply, rawUrl);
   });
 }

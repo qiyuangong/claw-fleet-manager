@@ -178,6 +178,20 @@ describe('auth rate limiting', () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it('does not lock out later valid Basic auth after repeated missing-auth requests', async () => {
+    for (let i = 0; i < 3; i++) {
+      await app.inject({ method: 'GET', url: '/api/probe' });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
   it('returns 429 after maxFailedAttempts bad passwords from the same IP', async () => {
     const badAuth = `Basic ${encode('admin', 'wrong')}`;
     for (let i = 0; i < 3; i++) {
@@ -202,6 +216,20 @@ describe('auth rate limiting', () => {
     });
     expect(res.statusCode).toBe(429);
     expect(res.json().code).toBe('RATE_LIMITED');
+  });
+
+  it('still allows proxyToken access after failed password attempts from the same IP', async () => {
+    const badAuth = `Basic ${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({ method: 'GET', url: '/api/probe', headers: { authorization: badAuth } });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/proxy/some-instance/?proxyToken=${generateProxyToken('some-instance')}`,
+    });
+
+    expect(res.statusCode).toBe(200);
   });
 });
 

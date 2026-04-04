@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { restartInstance, revealToken, startInstance, stopInstance } from '../../api/fleet';
+import { useAppStore } from '../../store';
 import type { FleetInstance } from '../../types';
 import { MaskedValue } from '../common/MaskedValue';
 import { StatusBadge } from '../common/StatusBadge';
+import { MigrateDialog } from './MigrateDialog';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -25,6 +28,8 @@ function formatUptime(seconds: number): string {
 export function OverviewTab({ instance }: { instance: FleetInstance }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const [showMigrate, setShowMigrate] = useState(false);
+  const currentUser = useAppStore((state) => state.currentUser);
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['fleet'] });
   };
@@ -75,6 +80,11 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
           <button className="secondary-button" onClick={() => restart.mutate()} disabled={instance.status === 'stopped' || restart.isPending}>
             {t('restart')}
           </button>
+          {currentUser?.role === 'admin' ? (
+            <button className="secondary-button" onClick={() => setShowMigrate(true)}>
+              {t('migrateInstance')}
+            </button>
+          ) : null}
         </div>
 
         <div className="section-grid">
@@ -132,6 +142,10 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
           onReveal={async () => (await revealToken(instance.id)).token}
         />
       </section>
+
+      {showMigrate ? (
+        <MigrateDialog instance={instance} onClose={() => setShowMigrate(false)} />
+      ) : null}
     </div>
   );
 }

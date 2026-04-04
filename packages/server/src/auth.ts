@@ -101,6 +101,10 @@ function parseProxyCookie(cookieHeader: string | undefined, cookieName: string):
   return null;
 }
 
+function getSanitizedPath(rawUrl: string): string {
+  return new URL(rawUrl, 'http://localhost').pathname;
+}
+
 export async function registerAuth(
   app: FastifyInstance,
   userService: UserService,
@@ -165,7 +169,7 @@ export async function registerAuth(
 
   function logAuthFailure(request: { log: { warn: (payload: object, message: string) => void } }, clientIp: string, rawUrl: string) {
     request.log.warn(
-      { audit: true, event: 'auth_failed', ip: clientIp, path: rawUrl },
+      { audit: true, event: 'auth_failed', ip: clientIp, path: getSanitizedPath(rawUrl) },
       'Authentication failed',
     );
   }

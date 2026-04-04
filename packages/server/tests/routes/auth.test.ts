@@ -51,6 +51,23 @@ describe('Auth middleware', () => {
     expect(setCookie).toContain('Path=/proxy');
   });
 
+  it('emits an auth_success audit log with username and IP', async () => {
+    const entries: any[] = [];
+    const spy = vi.spyOn(app.log, 'info').mockImplementation((payload: unknown) => {
+      if (payload && typeof payload === 'object') entries.push(payload);
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/api/test', headers: { authorization: validAuth } });
+
+    spy.mockRestore();
+    expect(res.statusCode).toBe(200);
+
+    const auditEntry = entries.find((entry) => entry.audit === true && entry.event === 'auth_success');
+    expect(auditEntry).toBeDefined();
+    expect(auditEntry.username).toBe('admin');
+    expect(auditEntry.ip).toBeTruthy();
+  });
+
   it('returns 401 without www-authenticate header on /api paths when auth is missing', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/test' });
     expect(res.statusCode).toBe(401);
@@ -62,6 +79,24 @@ describe('Auth middleware', () => {
     const res = await app.inject({ method: 'GET', url: '/api/test', headers: { authorization: `Basic ${encode('admin', 'wrong')}` } });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toBeUndefined();
+  });
+
+  it('emits an auth_failed audit log without query credentials or tokens in the path', async () => {
+    const entries: any[] = [];
+    const spy = vi.spyOn(app.log, 'warn').mockImplementation((payload: unknown) => {
+      if (payload && typeof payload === 'object') entries.push(payload);
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/proxy/some-instance/?auth=admin:wrong&proxyToken=secret-token' });
+
+    spy.mockRestore();
+    expect(res.statusCode).toBe(401);
+
+    const auditEntry = entries.find((entry) => entry.audit === true && entry.event === 'auth_failed');
+    expect(auditEntry).toBeDefined();
+    expect(auditEntry.path).toBe('/proxy/some-instance/');
+    expect(auditEntry.path).not.toContain('auth=');
+    expect(auditEntry.path).not.toContain('proxyToken=');
   });
 
   it('returns 401 with malformed base64 in Authorization header', async () => {

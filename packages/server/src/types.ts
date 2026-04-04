@@ -8,11 +8,14 @@ export interface ServerConfig {
   port: number;
   auth: { username: string; password: string };
   fleetDir: string;
+  baseDir?: string;
   tailscale?: { hostname: string };
   tls?: { cert: string; key: string };
-  deploymentMode?: 'docker' | 'profiles';
+  deploymentMode?: 'docker' | 'profiles' | 'hybrid';
   profiles?: ProfilesConfig;
 }
+
+export type InstanceMode = 'docker' | 'profile';
 
 export interface ProfilesConfig {
   openclawBinary: string;
@@ -26,6 +29,7 @@ export interface ProfilesConfig {
 
 export interface FleetInstance {
   id: string;
+  mode: InstanceMode;
   index?: number;          // present in docker mode (1-based), absent in profile mode
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;
@@ -42,7 +46,7 @@ export interface FleetInstance {
 }
 
 export interface FleetStatus {
-  mode: 'docker' | 'profiles';
+  mode: 'docker' | 'profiles' | 'hybrid';
   instances: FleetInstance[];
   totalRunning: number;
   updatedAt: number;
@@ -52,6 +56,7 @@ export interface FleetConfig {
   baseUrl: string;
   apiKey: string;
   modelId: string;
+  baseDir: string;
   count: number;
   cpuLimit: string;
   memLimit: string;

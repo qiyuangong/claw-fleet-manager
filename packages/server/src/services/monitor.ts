@@ -59,6 +59,7 @@ export class MonitorService {
 
         return {
           id: container.name,
+          mode: 'docker',
           index,
           status: this.mapStatus(inspection.status),
           port: BASE_GW_PORT + (index - 1) * config.portStep,

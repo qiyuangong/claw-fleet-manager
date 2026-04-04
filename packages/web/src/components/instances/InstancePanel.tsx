@@ -31,7 +31,6 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
   const activeTab = useAppStore((state) => state.activeTab);
   const setTab = useAppStore((state) => state.setTab);
   const instance = data?.instances.find((item) => item.id === instanceId);
-  const isProfile = Boolean(instance?.profile);
 
   if (!instance) {
     return (
@@ -49,8 +48,8 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
       <div className="panel-header">
         <div>
           <p className="pill mono">{instance.profile ?? instance.id}</p>
-          <h2 className="panel-title">{isProfile ? t('profileWorkspace') : t('instanceControl')}</h2>
-          <p className="muted">{isProfile ? t('profileWorkspaceDesc') : t('instanceControlDesc')}</p>
+          <h2 className="panel-title">{t('instanceWorkspace')}</h2>
+          <p className="muted">{t('instanceWorkspaceDesc')}</p>
         </div>
       </div>
 

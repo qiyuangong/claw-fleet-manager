@@ -9,12 +9,8 @@ const instanceConfigBodySchema = z.record(z.string(), z.unknown());
 
 export async function configRoutes(app: FastifyInstance) {
   app.get('/api/config/fleet', { preHandler: requireAdmin }, async () => {
-    if (app.deploymentMode !== 'docker') {
-      return app.fleetConfig.readFleetConfig();
-    }
-
     const cached = app.backend.getCachedStatus();
-    const liveCount = cached?.mode === 'docker' ? cached.instances.length : undefined;
+    const liveCount = cached?.instances.filter((instance) => instance.mode === 'docker').length;
     return app.fleetConfig.readFleetConfig(liveCount);
   });
 
@@ -23,13 +19,49 @@ export async function configRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Body must be a Record<string, string>', code: 'INVALID_BODY' });
     }
-    app.fleetConfig.writeFleetConfig(parsed.data);
+
+    const { BASE_DIR, ...vars } = parsed.data;
+    const currentConfig = app.fleetConfig.readFleetConfig();
+
+    if (BASE_DIR !== undefined && BASE_DIR !== currentConfig.baseDir) {
+      const cachedStatus = app.backend.getCachedStatus();
+      let status = cachedStatus;
+      if (!status) {
+        try {
+          status = await app.backend.refresh();
+        } catch {
+          return reply.status(409).send({
+            error: 'Base directory cannot be changed while Docker instance state cannot be verified',
+            code: 'BASE_DIR_UNVERIFIED',
+          });
+        }
+      }
+      const hasDockerInstances = status?.instances.some((instance) => instance.mode === 'docker') ?? false;
+      if (hasDockerInstances) {
+        return reply.status(409).send({
+          error: 'Base directory can only be changed before Docker instances are created',
+          code: 'BASE_DIR_IN_USE',
+        });
+      }
+
+      try {
+        app.fleetConfig.updateBaseDir(BASE_DIR, { applyImmediately: true });
+      } catch (error: any) {
+        return reply.status(400).send({ error: error.message, code: 'INVALID_BASE_DIR' });
+      }
+    }
+
+    const currentVars = app.fleetConfig.readFleetEnvRaw();
+    app.fleetConfig.writeFleetConfig({
+      ...currentVars,
+      ...vars,
+    });
     return { ok: true };
   });
 
   app.get<{ Params: { id: string } }>('/api/fleet/:id/config', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
-    if (!validateInstanceId(id, app.deploymentMode)) {
+    if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
     try {
@@ -41,7 +73,7 @@ export async function configRoutes(app: FastifyInstance) {
 
   app.put<{ Params: { id: string } }>('/api/fleet/:id/config', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
-    if (!validateInstanceId(id, app.deploymentMode)) {
+    if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
     const parsed = instanceConfigBodySchema.safeParse(request.body);

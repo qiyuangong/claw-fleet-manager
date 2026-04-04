@@ -3,7 +3,11 @@ import { join } from 'node:path';
 import type { FleetConfig } from '../types.js';
 
 export class FleetConfigService {
-  constructor(private fleetDir: string) {}
+  constructor(
+    private fleetDir: string,
+    private baseDir = join(process.env.HOME ?? '', 'openclaw-instances'),
+    private serverConfigPath?: string,
+  ) {}
 
   readFleetConfig(countOverride?: number): FleetConfig {
     const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
@@ -12,12 +16,13 @@ export class FleetConfigService {
       baseUrl: vars.BASE_URL ?? '',
       apiKey: vars.API_KEY ? FleetConfigService.maskToken(vars.API_KEY) : '',
       modelId: vars.MODEL_ID ?? '',
+      baseDir: this.baseDir,
       count: parseInt(vars.COUNT ?? String(countOverride ?? 2), 10),
       cpuLimit: vars.CPU_LIMIT ?? '4',
       memLimit: vars.MEM_LIMIT ?? '4G',
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),
-      configBase: vars.CONFIG_BASE ?? join(process.env.HOME ?? '', 'openclaw-instances'),
-      workspaceBase: vars.WORKSPACE_BASE ?? join(process.env.HOME ?? '', 'openclaw-workspaces'),
+      configBase: this.getConfigBase(),
+      workspaceBase: this.getWorkspaceBase(),
       tz: vars.TZ ?? 'Asia/Shanghai',
       openclawImage: vars.OPENCLAW_IMAGE ?? 'openclaw:local',
       enableNpmPackages: vars.ENABLE_NPM_PACKAGES === 'true',
@@ -35,6 +40,30 @@ export class FleetConfigService {
       .filter(([, value]) => value !== '')
       .map(([key, value]) => `${key}=${value}`);
     this.atomicWrite(envPath, lines.join('\n') + '\n');
+  }
+
+  updateBaseDir(nextBaseDir: string, options?: { applyImmediately?: boolean }): void {
+    const trimmed = nextBaseDir.trim();
+    if (!trimmed) {
+      throw new Error('baseDir is required');
+    }
+
+    if (!this.serverConfigPath) {
+      if (options?.applyImmediately) {
+        this.baseDir = trimmed;
+        this.ensureFleetDirectories();
+      }
+      return;
+    }
+
+    const raw = JSON.parse(readFileSync(this.serverConfigPath, 'utf-8')) as Record<string, unknown>;
+    raw.baseDir = trimmed;
+    this.atomicWrite(this.serverConfigPath, JSON.stringify(raw, null, 2) + '\n');
+
+    if (options?.applyImmediately) {
+      this.baseDir = trimmed;
+      this.ensureFleetDirectories();
+    }
   }
 
   writeTokens(tokens: Record<number, string>): void {
@@ -66,32 +95,40 @@ export class FleetConfigService {
   }
 
   getConfigBase(): string {
-    const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
-    return vars.CONFIG_BASE ?? join(process.env.HOME ?? '', 'openclaw-instances');
+    return this.baseDir;
   }
 
   getWorkspaceBase(): string {
-    const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
-    return vars.WORKSPACE_BASE ?? join(process.env.HOME ?? '', 'openclaw-workspaces');
+    return join(this.baseDir, '<instance>', 'workspace');
   }
 
-  readInstanceConfig(index: number): unknown {
-    const configBase = this.getConfigBase();
-    const path = join(configBase, String(index), 'openclaw.json');
+  getDockerInstanceRoot(instanceId: string): string {
+    return join(this.baseDir, instanceId);
+  }
+
+  getDockerConfigDir(instanceId: string): string {
+    return join(this.getDockerInstanceRoot(instanceId), 'config');
+  }
+
+  getDockerWorkspaceDir(instanceId: string): string {
+    return join(this.getDockerInstanceRoot(instanceId), 'workspace');
+  }
+
+  readInstanceConfig(instanceId: string): unknown {
+    const path = join(this.getDockerConfigDir(instanceId), 'openclaw.json');
     return JSON.parse(readFileSync(path, 'utf-8'));
   }
 
-  writeInstanceConfig(index: number, config: unknown): void {
-    const configBase = this.getConfigBase();
-    const path = join(configBase, String(index), 'openclaw.json');
-    mkdirSync(join(configBase, String(index)), { recursive: true });
+  writeInstanceConfig(instanceId: string, config: unknown): void {
+    const configDir = this.getDockerConfigDir(instanceId);
+    const path = join(configDir, 'openclaw.json');
+    mkdirSync(configDir, { recursive: true });
     this.atomicWrite(path, JSON.stringify(config, null, 2) + '\n');
   }
 
   ensureFleetDirectories(): void {
     mkdirSync(join(this.fleetDir, 'config'), { recursive: true });
-    mkdirSync(this.getConfigBase(), { recursive: true });
-    mkdirSync(this.getWorkspaceBase(), { recursive: true });
+    mkdirSync(this.baseDir, { recursive: true });
   }
 
   static maskToken(token: string): string {

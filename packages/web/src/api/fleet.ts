@@ -53,16 +53,17 @@ export const getFeishuPairing = (id: string) =>
 export const approveFeishuPairing = (id: string, code: string) =>
   apiFetch<{ ok: boolean }>(`/api/fleet/${id}/feishu/pairing/${code}/approve`, { method: 'POST' });
 
-export const scaleFleet = (count: number) =>
-  apiFetch<{ ok: boolean; fleet: FleetStatus }>('/api/fleet/scale', {
-    method: 'POST',
-    body: JSON.stringify({ count }),
-  });
-
-export interface CreateProfileOpts {
+export interface CreateInstanceOpts {
+  kind: 'docker' | 'profile';
   name: string;
   port?: number;
   config?: object;
+  apiKey?: string;
+  image?: string;
+  cpuLimit?: string;
+  memoryLimit?: string;
+  portStep?: number;
+  enableNpmPackages?: boolean;
 }
 
 export interface ProfilePlugin {
@@ -81,14 +82,14 @@ export interface ProfilePluginList {
   plugins: ProfilePlugin[];
 }
 
-export const createProfile = (opts: CreateProfileOpts) =>
-  apiFetch<FleetInstance>('/api/fleet/profiles', {
+export const createInstance = (opts: CreateInstanceOpts) =>
+  apiFetch<FleetInstance>('/api/fleet/instances', {
     method: 'POST',
     body: JSON.stringify(opts),
   });
 
-export const deleteProfile = (name: string) =>
-  apiFetch<{ ok: boolean }>(`/api/fleet/profiles/${name}`, { method: 'DELETE' });
+export const deleteInstance = (id: string) =>
+  apiFetch<{ ok: boolean }>(`/api/fleet/instances/${id}`, { method: 'DELETE' });
 
 export const getProfilePlugins = (id: string) =>
   apiFetch<ProfilePluginList>(`/api/fleet/${id}/plugins`);

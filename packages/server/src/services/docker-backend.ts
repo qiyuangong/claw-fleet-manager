@@ -11,6 +11,7 @@ import { provisionDockerInstance } from './docker-instance-provisioning.js';
 import type { TailscaleService } from './tailscale.js';
 import { getDirectorySize } from './dir-utils.js';
 import type { FleetInstance, FleetStatus } from '../types.js';
+import { MANAGED_INSTANCE_ID_RE } from '../validate.js';
 
 const execFileAsync = promisify(execFile);
 export const BASE_GW_PORT = 18789;
@@ -31,12 +32,15 @@ export class DockerBackend implements DeploymentBackend {
   async initialize(): Promise<void> {
     if (this.tailscale) {
       const containers = await this.docker.listFleetContainers().catch(() => []);
-      const portStep = this.fleetConfig.readFleetConfig().portStep;
-      const instances = containers.map((c) => {
-        const index = parseInt(c.name.replace('openclaw-', ''), 10);
-        const gwPort = BASE_GW_PORT + (index - 1) * portStep;
-        return { index, gwPort };
-      });
+      const defaultPortStep = this.fleetConfig.readFleetConfig().portStep;
+      const instances = containers
+        .filter((container) => container.index !== undefined)
+        .map((container) => {
+          const index = container.index!;
+          const portStep = this.resolveInstancePortStep(container.name, defaultPortStep);
+          const gwPort = BASE_GW_PORT + (index - 1) * portStep;
+          return { index, gwPort };
+        });
       await this.tailscale.syncAll(instances);
     }
     void this.refresh();
@@ -58,12 +62,11 @@ export class DockerBackend implements DeploymentBackend {
     const containers = await this.docker.listFleetContainers();
     const tokens = this.fleetConfig.readTokens();
     const config = this.fleetConfig.readFleetConfig();
-    const configBase = this.fleetConfig.getConfigBase();
-    const workspaceBase = this.fleetConfig.getWorkspaceBase();
 
     const instances: FleetInstance[] = await Promise.all(
       containers.map(async (container) => {
-        const index = parseInt(container.name.replace('openclaw-', ''), 10);
+        const index = container.index;
+        const portStep = this.resolveInstancePortStep(container.name, config.portStep);
         const [stats, inspection] = await Promise.all([
           this.docker.getContainerStats(container.name).catch(() => ({
             cpu: 0,
@@ -79,17 +82,18 @@ export class DockerBackend implements DeploymentBackend {
 
         return {
           id: container.name,
+          mode: 'docker',
           index,
           status: this.mapStatus(inspection.status),
-          port: BASE_GW_PORT + (index - 1) * config.portStep,
-          token: FleetConfigService.maskToken(tokens[index] ?? ''),
-          tailscaleUrl: this.tailscale?.getUrl(index) ?? undefined,
+          port: index !== undefined ? BASE_GW_PORT + (index - 1) * portStep : 0,
+          token: index !== undefined ? FleetConfigService.maskToken(tokens[index] ?? '') : '***',
+          tailscaleUrl: index !== undefined ? this.tailscale?.getUrl(index) ?? undefined : undefined,
           uptime: inspection.uptime,
           cpu: stats.cpu,
           memory: stats.memory,
           disk: {
-            config: await getDirectorySize(join(configBase, String(index))),
-            workspace: await getDirectorySize(join(workspaceBase, String(index))),
+            config: await getDirectorySize(this.fleetConfig.getDockerConfigDir(container.name)),
+            workspace: await getDirectorySize(this.fleetConfig.getDockerWorkspaceDir(container.name)),
           },
           health: this.mapHealth(inspection.health),
           image: inspection.image,
@@ -141,14 +145,30 @@ export class DockerBackend implements DeploymentBackend {
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
     const containers = await this.docker.listFleetContainers();
-    const newIndex = containers.length + 1;
-    const expectedId = `openclaw-${newIndex}`;
-    if (opts.name && opts.name !== expectedId) {
-      throw new Error(`Docker mode requires sequential instance ids; expected "${expectedId}"`);
+    const usedIndexes = containers
+      .map((container) => container.index)
+      .filter((index): index is number => index !== undefined)
+      .sort((a, b) => a - b);
+    const newIndex = nextAvailableIndex(usedIndexes);
+    const name = opts.name?.trim() || `openclaw-${newIndex}`;
+
+    if (!MANAGED_INSTANCE_ID_RE.test(name)) {
+      throw new Error('name must be lowercase alphanumeric with hyphens');
+    }
+    if (containers.some((container) => container.name === name)) {
+      throw new Error(`Instance "${name}" already exists`);
     }
 
     const config = this.fleetConfig.readFleetConfig();
-    const vars = this.fleetConfig.readFleetEnvRaw();
+    const resolvedPortStep = opts.portStep ?? config.portStep;
+    const resolvedImage = opts.image ?? config.openclawImage;
+    const resolvedCpuLimit = opts.cpuLimit ?? config.cpuLimit;
+    const resolvedMemoryLimit = opts.memoryLimit ?? config.memLimit;
+    const resolvedEnableNpmPackages = opts.enableNpmPackages ?? config.enableNpmPackages;
+    const vars = {
+      ...this.fleetConfig.readFleetEnvRaw(),
+      ...(opts.apiKey ? { API_KEY: opts.apiKey } : {}),
+    };
     const tokens = this.fleetConfig.readTokens();
     const token = tokens[newIndex] ?? randomToken();
     this.fleetConfig.writeTokens({ ...tokens, [newIndex]: token });
@@ -156,32 +176,37 @@ export class DockerBackend implements DeploymentBackend {
 
     const portMap = this.tailscale?.allocatePorts([newIndex]) ?? new Map<number, number>();
     provisionDockerInstance({
+      instanceId: name,
       index: newIndex,
-      portStep: config.portStep,
-      configBase: config.configBase,
-      workspaceBase: config.workspaceBase,
+      portStep: resolvedPortStep,
+      configDir: this.fleetConfig.getDockerConfigDir(name),
+      workspaceDir: this.fleetConfig.getDockerWorkspaceDir(name),
       vars,
       token,
       tailscaleConfig: this.tailscaleHostname ? { hostname: this.tailscaleHostname, portMap } : undefined,
-      configOverride: opts.config,
+      configOverride: this.mergeConfigOverride(opts.config, {
+        clawFleet: {
+          portStep: resolvedPortStep,
+        },
+      }),
     });
 
     await this.docker.createManagedContainer({
-      name: expectedId,
-      image: config.openclawImage,
-      gatewayPort: BASE_GW_PORT + (newIndex - 1) * config.portStep,
+      name,
+      index: newIndex,
+      image: resolvedImage,
+      gatewayPort: BASE_GW_PORT + (newIndex - 1) * resolvedPortStep,
       token,
       timezone: config.tz,
-      configDir: join(config.configBase, String(newIndex)),
-      workspaceDir: join(config.workspaceBase, String(newIndex)),
-      npmDir: config.enableNpmPackages ? join(config.configBase, String(newIndex), '.npm') : undefined,
-      cpuLimit: config.cpuLimit,
-      memLimit: config.memLimit,
+      configDir: this.fleetConfig.getDockerConfigDir(name),
+      workspaceDir: this.fleetConfig.getDockerWorkspaceDir(name),
+      npmDir: resolvedEnableNpmPackages ? join(this.fleetConfig.getDockerConfigDir(name), '.npm') : undefined,
+      cpuLimit: resolvedCpuLimit,
+      memLimit: resolvedMemoryLimit,
     });
-    this.writeFleetCount(newIndex, vars);
 
     if (this.tailscale) {
-      const gwPort = BASE_GW_PORT + (newIndex - 1) * config.portStep;
+      const gwPort = BASE_GW_PORT + (newIndex - 1) * resolvedPortStep;
       try {
         await this.tailscale.setup(newIndex, gwPort);
       } catch (err) {
@@ -190,29 +215,24 @@ export class DockerBackend implements DeploymentBackend {
     }
 
     const status = await this.refresh();
-    const instance = status.instances.find((i) => i.index === newIndex);
-    if (!instance) throw new Error(`Instance openclaw-${newIndex} not found after creation`);
+    const instance = status.instances.find((i) => i.id === name);
+    if (!instance) throw new Error(`Instance "${name}" not found after creation`);
     return instance;
   }
 
   async removeInstance(id: string): Promise<void> {
-    const containers = await this.docker.listFleetContainers();
-    if (containers.length === 0) return;
+    const container = await this.findContainer(id);
+    if (!container) return;
 
-    const highestIndex = Math.max(...containers.map((c) => parseInt(c.name.replace('openclaw-', ''), 10)));
-    const requestedIndex = parseInt(id.replace('openclaw-', ''), 10);
-    if (requestedIndex !== highestIndex) {
-      throw new Error(`Docker mode can only remove the highest-numbered instance (expected openclaw-${highestIndex})`);
+    if (container.index !== undefined) {
+      await this.tailscale?.teardown(container.index);
     }
 
-    await this.tailscale?.teardown(highestIndex);
-
     try {
-      await this.docker.removeContainer(`openclaw-${highestIndex}`);
+      await this.docker.removeContainer(id);
     } catch {
       // already removed
     }
-    this.writeFleetCount(highestIndex - 1);
     await this.refresh();
   }
 
@@ -259,20 +279,18 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async revealToken(id: string): Promise<string> {
-    const index = parseInt(id.replace('openclaw-', ''), 10);
+    const index = await this.resolveInstanceIndex(id);
     const token = this.fleetConfig.readTokens()[index];
     if (!token) throw new Error(`Token not found for ${id}`);
     return token;
   }
 
   async readInstanceConfig(id: string): Promise<object> {
-    const index = parseInt(id.replace('openclaw-', ''), 10);
-    return this.fleetConfig.readInstanceConfig(index) as object;
+    return this.fleetConfig.readInstanceConfig(id) as object;
   }
 
   async writeInstanceConfig(id: string, config: object): Promise<void> {
-    const index = parseInt(id.replace('openclaw-', ''), 10);
-    this.fleetConfig.writeInstanceConfig(index, config);
+    this.fleetConfig.writeInstanceConfig(id, config);
   }
 
   async scaleFleet(count: number, _fleetDir: string): Promise<FleetStatus> {
@@ -290,8 +308,12 @@ export class DockerBackend implements DeploymentBackend {
       return this.refresh();
     }
 
-    for (let idx = currentCount; idx > count; idx -= 1) {
-      await this.removeInstance(`openclaw-${idx}`);
+    const containersByDescendingIndex = currentContainers
+      .filter((container) => container.index !== undefined)
+      .sort((left, right) => (right.index ?? 0) - (left.index ?? 0));
+
+    for (const container of containersByDescendingIndex.slice(0, currentCount - count)) {
+      await this.removeInstance(container.name);
     }
 
     return this.refresh();
@@ -310,6 +332,25 @@ export class DockerBackend implements DeploymentBackend {
     if (health === 'unhealthy') return 'unhealthy';
     if (health === 'starting') return 'starting';
     return 'none';
+  }
+
+  private resolveInstancePortStep(instanceId: string, fallback: number): number {
+    try {
+      const config = this.fleetConfig.readInstanceConfig(instanceId) as Record<string, unknown>;
+      const clawFleet = config.clawFleet as Record<string, unknown> | undefined;
+      const portStep = clawFleet?.portStep;
+      if (typeof portStep === 'number' && Number.isFinite(portStep) && portStep > 0) {
+        return portStep;
+      }
+    } catch {
+      // Legacy instances may not have per-instance metadata yet.
+    }
+    return fallback;
+  }
+
+  private mergeConfigOverride(base: object | undefined, extra: object): object {
+    if (!base) return extra;
+    return Object.assign({}, base, extra);
   }
 
   private demuxDockerChunk(chunk: Buffer): string[] {
@@ -331,13 +372,28 @@ export class DockerBackend implements DeploymentBackend {
     return lines;
   }
 
-  private writeFleetCount(count: number, baseVars?: Record<string, string>): void {
-    const vars = { ...(baseVars ?? this.fleetConfig.readFleetEnvRaw()) };
-    vars.COUNT = String(Math.max(0, count));
-    this.fleetConfig.writeFleetConfig(vars);
+  private async resolveInstanceIndex(id: string): Promise<number> {
+    const container = await this.findContainer(id);
+    if (!container?.index) {
+      throw new Error(`Instance "${id}" not found`);
+    }
+    return container.index;
+  }
+
+  private async findContainer(id: string) {
+    const containers = await this.docker.listFleetContainers();
+    return containers.find((container) => container.name === id);
   }
 }
 
 function randomToken(): string {
   return randomBytes(32).toString('hex');
+}
+
+function nextAvailableIndex(usedIndexes: number[]): number {
+  let candidate = 1;
+  for (const index of usedIndexes) {
+    if (index === candidate) candidate += 1;
+  }
+  return candidate;
 }

@@ -22,7 +22,10 @@ const createProfileSchema = z.object({
 export async function profileRoutes(app: FastifyInstance) {
   app.get('/api/fleet/profiles', { preHandler: requireAdmin }, async () => {
     const status = app.backend.getCachedStatus();
-    return { instances: status?.instances ?? [], mode: 'profiles' };
+    return {
+      instances: status?.instances.filter((instance) => instance.mode === 'profile') ?? [],
+      mode: 'profiles',
+    };
   });
 
   app.post('/api/fleet/profiles', { preHandler: requireAdmin }, async (request, reply) => {
@@ -35,7 +38,7 @@ export async function profileRoutes(app: FastifyInstance) {
     }
     try {
       const { name, port, config } = parsed.data;
-      const instance = await app.backend.createInstance({ name, port, config: config as object | undefined });
+      const instance = await app.backend.createInstance({ kind: 'profile', name, port, config: config as object | undefined });
       return instance;
     } catch (error: any) {
       const code = error.message?.includes('already exists') ? 409

@@ -21,13 +21,8 @@ export function Sidebar() {
     return (currentUser.assignedProfiles ?? []).includes(instance.id);
   }) ?? [];
 
-  const isProfileMode = data?.mode === 'profiles';
-  const instanceSectionLabel = isProfileMode ? t('profiles') : t('instances');
-  const manageInstancesLabel = isProfileMode ? t('manageProfiles') : t('manageInstances');
   const subtitle = data
-    ? isProfileMode
-      ? t('profilesRunning', { running: data.totalRunning, total: visibleInstances.length })
-      : t('running', { running: data.totalRunning, total: visibleInstances.length })
+    ? t('instancesReady', { running: data.totalRunning, total: visibleInstances.length })
     : isLoading
       ? t('loadingFleet')
       : t('awaitingServer');
@@ -49,7 +44,6 @@ export function Sidebar() {
         </div>
         <h1 className="sidebar-title">{t('clawFleet')}</h1>
         <p className="sidebar-subtitle">{subtitle}</p>
-        {isProfileMode ? <p className="sidebar-subtitle">{t('profileModeSummary')}</p> : null}
         {error ? <p className="error-text">{error.message}</p> : null}
       </div>
 
@@ -66,7 +60,7 @@ export function Sidebar() {
           </>
         ) : null}
 
-        <p className="sidebar-section">{instanceSectionLabel}</p>
+        <p className="sidebar-section">{t('instances')}</p>
         {visibleInstances.map((instance) => (
           <SidebarItem
             key={instance.id}
@@ -83,7 +77,7 @@ export function Sidebar() {
               className={`sidebar-nav-item${activeView.type === 'instances' ? ' selected' : ''}`}
               onClick={selectInstances}
             >
-              {manageInstancesLabel}
+              {t('manageInstances')}
             </button>
             <button
               className={`sidebar-nav-item${activeView.type === 'users' ? ' selected' : ''}`}
@@ -100,10 +94,6 @@ export function Sidebar() {
           </>
         ) : null}
       </nav>
-
-      <div className="sidebar-footer">
-        {isProfileMode ? <p className="sidebar-hint">{t('profileModeHint')}</p> : null}
-      </div>
     </aside>
   );
 }

@@ -4,9 +4,9 @@ import Fastify from 'fastify';
 import { fleetRoutes } from '../../src/routes/fleet.js';
 
 const mockStatus = {
-  mode: 'docker' as const,
+  mode: 'hybrid' as const,
   instances: [
-    { id: 'openclaw-1', index: 1, status: 'running', port: 18789, token: 'abc1***f456',
+    { id: 'openclaw-1', mode: 'docker' as const, index: 1, status: 'running', port: 18789, token: 'abc1***f456',
       uptime: 100, cpu: 12, memory: { used: 400, limit: 8000 }, disk: { config: 0, workspace: 0 },
       health: 'healthy', image: 'openclaw:local' },
   ],
@@ -18,6 +18,8 @@ const mockBackend = {
   getCachedStatus: vi.fn().mockReturnValue(mockStatus),
   refresh: vi.fn().mockResolvedValue(mockStatus),
   scaleFleet: vi.fn().mockResolvedValue(mockStatus),
+  createInstance: vi.fn().mockResolvedValue(mockStatus.instances[0]),
+  removeInstance: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('Fleet routes', () => {
@@ -27,7 +29,7 @@ describe('Fleet routes', () => {
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'docker');
+    app.decorate('deploymentMode', 'hybrid');
     app.decorate('fleetDir', '/tmp');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
@@ -41,7 +43,7 @@ describe('Fleet routes', () => {
   it('GET /api/fleet returns fleet status with mode', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/fleet' });
     expect(res.statusCode).toBe(200);
-    expect(res.json().mode).toBe('docker');
+    expect(res.json().mode).toBe('hybrid');
     expect(res.json().instances).toHaveLength(1);
     expect(res.json().totalRunning).toBe(1);
   });
@@ -83,14 +85,86 @@ describe('Fleet routes', () => {
     expect(second.statusCode).toBe(409);
     expect(firstRes.statusCode).toBe(200);
   });
+
+  it('POST /api/fleet/instances creates a docker instance by name', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: { kind: 'docker', name: 'team-alpha' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      kind: 'docker',
+      name: 'team-alpha',
+      port: undefined,
+      config: undefined,
+    });
+  });
+
+  it('POST /api/fleet/instances passes docker overrides through to backend.createInstance', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: {
+        kind: 'docker',
+        name: 'team-beta',
+        apiKey: 'sk-test',
+        image: 'openclaw:latest',
+        cpuLimit: '2',
+        memoryLimit: '2G',
+        portStep: 25,
+        enableNpmPackages: true,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      kind: 'docker',
+      name: 'team-beta',
+      port: undefined,
+      config: undefined,
+      apiKey: 'sk-test',
+      image: 'openclaw:latest',
+      cpuLimit: '2',
+      memoryLimit: '2G',
+      portStep: 25,
+      enableNpmPackages: true,
+    });
+  });
+
+  it('POST /api/fleet/instances creates a profile instance by name', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: { kind: 'profile', name: 'rescue-team' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      kind: 'profile',
+      name: 'rescue-team',
+      port: undefined,
+      config: undefined,
+    });
+  });
+
+  it('DELETE /api/fleet/instances/:id removes a named docker instance', async () => {
+    const res = await app.inject({ method: 'DELETE', url: '/api/fleet/instances/team-alpha' });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.removeInstance).toHaveBeenCalledWith('team-alpha');
+  });
 });
 
-describe('Fleet routes — profile mode', () => {
+describe('Fleet routes — hybrid validation', () => {
   const app = Fastify();
 
   beforeAll(async () => {
-    app.decorate('backend', { getCachedStatus: vi.fn().mockReturnValue(null) });
-    app.decorate('deploymentMode', 'profiles');
+    app.decorate('backend', {
+      getCachedStatus: vi.fn().mockReturnValue(null),
+      createInstance: vi.fn().mockResolvedValue({ id: 'rescue' }),
+      removeInstance: vi.fn().mockResolvedValue(undefined),
+      scaleFleet: vi.fn().mockResolvedValue(mockStatus),
+    });
+    app.decorate('deploymentMode', 'hybrid');
     app.decorate('fleetDir', '/tmp');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
@@ -101,9 +175,23 @@ describe('Fleet routes — profile mode', () => {
 
   afterAll(() => app.close());
 
-  it('POST /api/fleet/scale returns 400 in profile mode', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/fleet/scale', payload: { count: 2 } });
+  it('POST /api/fleet/instances validates profile names for profile instances', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: { kind: 'profile', name: 'main' },
+    });
     expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('WRONG_MODE');
+    expect(res.json().code).toBe('INVALID_NAME');
+  });
+
+  it('POST /api/fleet/instances requires kind', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: { name: 'team-alpha' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_BODY');
   });
 });

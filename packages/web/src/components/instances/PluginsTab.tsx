@@ -186,7 +186,7 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
         title={t('removePlugin')}
         message={
           pendingRemoval
-            ? t('removePluginConfirm', { plugin: pluginLabel(pendingRemoval), profile: instance.id })
+            ? t('removePluginConfirm', { plugin: pluginLabel(pendingRemoval), instance: instance.id })
             : ''
         }
         confirmLabel={t('remove')}

@@ -24,7 +24,7 @@ export async function pluginRoutes(app: FastifyInstance) {
     { preHandler: requireProfileAccess },
     async (request, reply) => {
       const { id } = request.params;
-      if (!validateInstanceId(id, app.deploymentMode)) {
+      if (!validateInstanceId(id)) {
         return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
       }
 
@@ -42,7 +42,7 @@ export async function pluginRoutes(app: FastifyInstance) {
     { preHandler: requireProfileAccess },
     async (request, reply) => {
       const { id } = request.params;
-      if (!validateInstanceId(id, app.deploymentMode)) {
+      if (!validateInstanceId(id)) {
         return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
       }
 
@@ -68,7 +68,7 @@ export async function pluginRoutes(app: FastifyInstance) {
     { preHandler: requireProfileAccess },
     async (request, reply) => {
       const { id, pluginId } = request.params;
-      if (!validateInstanceId(id, app.deploymentMode)) {
+      if (!validateInstanceId(id)) {
         return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
       }
       if (!PLUGIN_ID_RE.test(pluginId)) {

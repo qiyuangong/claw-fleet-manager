@@ -9,6 +9,7 @@ const mockInstance = {
   status: 'running',
   port: 18789,
   token: 'abc1***f456',
+  mode: 'profile' as const,
   uptime: 100,
   cpu: 0,
   memory: { used: 0, limit: 0 },
@@ -58,7 +59,12 @@ describe('Profile routes', () => {
       payload: { name: 'rescue', port: 19001 },
     });
     expect(res.statusCode).toBe(200);
-    expect(mockBackend.createInstance).toHaveBeenCalledWith({ name: 'rescue', port: 19001, config: undefined });
+    expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      kind: 'profile',
+      name: 'rescue',
+      port: 19001,
+      config: undefined,
+    });
     expect(res.json().id).toBe('main');
   });
 

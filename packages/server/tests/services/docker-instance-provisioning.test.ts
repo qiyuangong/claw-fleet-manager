@@ -9,8 +9,7 @@ describe('provisionDockerInstance', () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'docker-provision-test-'));
-    mkdirSync(join(dir, 'instances'), { recursive: true });
-    mkdirSync(join(dir, 'workspaces'), { recursive: true });
+    mkdirSync(join(dir, 'managed'), { recursive: true });
   });
 
   afterEach(() => {
@@ -19,10 +18,11 @@ describe('provisionDockerInstance', () => {
 
   it('writes openclaw.json with gateway token, models, and workspace defaults', () => {
     provisionDockerInstance({
+      instanceId: 'openclaw-1',
       index: 1,
       portStep: 20,
-      configBase: join(dir, 'instances'),
-      workspaceBase: join(dir, 'workspaces'),
+      configDir: join(dir, 'managed', 'openclaw-1', 'config'),
+      workspaceDir: join(dir, 'managed', 'openclaw-1', 'workspace'),
       vars: {
         BASE_URL: 'https://api.example.com/v1',
         API_KEY: 'sk-test',
@@ -32,7 +32,7 @@ describe('provisionDockerInstance', () => {
     });
 
     const config = JSON.parse(
-      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+      readFileSync(join(dir, 'managed', 'openclaw-1', 'config', 'openclaw.json'), 'utf-8'),
     );
     expect(config.gateway.auth.mode).toBe('token');
     expect(config.gateway.auth.token).toBe('a'.repeat(64));
@@ -44,10 +44,11 @@ describe('provisionDockerInstance', () => {
 
   it('merges tailscale fields when a port is allocated', () => {
     provisionDockerInstance({
+      instanceId: 'openclaw-2',
       index: 2,
       portStep: 20,
-      configBase: join(dir, 'instances'),
-      workspaceBase: join(dir, 'workspaces'),
+      configDir: join(dir, 'managed', 'openclaw-2', 'config'),
+      workspaceDir: join(dir, 'managed', 'openclaw-2', 'workspace'),
       vars: {},
       token: 'b'.repeat(64),
       tailscaleConfig: {
@@ -57,7 +58,7 @@ describe('provisionDockerInstance', () => {
     });
 
     const config = JSON.parse(
-      readFileSync(join(dir, 'instances', '2', 'openclaw.json'), 'utf-8'),
+      readFileSync(join(dir, 'managed', 'openclaw-2', 'config', 'openclaw.json'), 'utf-8'),
     );
     expect(config.gateway.auth.allowTailscale).toBe(true);
     expect(config.gateway.controlUi.allowInsecureAuth).toBe(true);
@@ -67,10 +68,11 @@ describe('provisionDockerInstance', () => {
 
   it('applies a config override for a newly provisioned instance', () => {
     provisionDockerInstance({
+      instanceId: 'openclaw-1',
       index: 1,
       portStep: 20,
-      configBase: join(dir, 'instances'),
-      workspaceBase: join(dir, 'workspaces'),
+      configDir: join(dir, 'managed', 'openclaw-1', 'config'),
+      workspaceDir: join(dir, 'managed', 'openclaw-1', 'workspace'),
       vars: {},
       token: 'c'.repeat(64),
       configOverride: {
@@ -83,41 +85,43 @@ describe('provisionDockerInstance', () => {
     });
 
     const config = JSON.parse(
-      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+      readFileSync(join(dir, 'managed', 'openclaw-1', 'config', 'openclaw.json'), 'utf-8'),
     );
     expect(config.channels.feishu.enabled).toBe(true);
   });
 
   it('seeds workspace helper files', () => {
     provisionDockerInstance({
+      instanceId: 'openclaw-1',
       index: 1,
       portStep: 20,
-      configBase: join(dir, 'instances'),
-      workspaceBase: join(dir, 'workspaces'),
+      configDir: join(dir, 'managed', 'openclaw-1', 'config'),
+      workspaceDir: join(dir, 'managed', 'openclaw-1', 'workspace'),
       vars: {},
       token: 'd'.repeat(64),
     });
 
-    expect(existsSync(join(dir, 'workspaces', '1', '.gitignore'))).toBe(true);
-    expect(existsSync(join(dir, 'workspaces', '1', 'CLAUDE.md'))).toBe(true);
-    expect(existsSync(join(dir, 'workspaces', '1', 'MEMORY.md'))).toBe(true);
+    expect(existsSync(join(dir, 'managed', 'openclaw-1', 'workspace', '.gitignore'))).toBe(true);
+    expect(existsSync(join(dir, 'managed', 'openclaw-1', 'workspace', 'CLAUDE.md'))).toBe(true);
+    expect(existsSync(join(dir, 'managed', 'openclaw-1', 'workspace', 'MEMORY.md'))).toBe(true);
   });
 
   it('does not overwrite an existing openclaw.json', () => {
-    mkdirSync(join(dir, 'instances', '1'), { recursive: true });
-    writeFileSync(join(dir, 'instances', '1', 'openclaw.json'), '{"custom":true}\n');
+    mkdirSync(join(dir, 'managed', 'openclaw-1', 'config'), { recursive: true });
+    writeFileSync(join(dir, 'managed', 'openclaw-1', 'config', 'openclaw.json'), '{"custom":true}\n');
 
     provisionDockerInstance({
+      instanceId: 'openclaw-1',
       index: 1,
       portStep: 20,
-      configBase: join(dir, 'instances'),
-      workspaceBase: join(dir, 'workspaces'),
+      configDir: join(dir, 'managed', 'openclaw-1', 'config'),
+      workspaceDir: join(dir, 'managed', 'openclaw-1', 'workspace'),
       vars: {},
       token: 'e'.repeat(64),
     });
 
     const config = JSON.parse(
-      readFileSync(join(dir, 'instances', '1', 'openclaw.json'), 'utf-8'),
+      readFileSync(join(dir, 'managed', 'openclaw-1', 'config', 'openclaw.json'), 'utf-8'),
     );
     expect(config.custom).toBe(true);
   });

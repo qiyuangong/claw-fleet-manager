@@ -17,6 +17,8 @@ interface AuthOptions {
   secure?: boolean;
 }
 
+type AttemptKind = 'basic' | 'cookie' | 'query';
+
 function getProxyTokenPayload(expires: number, instanceId: string): string {
   return `${expires}.${instanceId}`;
 }
@@ -133,25 +135,30 @@ export async function registerAuth(
     clearInterval(pruneInterval);
   });
 
-  function isRateLimited(ip: string): boolean {
-    const entry = failedAttempts.get(ip);
+  function getAttemptKey(ip: string, kind: AttemptKind): string {
+    return `${ip}:${kind}`;
+  }
+
+  function isRateLimited(ip: string, kind: AttemptKind): boolean {
+    const entry = failedAttempts.get(getAttemptKey(ip, kind));
     if (!entry) return false;
     if (Date.now() >= entry.resetAt) {
-      failedAttempts.delete(ip);
+      failedAttempts.delete(getAttemptKey(ip, kind));
       return false;
     }
     return entry.count >= maxFailedAttempts;
   }
 
-  function recordFailure(ip: string): void {
+  function recordFailure(ip: string, kind: AttemptKind): void {
+    const key = getAttemptKey(ip, kind);
     const now = Date.now();
-    const entry = failedAttempts.get(ip);
+    const entry = failedAttempts.get(key);
     if (!entry || now >= entry.resetAt) {
-      failedAttempts.set(ip, { count: 1, resetAt: now + windowMs });
+      failedAttempts.set(key, { count: 1, resetAt: now + windowMs });
       return;
     }
 
-    failedAttempts.set(ip, { count: entry.count + 1, resetAt: entry.resetAt });
+    failedAttempts.set(key, { count: entry.count + 1, resetAt: entry.resetAt });
   }
 
   function sendUnauthorized(reply: FastifyReply, rawUrl: string) {
@@ -215,61 +222,67 @@ export async function registerAuth(
       ? (request.headers.cookie?.includes(`${proxyCookieName}=`) ?? false)
       : false;
     const hasQueryAuthAttempt = (isProxyPath || isWsPath) && parsedUrl.searchParams.has('auth');
-    const hasRateLimitedCredentialAttempt = hasBasicAuthAttempt || hasQueryAuthAttempt;
-    let recordedFailure = false;
-    const noteFailure = () => {
-      if (!recordedFailure) {
-        recordFailure(clientIp);
-        recordedFailure = true;
-      }
-    };
-
-    if (hasRateLimitedCredentialAttempt && isRateLimited(clientIp)) {
-      logAuthFailure(request, clientIp, rawUrl);
-      return reply.status(429).send({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
-    }
+    let sawRateLimitedAttempt = false;
 
     const headerCredentials = parseBasicAuth(request.headers.authorization);
     if (hasBasicAuthAttempt) {
-      if (headerCredentials) {
-        const user = await userService.verify(headerCredentials.username, headerCredentials.password);
-        if (user) {
-          request.user = user;
-          logAuthSuccess(request, clientIp, user.username);
-          setProxyCookie(reply, request.headers.authorization!.slice(6));
-          return;
+      if (isRateLimited(clientIp, 'basic')) {
+        sawRateLimitedAttempt = true;
+      } else {
+        if (headerCredentials) {
+          const user = await userService.verify(headerCredentials.username, headerCredentials.password);
+          if (user) {
+            request.user = user;
+            logAuthSuccess(request, clientIp, user.username);
+            setProxyCookie(reply, request.headers.authorization!.slice(6));
+            return;
+          }
         }
+        recordFailure(clientIp, 'basic');
       }
-      noteFailure();
     }
 
     if (isProxyPath || isWsPath) {
       const cookieCredentials = parseProxyCookie(request.headers.cookie, proxyCookieName);
       if (hasProxyCookieAttempt) {
-        if (cookieCredentials) {
-          const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
-          if (user) {
-            request.user = user;
-            logAuthSuccess(request, clientIp, user.username);
-            return;
+        if (isRateLimited(clientIp, 'cookie')) {
+          sawRateLimitedAttempt = true;
+        } else {
+          if (cookieCredentials) {
+            const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
+            if (user) {
+              request.user = user;
+              logAuthSuccess(request, clientIp, user.username);
+              return;
+            }
           }
+          recordFailure(clientIp, 'cookie');
         }
       }
 
       if (hasQueryAuthAttempt) {
-        const queryCredentials = parseWebSocketQueryAuth(rawUrl);
-        if (queryCredentials) {
-          const user = await userService.verify(queryCredentials.username, queryCredentials.password);
-          if (user) {
-            request.user = user;
-            logAuthSuccess(request, clientIp, user.username);
-            const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
-            if (encoded) setProxyCookie(reply, encoded);
-            return;
+        if (isRateLimited(clientIp, 'query')) {
+          sawRateLimitedAttempt = true;
+        } else {
+          const queryCredentials = parseWebSocketQueryAuth(rawUrl);
+          if (queryCredentials) {
+            const user = await userService.verify(queryCredentials.username, queryCredentials.password);
+            if (user) {
+              request.user = user;
+              logAuthSuccess(request, clientIp, user.username);
+              const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
+              if (encoded) setProxyCookie(reply, encoded);
+              return;
+            }
           }
+          recordFailure(clientIp, 'query');
         }
-        noteFailure();
       }
+    }
+
+    if (sawRateLimitedAttempt) {
+      logAuthFailure(request, clientIp, rawUrl);
+      return reply.status(429).send({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
     }
 
     logAuthFailure(request, clientIp, rawUrl);

@@ -246,6 +246,26 @@ describe('auth rate limiting', () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it('returns 429 after maxFailedAttempts bad proxy-cookie requests', async () => {
+    const badCookie = `x-fleet-proxy-auth=${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({
+        method: 'GET',
+        url: '/proxy/some-instance/',
+        headers: { cookie: badCookie },
+      });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/proxy/some-instance/',
+      headers: { cookie: badCookie },
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
+  });
+
   it('returns 429 after maxFailedAttempts bad passwords from the same IP', async () => {
     const badAuth = `Basic ${encode('admin', 'wrong')}`;
     for (let i = 0; i < 3; i++) {

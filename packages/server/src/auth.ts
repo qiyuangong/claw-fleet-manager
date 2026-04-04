@@ -215,7 +215,7 @@ export async function registerAuth(
       ? (request.headers.cookie?.includes(`${proxyCookieName}=`) ?? false)
       : false;
     const hasQueryAuthAttempt = (isProxyPath || isWsPath) && parsedUrl.searchParams.has('auth');
-    const hasCredentialAttempt = hasBasicAuthAttempt || hasProxyCookieAttempt || hasQueryAuthAttempt;
+    const hasRateLimitedCredentialAttempt = hasBasicAuthAttempt || hasQueryAuthAttempt;
     let recordedFailure = false;
     const noteFailure = () => {
       if (!recordedFailure) {
@@ -224,7 +224,7 @@ export async function registerAuth(
       }
     };
 
-    if (hasCredentialAttempt && isRateLimited(clientIp)) {
+    if (hasRateLimitedCredentialAttempt && isRateLimited(clientIp)) {
       logAuthFailure(request, clientIp, rawUrl);
       return reply.status(429).send({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
     }
@@ -254,7 +254,6 @@ export async function registerAuth(
             return;
           }
         }
-        noteFailure();
       }
 
       if (hasQueryAuthAttempt) {

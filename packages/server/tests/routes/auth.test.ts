@@ -227,6 +227,25 @@ describe('auth rate limiting', () => {
     expect(res.statusCode).toBe(200);
   });
 
+  it('does not lock out later valid Basic auth after repeated bad proxy-cookie requests', async () => {
+    const badCookie = `x-fleet-proxy-auth=${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({
+        method: 'GET',
+        url: '/proxy/some-instance/',
+        headers: { cookie: badCookie },
+      });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
   it('returns 429 after maxFailedAttempts bad passwords from the same IP', async () => {
     const badAuth = `Basic ${encode('admin', 'wrong')}`;
     for (let i = 0; i < 3; i++) {

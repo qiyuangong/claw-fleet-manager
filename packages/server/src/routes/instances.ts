@@ -3,9 +3,96 @@ import type { FastifyInstance } from 'fastify';
 import { validateInstanceId } from '../validate.js';
 import { requireProfileAccess } from '../authorize.js';
 import { safeError } from '../errors.js';
+import { errorResponseSchema, fleetInstanceSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FEISHU_CODE_RE = /^[A-Za-z0-9]{3,32}$/;
+
+const requestIdParamsSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    requestId: { type: 'string' },
+  },
+  required: ['id', 'requestId'],
+} as const;
+
+const pairingCodeParamsSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    code: { type: 'string' },
+  },
+  required: ['id', 'code'],
+} as const;
+
+const lifecycleResponseSchema = {
+  type: 'object',
+  properties: {
+    ok: { type: 'boolean' },
+    instance: fleetInstanceSchema,
+  },
+  required: ['ok'],
+} as const;
+
+const pendingDevicesResponseSchema = {
+  type: 'object',
+  properties: {
+    pending: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          requestId: { type: 'string' },
+          ip: { type: 'string' },
+        },
+        required: ['requestId', 'ip'],
+      },
+    },
+  },
+  required: ['pending'],
+} as const;
+
+const feishuPairingResponseSchema = {
+  type: 'object',
+  properties: {
+    pending: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          code: { type: 'string' },
+          userId: { type: 'string' },
+        },
+        required: ['code'],
+      },
+    },
+    raw: { type: 'string' },
+  },
+  required: ['pending', 'raw'],
+} as const;
+
+const tokenRevealResponseSchema = {
+  type: 'object',
+  properties: {
+    token: { type: 'string' },
+  },
+  required: ['token'],
+} as const;
+
+function instanceActionSchema(action: 'start' | 'stop' | 'restart') {
+  const summary = `${action[0].toUpperCase()}${action.slice(1)} an instance`;
+  return {
+    tags: ['Instances'],
+    summary,
+    params: instanceIdParamsSchema,
+    response: {
+      200: lifecycleResponseSchema,
+      400: errorResponseSchema,
+      500: errorResponseSchema,
+    },
+  } as const;
+}
 
 function parseFeishuPairing(stdout: string): { code: string; userId?: string }[] {
   const results: { code: string; userId?: string }[] = [];
@@ -35,7 +122,10 @@ function parsePendingDevices(output: string): { requestId: string; ip: string }[
 }
 
 export async function instanceRoutes(app: FastifyInstance) {
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/start', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/start', {
+    preHandler: requireProfileAccess,
+    schema: instanceActionSchema('start'),
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -50,7 +140,10 @@ export async function instanceRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/stop', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/stop', {
+    preHandler: requireProfileAccess,
+    schema: instanceActionSchema('stop'),
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -65,7 +158,10 @@ export async function instanceRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/restart', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/restart', {
+    preHandler: requireProfileAccess,
+    schema: instanceActionSchema('restart'),
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -80,7 +176,19 @@ export async function instanceRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get<{ Params: { id: string } }>('/api/fleet/:id/devices/pending', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/fleet/:id/devices/pending', {
+    preHandler: requireProfileAccess,
+    schema: {
+      tags: ['Instances'],
+      summary: 'List pending device approvals for an instance',
+      params: instanceIdParamsSchema,
+      response: {
+        200: pendingDevicesResponseSchema,
+        400: errorResponseSchema,
+        500: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -95,7 +203,19 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string; requestId: string } }>(
     '/api/fleet/:id/devices/:requestId/approve',
-    { preHandler: requireProfileAccess },
+    {
+      preHandler: requireProfileAccess,
+      schema: {
+        tags: ['Instances'],
+        summary: 'Approve a pending device for an instance',
+        params: requestIdParamsSchema,
+        response: {
+          200: okResponseSchema,
+          400: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const { id, requestId } = request.params;
       if (!validateInstanceId(id)) {
@@ -113,7 +233,19 @@ export async function instanceRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get<{ Params: { id: string } }>('/api/fleet/:id/feishu/pairing', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/fleet/:id/feishu/pairing', {
+    preHandler: requireProfileAccess,
+    schema: {
+      tags: ['Instances'],
+      summary: 'List pending Feishu pairings for an instance',
+      params: instanceIdParamsSchema,
+      response: {
+        200: feishuPairingResponseSchema,
+        400: errorResponseSchema,
+        500: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -128,7 +260,19 @@ export async function instanceRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string; code: string } }>(
     '/api/fleet/:id/feishu/pairing/:code/approve',
-    { preHandler: requireProfileAccess },
+    {
+      preHandler: requireProfileAccess,
+      schema: {
+        tags: ['Instances'],
+        summary: 'Approve a Feishu pairing for an instance',
+        params: pairingCodeParamsSchema,
+        response: {
+          200: okResponseSchema,
+          400: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const { id, code } = request.params;
       if (!validateInstanceId(id)) {
@@ -146,7 +290,19 @@ export async function instanceRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post<{ Params: { id: string } }>('/api/fleet/:id/token/reveal', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.post<{ Params: { id: string } }>('/api/fleet/:id/token/reveal', {
+    preHandler: requireProfileAccess,
+    schema: {
+      tags: ['Instances'],
+      summary: 'Reveal the full gateway token for an instance',
+      params: instanceIdParamsSchema,
+      response: {
+        200: tokenRevealResponseSchema,
+        400: errorResponseSchema,
+        404: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });

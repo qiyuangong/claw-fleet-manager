@@ -42,22 +42,28 @@ export class FleetConfigService {
     this.atomicWrite(envPath, lines.join('\n') + '\n');
   }
 
-  updateBaseDir(nextBaseDir: string): void {
+  updateBaseDir(nextBaseDir: string, options?: { applyImmediately?: boolean }): void {
     const trimmed = nextBaseDir.trim();
     if (!trimmed) {
       throw new Error('baseDir is required');
     }
 
-    this.baseDir = trimmed;
-    this.ensureFleetDirectories();
-
     if (!this.serverConfigPath) {
+      if (options?.applyImmediately) {
+        this.baseDir = trimmed;
+        this.ensureFleetDirectories();
+      }
       return;
     }
 
     const raw = JSON.parse(readFileSync(this.serverConfigPath, 'utf-8')) as Record<string, unknown>;
     raw.baseDir = trimmed;
     this.atomicWrite(this.serverConfigPath, JSON.stringify(raw, null, 2) + '\n');
+
+    if (options?.applyImmediately) {
+      this.baseDir = trimmed;
+      this.ensureFleetDirectories();
+    }
   }
 
   writeTokens(tokens: Record<number, string>): void {

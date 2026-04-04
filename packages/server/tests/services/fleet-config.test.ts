@@ -93,8 +93,24 @@ describe('FleetConfigService', () => {
   });
 
   describe('updateBaseDir', () => {
-    it('updates the in-memory baseDir used by derived paths', () => {
-      svc.updateBaseDir(join(dir, 'next-managed'));
+    it('persists the new baseDir without changing runtime paths by default', () => {
+      const serverConfigPath = join(dir, 'server.config.json');
+      writeFileSync(serverConfigPath, JSON.stringify({ baseDir: join(dir, 'managed') }, null, 2));
+      const persistentSvc = new FleetConfigService(dir, join(dir, 'managed'), serverConfigPath);
+
+      persistentSvc.updateBaseDir(join(dir, 'next-managed'));
+
+      const config = persistentSvc.readFleetConfig();
+      expect(config.baseDir).toBe(join(dir, 'managed'));
+      expect(config.configBase).toBe(join(dir, 'managed'));
+      expect(config.workspaceBase).toBe(join(dir, 'managed', '<instance>', 'workspace'));
+      expect(JSON.parse(readFileSync(serverConfigPath, 'utf-8'))).toEqual({
+        baseDir: join(dir, 'next-managed'),
+      });
+    });
+
+    it('can apply the new baseDir immediately when requested', () => {
+      svc.updateBaseDir(join(dir, 'next-managed'), { applyImmediately: true });
 
       const config = svc.readFleetConfig();
       expect(config.baseDir).toBe(join(dir, 'next-managed'));

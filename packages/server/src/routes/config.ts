@@ -45,7 +45,7 @@ export async function configRoutes(app: FastifyInstance) {
       }
 
       try {
-        app.fleetConfig.updateBaseDir(BASE_DIR);
+        app.fleetConfig.updateBaseDir(BASE_DIR, { applyImmediately: true });
       } catch (error: any) {
         return reply.status(400).send({ error: error.message, code: 'INVALID_BASE_DIR' });
       }

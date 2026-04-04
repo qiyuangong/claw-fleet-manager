@@ -162,7 +162,7 @@ describe('Config routes — hybrid mode', () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw');
+    expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw', { applyImmediately: true });
   });
 
   it('PUT /api/config/fleet rejects baseDir changes when docker availability cannot be verified', async () => {

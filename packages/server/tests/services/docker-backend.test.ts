@@ -231,4 +231,27 @@ describe('DockerBackend', () => {
 
     expect(mockDocker.removeContainer).toHaveBeenCalledWith('team-alpha');
   });
+
+  it('scaleFleet() removes the highest indexed container name when scaling down', async () => {
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([
+        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
+        { name: 'team-alpha', id: 'b', state: 'running', index: 2 },
+      ])
+      .mockResolvedValueOnce([
+        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
+        { name: 'team-alpha', id: 'b', state: 'running', index: 2 },
+      ])
+      .mockResolvedValueOnce([
+        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
+      ])
+      .mockResolvedValueOnce([
+        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
+      ]);
+
+    await backend.scaleFleet(1, '/tmp/fleet');
+
+    expect(mockDocker.removeContainer).toHaveBeenCalledWith('team-alpha');
+    expect(mockDocker.removeContainer).not.toHaveBeenCalledWith('openclaw-2');
+  });
 });

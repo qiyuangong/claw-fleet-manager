@@ -308,8 +308,12 @@ export class DockerBackend implements DeploymentBackend {
       return this.refresh();
     }
 
-    for (let idx = currentCount; idx > count; idx -= 1) {
-      await this.removeInstance(`openclaw-${idx}`);
+    const containersByDescendingIndex = currentContainers
+      .filter((container) => container.index !== undefined)
+      .sort((left, right) => (right.index ?? 0) - (left.index ?? 0));
+
+    for (const container of containersByDescendingIndex.slice(0, currentCount - count)) {
+      await this.removeInstance(container.name);
     }
 
     return this.refresh();

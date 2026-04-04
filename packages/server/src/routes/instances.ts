@@ -1,5 +1,5 @@
 // packages/server/src/routes/instances.ts
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { validateInstanceId } from '../validate.js';
 import { requireProfileAccess } from '../authorize.js';
 import { safeError } from '../errors.js';
@@ -35,19 +35,29 @@ function parsePendingDevices(output: string): { requestId: string; ip: string }[
 }
 
 export async function instanceRoutes(app: FastifyInstance) {
+  async function runInstanceAction(
+    reply: FastifyReply,
+    id: string,
+    action: 'start' | 'stop' | 'restart',
+    execute: () => Promise<void>,
+    code: 'START_FAILED' | 'STOP_FAILED' | 'RESTART_FAILED',
+  ) {
+    try {
+      await execute();
+      const status = await app.backend.refresh();
+      const instance = status.instances.find((item) => item.id === id);
+      return { ok: true, instance };
+    } catch (error: unknown) {
+      return reply.status(500).send({ error: `Failed to ${action} instance ${id}: ${safeError(error)}`, code });
+    }
+  }
+
   app.post<{ Params: { id: string } }>('/api/fleet/:id/start', { preHandler: requireProfileAccess }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    try {
-      await app.backend.start(id);
-      const status = await app.backend.refresh();
-      const instance = status.instances.find((item) => item.id === id);
-      return { ok: true, instance };
-    } catch (error: unknown) {
-      return reply.status(500).send({ error: `Failed to start instance ${id}: ${safeError(error)}`, code: 'START_FAILED' });
-    }
+    return runInstanceAction(reply, id, 'start', () => app.backend.start(id), 'START_FAILED');
   });
 
   app.post<{ Params: { id: string } }>('/api/fleet/:id/stop', { preHandler: requireProfileAccess }, async (request, reply) => {
@@ -55,14 +65,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    try {
-      await app.backend.stop(id);
-      const status = await app.backend.refresh();
-      const instance = status.instances.find((item) => item.id === id);
-      return { ok: true, instance };
-    } catch (error: unknown) {
-      return reply.status(500).send({ error: `Failed to stop instance ${id}: ${safeError(error)}`, code: 'STOP_FAILED' });
-    }
+    return runInstanceAction(reply, id, 'stop', () => app.backend.stop(id), 'STOP_FAILED');
   });
 
   app.post<{ Params: { id: string } }>('/api/fleet/:id/restart', { preHandler: requireProfileAccess }, async (request, reply) => {
@@ -70,14 +73,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    try {
-      await app.backend.restart(id);
-      const status = await app.backend.refresh();
-      const instance = status.instances.find((item) => item.id === id);
-      return { ok: true, instance };
-    } catch (error: unknown) {
-      return reply.status(500).send({ error: `Failed to restart instance ${id}: ${safeError(error)}`, code: 'RESTART_FAILED' });
-    }
+    return runInstanceAction(reply, id, 'restart', () => app.backend.restart(id), 'RESTART_FAILED');
   });
 
   app.get<{ Params: { id: string } }>('/api/fleet/:id/devices/pending', { preHandler: requireProfileAccess }, async (request, reply) => {

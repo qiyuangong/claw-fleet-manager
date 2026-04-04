@@ -60,6 +60,24 @@ describe('Instance routes — hybrid fleet', () => {
     expect(res.json().token).toBe('full-token-abc123def456');
   });
 
+  it('POST /api/fleet/:id/token/reveal emits an audit log entry', async () => {
+    const loggedMessages: object[] = [];
+    const spy = vi.spyOn(app.log, 'info').mockImplementation((obj: unknown) => {
+      if (obj && typeof obj === 'object') loggedMessages.push(obj as object);
+    });
+
+    await app.inject({ method: 'POST', url: '/api/fleet/openclaw-1/token/reveal' });
+
+    spy.mockRestore();
+    const auditEntry = loggedMessages.find((m: any) => m.audit === true);
+    expect(auditEntry).toBeDefined();
+    expect((auditEntry as any).event).toBe('token_revealed');
+    expect((auditEntry as any).instance).toBe('openclaw-1');
+    expect((auditEntry as any).username).toBe('admin');
+    expect((auditEntry as any).ip).toBeTruthy();
+    expect(JSON.stringify(auditEntry)).not.toContain('full-token-abc123def456');
+  });
+
   it('accepts named docker instance ids', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/fleet/team-alpha/start' });
     expect(res.statusCode).toBe(200);

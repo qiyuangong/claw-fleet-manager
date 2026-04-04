@@ -170,10 +170,9 @@ export async function fleetRoutes(app: FastifyInstance) {
       });
       return instance;
     } catch (error: unknown) {
-      const rawMessage = error instanceof Error ? error.message ?? '' : '';
-      const message = safeError(error);
+      const rawMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
       const statusCode = rawMessage.includes('already exists') || rawMessage.includes('in use') ? 409 : 500;
-      return reply.status(statusCode).send({ error: message, code: 'CREATE_FAILED' });
+      return reply.status(statusCode).send({ error: safeError(error), code: 'CREATE_FAILED' });
     }
   });
 

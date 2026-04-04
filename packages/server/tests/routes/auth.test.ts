@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -13,6 +13,13 @@ function encode(user: string, pass: string): string {
 }
 
 const validAuth = `Basic ${encode('admin', 'secret1234')}`;
+
+async function createUserService(username = 'admin', password = 'secret1234') {
+  const dir = mkdtempSync(join(tmpdir(), 'auth-test-'));
+  const service = new UserService(dir);
+  await service.initialize({ username, password });
+  return { dir, service };
+}
 
 describe('Auth middleware', () => {
   const app = Fastify();
@@ -44,6 +51,23 @@ describe('Auth middleware', () => {
     expect(setCookie).toContain('Path=/proxy');
   });
 
+  it('emits an auth_success audit log with username and IP', async () => {
+    const entries: any[] = [];
+    const spy = vi.spyOn(app.log, 'info').mockImplementation((payload: unknown) => {
+      if (payload && typeof payload === 'object') entries.push(payload);
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/api/test', headers: { authorization: validAuth } });
+
+    spy.mockRestore();
+    expect(res.statusCode).toBe(200);
+
+    const auditEntry = entries.find((entry) => entry.audit === true && entry.event === 'auth_success');
+    expect(auditEntry).toBeDefined();
+    expect(auditEntry.username).toBe('admin');
+    expect(auditEntry.ip).toBeTruthy();
+  });
+
   it('returns 401 without www-authenticate header on /api paths when auth is missing', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/test' });
     expect(res.statusCode).toBe(401);
@@ -55,6 +79,24 @@ describe('Auth middleware', () => {
     const res = await app.inject({ method: 'GET', url: '/api/test', headers: { authorization: `Basic ${encode('admin', 'wrong')}` } });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toBeUndefined();
+  });
+
+  it('emits an auth_failed audit log without query credentials or tokens in the path', async () => {
+    const entries: any[] = [];
+    const spy = vi.spyOn(app.log, 'warn').mockImplementation((payload: unknown) => {
+      if (payload && typeof payload === 'object') entries.push(payload);
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/proxy/some-instance/?auth=admin:wrong&proxyToken=secret-token' });
+
+    spy.mockRestore();
+    expect(res.statusCode).toBe(401);
+
+    const auditEntry = entries.find((entry) => entry.audit === true && entry.event === 'auth_failed');
+    expect(auditEntry).toBeDefined();
+    expect(auditEntry.path).toBe('/proxy/some-instance/');
+    expect(auditEntry.path).not.toContain('auth=');
+    expect(auditEntry.path).not.toContain('proxyToken=');
   });
 
   it('returns 401 with malformed base64 in Authorization header', async () => {
@@ -139,5 +181,158 @@ describe('Auth middleware', () => {
     const res = await app.inject({ method: 'GET', url: '/ws/logs/openclaw-1' });
     expect(res.statusCode).toBe(401);
     expect(res.headers['www-authenticate']).toBeUndefined();
+  });
+});
+
+describe('auth rate limiting', () => {
+  const app = Fastify();
+  let tmpDirs: string[] = [];
+
+  beforeAll(async () => {
+    const { dir, service } = await createUserService();
+    tmpDirs.push(dir);
+    await registerAuth(app, service, { maxFailedAttempts: 3, windowMs: 60_000 });
+    app.get('/api/probe', async () => ({ ok: true }));
+    app.get('/proxy/*', async () => ({ ok: true }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    for (const dir of tmpDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('allows requests with valid credentials before lockout', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does not lock out later valid Basic auth after repeated missing-auth requests', async () => {
+    for (let i = 0; i < 3; i++) {
+      await app.inject({ method: 'GET', url: '/api/probe' });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does not lock out later valid Basic auth after repeated bad proxy-cookie requests', async () => {
+    const badCookie = `x-fleet-proxy-auth=${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({
+        method: 'GET',
+        url: '/proxy/some-instance/',
+        headers: { cookie: badCookie },
+      });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('returns 429 after maxFailedAttempts bad proxy-cookie requests', async () => {
+    const badCookie = `x-fleet-proxy-auth=${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({
+        method: 'GET',
+        url: '/proxy/some-instance/',
+        headers: { cookie: badCookie },
+      });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/proxy/some-instance/',
+      headers: { cookie: badCookie },
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
+  });
+
+  it('returns 429 after maxFailedAttempts bad passwords from the same IP', async () => {
+    const badAuth = `Basic ${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({ method: 'GET', url: '/api/probe', headers: { authorization: badAuth } });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: badAuth },
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(res.json()).toEqual({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
+  });
+
+  it('keeps the IP locked out even when credentials become valid', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/probe',
+      headers: { authorization: `Basic ${encode('admin', 'secret1234')}` },
+    });
+    expect(res.statusCode).toBe(429);
+    expect(res.json().code).toBe('RATE_LIMITED');
+  });
+
+  it('still allows proxyToken access after failed password attempts from the same IP', async () => {
+    const badAuth = `Basic ${encode('admin', 'wrong')}`;
+    for (let i = 0; i < 3; i++) {
+      await app.inject({ method: 'GET', url: '/api/probe', headers: { authorization: badAuth } });
+    }
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/proxy/some-instance/?proxyToken=${generateProxyToken('some-instance')}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+});
+
+describe('auth secure cookie', () => {
+  const app = Fastify();
+  let tmpDirs: string[] = [];
+
+  beforeAll(async () => {
+    const { dir, service } = await createUserService();
+    tmpDirs.push(dir);
+    await registerAuth(app, service, { secure: true });
+    app.get('/proxy/*', async () => ({ ok: true }));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    for (const dir of tmpDirs) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marks the proxy cookie Secure when secure mode is enabled', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/proxy/some-instance/?auth=${encode('admin', 'secret1234')}`,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['set-cookie']).toContain('Secure');
   });
 });

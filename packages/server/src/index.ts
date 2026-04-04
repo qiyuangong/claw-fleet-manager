@@ -112,7 +112,7 @@ app.decorate('fleetDir', config.fleetDir);
 app.decorate('userService', userService);
 
 // ── Routes ───────────────────────────────────────────────────────────────────
-await registerAuth(app, userService);
+await registerAuth(app, userService, { secure: !!httpsOptions });
 await app.register(fastifyWebsocket);
 await app.register(healthRoutes);
 await app.register(configRoutes);

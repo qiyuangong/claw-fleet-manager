@@ -1,10 +1,23 @@
 import { URL } from 'node:url';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { UserService } from './services/user.js';
 
 const PROXY_TOKEN_SECRET = randomBytes(32);
 const PROXY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+interface FailedAttempt {
+  count: number;
+  resetAt: number;
+}
+
+interface AuthOptions {
+  maxFailedAttempts?: number;
+  windowMs?: number;
+  secure?: boolean;
+}
+
+type AttemptKind = 'basic' | 'cookie' | 'query';
 
 function getProxyTokenPayload(expires: number, instanceId: string): string {
   return `${expires}.${instanceId}`;
@@ -90,12 +103,96 @@ function parseProxyCookie(cookieHeader: string | undefined, cookieName: string):
   return null;
 }
 
-export async function registerAuth(app: FastifyInstance, userService: UserService) {
+function getSanitizedPath(rawUrl: string): string {
+  return new URL(rawUrl, 'http://localhost').pathname;
+}
+
+export async function registerAuth(
+  app: FastifyInstance,
+  userService: UserService,
+  options: AuthOptions = {},
+) {
   const proxyCookieName = 'x-fleet-proxy-auth';
-  const setProxyCookie = (reply: { header: (name: string, value: string) => unknown }, encoded: string) => {
+  const {
+    maxFailedAttempts = 20,
+    windowMs = 15 * 60 * 1000,
+    secure = false,
+  } = options;
+
+  const failedAttempts = new Map<string, FailedAttempt>();
+
+  const pruneInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of failedAttempts) {
+      if (now >= entry.resetAt) {
+        failedAttempts.delete(ip);
+      }
+    }
+  }, 5 * 60 * 1000);
+  pruneInterval.unref();
+
+  app.addHook('onClose', async () => {
+    clearInterval(pruneInterval);
+  });
+
+  function getAttemptKey(ip: string, kind: AttemptKind): string {
+    return `${ip}:${kind}`;
+  }
+
+  function isRateLimited(ip: string, kind: AttemptKind): boolean {
+    const entry = failedAttempts.get(getAttemptKey(ip, kind));
+    if (!entry) return false;
+    if (Date.now() >= entry.resetAt) {
+      failedAttempts.delete(getAttemptKey(ip, kind));
+      return false;
+    }
+    return entry.count >= maxFailedAttempts;
+  }
+
+  function recordFailure(ip: string, kind: AttemptKind): void {
+    const key = getAttemptKey(ip, kind);
+    const now = Date.now();
+    const entry = failedAttempts.get(key);
+    if (!entry || now >= entry.resetAt) {
+      failedAttempts.set(key, { count: 1, resetAt: now + windowMs });
+      return;
+    }
+
+    failedAttempts.set(key, { count: entry.count + 1, resetAt: entry.resetAt });
+  }
+
+  function sendUnauthorized(reply: FastifyReply, rawUrl: string) {
+    const suppressBrowserPrompt =
+      rawUrl.startsWith('/api/')
+      || rawUrl.startsWith('/ws/')
+      || rawUrl.startsWith('/proxy/')
+      || rawUrl.startsWith('/proxy-ws/');
+
+    if (!suppressBrowserPrompt) {
+      reply.header('www-authenticate', 'Basic realm="Claw Fleet Manager"');
+    }
+    return reply.status(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+  }
+
+  function logAuthFailure(request: { log: { warn: (payload: object, message: string) => void } }, clientIp: string, rawUrl: string) {
+    request.log.warn(
+      { audit: true, event: 'auth_failed', ip: clientIp, path: getSanitizedPath(rawUrl) },
+      'Authentication failed',
+    );
+  }
+
+  function logAuthSuccess(request: { log: { info: (payload: object, message: string) => void } }, clientIp: string, username: string) {
+    request.log.info(
+      { audit: true, event: 'auth_success', ip: clientIp, username },
+      'Authentication succeeded',
+    );
+  }
+
+  const setProxyCookie = (reply: FastifyReply, encoded: string) => {
+    const securePart = secure ? '; Secure' : '';
     reply.header(
       'set-cookie',
-      `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict`,
+      `${proxyCookieName}=${encoded}; Path=/proxy; HttpOnly; SameSite=Strict${securePart}`,
     );
   };
 
@@ -110,55 +207,85 @@ export async function registerAuth(app: FastifyInstance, userService: UserServic
       return;
     }
 
+    const clientIp = request.ip;
+    const parsedUrl = new URL(rawUrl, 'http://localhost');
+    const basicHeader = request.headers.authorization;
+    const hasBasicAuthAttempt = typeof basicHeader === 'string' && basicHeader.startsWith('Basic ');
+    const proxyToken = isProxyPath ? parsedUrl.searchParams.get('proxyToken') : null;
+    const proxyInstanceId = isProxyPath ? parseProxyInstanceId(rawUrl) : null;
+    const hasProxyToken = Boolean(proxyToken && proxyInstanceId && validateProxyToken(proxyToken, proxyInstanceId));
+    if (hasProxyToken) {
+      return;
+    }
+
+    const hasProxyCookieAttempt = isProxyPath || isWsPath
+      ? (request.headers.cookie?.includes(`${proxyCookieName}=`) ?? false)
+      : false;
+    const hasQueryAuthAttempt = (isProxyPath || isWsPath) && parsedUrl.searchParams.has('auth');
+    let sawRateLimitedAttempt = false;
+
     const headerCredentials = parseBasicAuth(request.headers.authorization);
-    if (headerCredentials) {
-      const user = await userService.verify(headerCredentials.username, headerCredentials.password);
-      if (user) {
-        request.user = user;
-        setProxyCookie(reply, request.headers.authorization!.slice(6));
-        return;
+    if (hasBasicAuthAttempt) {
+      if (isRateLimited(clientIp, 'basic')) {
+        sawRateLimitedAttempt = true;
+      } else {
+        if (headerCredentials) {
+          const user = await userService.verify(headerCredentials.username, headerCredentials.password);
+          if (user) {
+            request.user = user;
+            logAuthSuccess(request, clientIp, user.username);
+            setProxyCookie(reply, request.headers.authorization!.slice(6));
+            return;
+          }
+        }
+        recordFailure(clientIp, 'basic');
       }
     }
 
     if (isProxyPath || isWsPath) {
       const cookieCredentials = parseProxyCookie(request.headers.cookie, proxyCookieName);
-      if (cookieCredentials) {
-        const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
-        if (user) {
-          request.user = user;
-          return;
+      if (hasProxyCookieAttempt) {
+        if (isRateLimited(clientIp, 'cookie')) {
+          sawRateLimitedAttempt = true;
+        } else {
+          if (cookieCredentials) {
+            const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
+            if (user) {
+              request.user = user;
+              logAuthSuccess(request, clientIp, user.username);
+              return;
+            }
+          }
+          recordFailure(clientIp, 'cookie');
         }
       }
 
-      if (isProxyPath) {
-        const proxyToken = new URL(rawUrl, 'http://localhost').searchParams.get('proxyToken');
-        const proxyInstanceId = parseProxyInstanceId(rawUrl);
-        if (proxyToken && proxyInstanceId && validateProxyToken(proxyToken, proxyInstanceId)) {
-          return;
-        }
-      }
-
-      const queryCredentials = parseWebSocketQueryAuth(rawUrl);
-      if (queryCredentials) {
-        const user = await userService.verify(queryCredentials.username, queryCredentials.password);
-        if (user) {
-          request.user = user;
-          const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
-          if (encoded) setProxyCookie(reply, encoded);
-          return;
+      if (hasQueryAuthAttempt) {
+        if (isRateLimited(clientIp, 'query')) {
+          sawRateLimitedAttempt = true;
+        } else {
+          const queryCredentials = parseWebSocketQueryAuth(rawUrl);
+          if (queryCredentials) {
+            const user = await userService.verify(queryCredentials.username, queryCredentials.password);
+            if (user) {
+              request.user = user;
+              logAuthSuccess(request, clientIp, user.username);
+              const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
+              if (encoded) setProxyCookie(reply, encoded);
+              return;
+            }
+          }
+          recordFailure(clientIp, 'query');
         }
       }
     }
 
-    const suppressBrowserPrompt =
-      rawUrl.startsWith('/api/')
-      || rawUrl.startsWith('/ws/')
-      || rawUrl.startsWith('/proxy/')
-      || rawUrl.startsWith('/proxy-ws/');
-
-    if (!suppressBrowserPrompt) {
-      reply.header('www-authenticate', 'Basic realm="Claw Fleet Manager"');
+    if (sawRateLimitedAttempt) {
+      logAuthFailure(request, clientIp, rawUrl);
+      return reply.status(429).send({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
     }
-    return reply.status(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+
+    logAuthFailure(request, clientIp, rawUrl);
+    return sendUnauthorized(reply, rawUrl);
   });
 }

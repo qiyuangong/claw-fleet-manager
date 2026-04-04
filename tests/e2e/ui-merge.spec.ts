@@ -27,6 +27,10 @@ interface MountOptions {
   instances: FleetInstance[];
 }
 
+interface MountHandles {
+  createInstancePayloads: unknown[];
+}
+
 const sampleConfig = {
   channels: {
     feishu: {
@@ -60,13 +64,15 @@ const sampleUsers = [
   { username: 'alice', role: 'user', assignedProfiles: ['team-alpha'] },
 ];
 
-async function mountDashboard(page: Page, opts: MountOptions) {
+async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHandles> {
   const {
     role = 'admin',
     assignedProfiles = [],
     fleetMode,
     instances,
   } = opts;
+  const createInstancePayloads: unknown[] = [];
+  await page.setViewportSize({ width: 1440, height: 1600 });
 
   await page.addInitScript(() => {
     const openedUrls: string[] = [];
@@ -173,6 +179,15 @@ async function mountDashboard(page: Page, opts: MountOptions) {
   });
 
   await page.route('**/api/fleet/instances', async (route) => {
+    if (route.request().method() === 'POST') {
+      createInstancePayloads.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(instances[0] ?? null),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -291,10 +306,11 @@ async function mountDashboard(page: Page, opts: MountOptions) {
   });
 
   await page.goto('/');
+  return { createInstancePayloads };
 }
 
 test('admin can navigate all admin pages and instance tabs in docker mode', async ({ page }) => {
-  await mountDashboard(page, {
+  const handles = await mountDashboard(page, {
     fleetMode: 'hybrid',
     instances: [
       {
@@ -357,11 +373,44 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   await expect(page.getByRole('heading', { name: 'Add Docker Instance' })).toBeVisible();
   await expect(page.getByText('Docker Image')).toHaveCount(0);
   await page.getByRole('button', { name: 'Advanced Docker Config' }).click();
-  await expect(page.getByText('Docker Image')).toBeVisible();
-  await expect(page.getByText('CPU Limit')).toBeVisible();
-  await expect(page.getByText('Memory Limit')).toBeVisible();
-  await expect(page.getByText('Port Step')).toBeVisible();
-  await page.locator('.dialog-overlay').click({ position: { x: 12, y: 12 } });
+  await expect(page.getByLabel('Docker Image')).toHaveValue('openclaw:local');
+  await expect(page.getByLabel('CPU Limit')).toHaveValue('2');
+  await expect(page.getByLabel('Memory Limit')).toHaveValue('4g');
+  await expect(page.getByLabel('Port Step')).toHaveValue('20');
+  await expect(page.getByLabel('Enable npm packages')).toBeChecked();
+  await page.getByPlaceholder('team-alpha').fill('Team-Delta');
+  await page.getByLabel('Docker Image').fill('ghcr.io/acme/openclaw:test');
+  await page.getByLabel('CPU Limit').fill('6');
+  await page.getByLabel('Memory Limit').fill('12g');
+  await page.getByLabel('Port Step').fill('35');
+  const enableNpmPackagesCheckbox = page.getByLabel('Enable npm packages');
+  await enableNpmPackagesCheckbox.uncheck();
+  await page.getByRole('button', { name: 'Create Docker Instance' }).click();
+  await expect.poll(() => handles.createInstancePayloads.length).toBe(1);
+  expect(handles.createInstancePayloads[0]).toEqual({
+    kind: 'docker',
+    name: 'team-delta',
+    image: 'ghcr.io/acme/openclaw:test',
+    cpuLimit: '6',
+    memoryLimit: '12g',
+    portStep: 35,
+    enableNpmPackages: false,
+  });
+
+  await page.getByRole('button', { name: '+ Add Instance' }).click();
+  await page.getByRole('button', { name: 'Create Profile' }).click();
+  await expect(page.getByRole('heading', { name: 'Add Profile' })).toBeVisible();
+  await expect(page.getByPlaceholder('18789')).toBeVisible();
+  await expect(page.getByText('Docker Image')).toHaveCount(0);
+  await page.getByPlaceholder('team-alpha').fill('Rescue-Team');
+  await page.getByPlaceholder('18789').fill('987');
+  await page.getByRole('button', { name: 'Create Profile' }).click();
+  await expect.poll(() => handles.createInstancePayloads.length).toBe(2);
+  expect(handles.createInstancePayloads[1]).toEqual({
+    kind: 'profile',
+    name: 'rescue-team',
+    port: 987,
+  });
 
   await page.getByRole('button', { name: /^openclaw-1/i }).click();
   await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();

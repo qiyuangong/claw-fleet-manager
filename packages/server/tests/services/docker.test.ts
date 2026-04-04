@@ -61,6 +61,78 @@ describe('DockerService', () => {
     expect(mockContainer.restart).toHaveBeenCalled();
   });
 
+  it('createManagedContainer creates and starts a hardened managed container with npm cache mount', async () => {
+    const createdContainer = { start: vi.fn().mockResolvedValue(undefined) };
+    mockDocker.listContainers.mockResolvedValue([]);
+    mockDocker.createContainer = vi.fn().mockResolvedValue(createdContainer);
+
+    await svc.createManagedContainer({
+      name: 'team-alpha',
+      index: 2,
+      image: 'ghcr.io/acme/openclaw:latest',
+      gatewayPort: 18809,
+      token: 'secret-token',
+      timezone: 'UTC',
+      configDir: '/tmp/config/team-alpha',
+      workspaceDir: '/tmp/workspace/team-alpha',
+      npmDir: '/tmp/config/team-alpha/.npm',
+      cpuLimit: '1.5',
+      memLimit: '2G',
+    });
+
+    expect(mockDocker.createContainer).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'team-alpha',
+      Image: 'ghcr.io/acme/openclaw:latest',
+      Labels: expect.objectContaining({
+        'dev.claw-fleet.managed': 'true',
+        'dev.claw-fleet.instance-index': '2',
+      }),
+      Env: expect.arrayContaining([
+        'HOME=/home/node',
+        'TERM=xterm-256color',
+        'OPENCLAW_GATEWAY_TOKEN=secret-token',
+        'TZ=UTC',
+      ]),
+      HostConfig: expect.objectContaining({
+        Binds: [
+          '/tmp/config/team-alpha:/home/node/.openclaw',
+          '/tmp/workspace/team-alpha:/home/node/.openclaw/workspace',
+          '/tmp/config/team-alpha/.npm:/home/node/.npm',
+        ],
+        PortBindings: {
+          '18789/tcp': [{ HostPort: '18809' }],
+        },
+        NanoCpus: 1500000000,
+        Memory: 2147483648,
+        ReadonlyRootfs: true,
+        CapDrop: ['ALL'],
+      }),
+    }));
+    expect(createdContainer.start).toHaveBeenCalled();
+  });
+
+  it('createManagedContainer is a no-op when the container already exists', async () => {
+    mockDocker.listContainers.mockResolvedValue([
+      { Names: ['/team-alpha'], Id: 'abc123', State: 'running' },
+    ]);
+    mockDocker.createContainer = vi.fn();
+
+    await svc.createManagedContainer({
+      name: 'team-alpha',
+      index: 2,
+      image: 'ghcr.io/acme/openclaw:latest',
+      gatewayPort: 18809,
+      token: 'secret-token',
+      timezone: 'UTC',
+      configDir: '/tmp/config/team-alpha',
+      workspaceDir: '/tmp/workspace/team-alpha',
+      cpuLimit: '1.5',
+      memLimit: '2G',
+    });
+
+    expect(mockDocker.createContainer).not.toHaveBeenCalled();
+  });
+
   it('removes a container with force=true', async () => {
     await svc.removeContainer('openclaw-1');
     expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });

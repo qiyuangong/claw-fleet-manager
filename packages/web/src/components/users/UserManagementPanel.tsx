@@ -135,7 +135,7 @@ export function UserManagementPanel() {
             <tr>
               <th>{t('username')}</th>
               <th>{t('role')}</th>
-              <th>{t('assignedProfiles')}</th>
+              <th>{t('assignedInstances')}</th>
               <th>{t('actions')}</th>
             </tr>
           </thead>
@@ -158,7 +158,7 @@ export function UserManagementPanel() {
                           setSelectedProfiles(user.assignedProfiles);
                         }}
                       >
-                        {t('profiles')}
+                        {t('instances')}
                       </button>
                     ) : null}
                     {user.username !== currentUser.username ? (
@@ -209,7 +209,7 @@ export function UserManagementPanel() {
                   ) : null}
                 </label>
               ))}
-              {allProfiles.length === 0 ? <p className="muted">{t('noProfilesAvailable')}</p> : null}
+              {allProfiles.length === 0 ? <p className="muted">{t('noInstancesAvailable')}</p> : null}
             </div>
             <div className="dialog-actions">
               <button className="secondary-button" onClick={() => setEditProfilesTarget(null)}>{t('cancel')}</button>

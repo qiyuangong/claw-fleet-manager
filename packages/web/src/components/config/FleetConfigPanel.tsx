@@ -17,16 +17,9 @@ export function FleetConfigPanel() {
   const handleSave = async () => {
     setError(null);
     try {
-      const payload = {
-        BASE_URL: data?.baseUrl ?? '',
-        MODEL_ID: data?.modelId ?? '',
-        OPENCLAW_IMAGE: data?.openclawImage ?? '',
-        CPU_LIMIT: data?.cpuLimit ?? '',
-        MEM_LIMIT: data?.memLimit ?? '',
-        PORT_STEP: data ? String(data.portStep) : '',
-        ENABLE_NPM_PACKAGES: data?.enableNpmPackages ? 'true' : 'false',
-        ...formDefaults,
-        ...form,
+      const payload: Record<string, string> = {
+        BASE_DIR: form['BASE_DIR'] ?? formDefaults['BASE_DIR'] ?? '',
+        TZ: form['TZ'] ?? formDefaults['TZ'] ?? '',
       };
       await save(payload);
       setSaved(true);

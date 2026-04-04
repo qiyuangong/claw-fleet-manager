@@ -28,8 +28,6 @@ export interface DeploymentBackend {
   // Scaling / management
   createInstance(opts: CreateInstanceOpts): Promise<FleetInstance>;
   removeInstance(id: string): Promise<void>;
-  // Count-based batch scale (Docker mode only; ProfileBackend throws 'not supported')
-  scaleFleet(count: number, fleetDir: string): Promise<FleetStatus>;
 
   // Monitoring
   getCachedStatus(): FleetStatus | null;

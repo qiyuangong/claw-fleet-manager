@@ -321,10 +321,6 @@ export class ProfileBackend implements DeploymentBackend {
     await this.refresh();
   }
 
-  async scaleFleet(_count: number, _fleetDir: string): Promise<FleetStatus> {
-    throw new Error('scaleFleet not supported in profile mode — use createInstance/removeInstance');
-  }
-
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
     const logFile = join(this.fleetDir, 'logs', `${id}.log`);
     let stopped = false;

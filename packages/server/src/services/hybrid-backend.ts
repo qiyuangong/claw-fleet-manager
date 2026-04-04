@@ -83,11 +83,6 @@ export class HybridBackend implements DeploymentBackend {
     await this.refresh();
   }
 
-  async scaleFleet(count: number, fleetDir: string): Promise<FleetStatus> {
-    await this.dockerBackend.scaleFleet(count, fleetDir);
-    return this.refresh();
-  }
-
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
     const backend = this.backendForIdSync(id);
     return backend.streamLogs(id, onData);

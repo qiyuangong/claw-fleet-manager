@@ -29,12 +29,9 @@ export interface FleetConfig {
   apiKey: string;
   modelId: string;
   baseDir: string;
-  count: number;
   cpuLimit: string;
   memLimit: string;
   portStep: number;
-  configBase: string;
-  workspaceBase: string;
   tz: string;
   openclawImage: string;
   enableNpmPackages: boolean;

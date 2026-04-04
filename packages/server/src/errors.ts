@@ -15,6 +15,13 @@ export class AppError extends Error {
 
 const INTERNAL_ERROR_MESSAGE = 'An internal error occurred';
 
+function isPathLikeMessage(message: string): boolean {
+  return (
+    /(?:^|[\s"'"'`(])(?:\/|~\/|\.\.\/|\.\/|[A-Za-z]:\\)[^\s"'"'`]+/.test(message)
+    || /(?:^|[\s"'"'`(])[^\s"'"'`]*\\[^\s"'"'`]+/.test(message)
+  );
+}
+
 export function safeError(err: unknown): string {
   if (err instanceof AppError) {
     return err.message;
@@ -22,7 +29,7 @@ export function safeError(err: unknown): string {
 
   if (err instanceof Error) {
     const message = err.message ?? '';
-    if (!message || message.length > 200 || /[\\/]/.test(message)) {
+    if (!message || message.length > 200 || isPathLikeMessage(message)) {
       return INTERNAL_ERROR_MESSAGE;
     }
     return message;

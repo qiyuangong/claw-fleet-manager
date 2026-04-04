@@ -96,9 +96,9 @@ export async function fleetRoutes(app: FastifyInstance) {
       });
       return instance;
     } catch (error: unknown) {
-      const message = safeError(error);
-      const statusCode = message.includes('already exists') || message.includes('in use') ? 409 : 500;
-      return reply.status(statusCode).send({ error: message, code: 'CREATE_FAILED' });
+      const originalMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+      const statusCode = originalMessage.includes('already exists') || originalMessage.includes('in use') ? 409 : 500;
+      return reply.status(statusCode).send({ error: safeError(error), code: 'CREATE_FAILED' });
     }
   });
 

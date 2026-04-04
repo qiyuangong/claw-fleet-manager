@@ -147,6 +147,20 @@ describe('Fleet routes', () => {
     });
   });
 
+  it('POST /api/fleet/instances keeps conflict status for sanitizable backend errors', async () => {
+    mockBackend.createInstance.mockRejectedValueOnce(new Error('already exists /tmp/openclaw/config.json'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: { kind: 'docker', name: 'team-conflict' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('CREATE_FAILED');
+    expect(res.json().error).toBe('An internal error occurred');
+  });
+
   it('DELETE /api/fleet/instances/:id removes a named docker instance', async () => {
     const res = await app.inject({ method: 'DELETE', url: '/api/fleet/instances/team-alpha' });
     expect(res.statusCode).toBe(200);

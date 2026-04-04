@@ -3,18 +3,43 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { validateInstanceId } from '../validate.js';
 import { requireAdmin, requireProfileAccess } from '../authorize.js';
+import { errorResponseSchema, fleetConfigSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
 
 const fleetConfigBodySchema = z.record(z.string(), z.string());
 const instanceConfigBodySchema = z.record(z.string(), z.unknown());
 
 export async function configRoutes(app: FastifyInstance) {
-  app.get('/api/config/fleet', { preHandler: requireAdmin }, async () => {
+  app.get('/api/config/fleet', {
+    preHandler: requireAdmin,
+    schema: {
+      tags: ['Config'],
+      summary: 'Read fleet-level configuration',
+      response: {
+        200: fleetConfigSchema,
+      },
+    },
+  }, async () => {
     const cached = app.backend.getCachedStatus();
     const liveCount = cached?.instances.filter((instance) => instance.mode === 'docker').length;
     return app.fleetConfig.readFleetConfig(liveCount);
   });
 
-  app.put('/api/config/fleet', { preHandler: requireAdmin }, async (request, reply) => {
+  app.put('/api/config/fleet', {
+    preHandler: requireAdmin,
+    schema: {
+      tags: ['Config'],
+      summary: 'Write fleet-level configuration',
+      body: {
+        type: 'object',
+        additionalProperties: true,
+      },
+      response: {
+        200: okResponseSchema,
+        400: errorResponseSchema,
+        409: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
     const parsed = fleetConfigBodySchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Body must be a Record<string, string>', code: 'INVALID_BODY' });
@@ -59,7 +84,22 @@ export async function configRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  app.get<{ Params: { id: string } }>('/api/fleet/:id/config', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.get<{ Params: { id: string } }>('/api/fleet/:id/config', {
+    preHandler: requireProfileAccess,
+    schema: {
+      tags: ['Config'],
+      summary: 'Read per-instance configuration',
+      params: instanceIdParamsSchema,
+      response: {
+        200: {
+          type: 'object',
+          additionalProperties: true,
+        },
+        400: errorResponseSchema,
+        404: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
@@ -71,7 +111,23 @@ export async function configRoutes(app: FastifyInstance) {
     }
   });
 
-  app.put<{ Params: { id: string } }>('/api/fleet/:id/config', { preHandler: requireProfileAccess }, async (request, reply) => {
+  app.put<{ Params: { id: string } }>('/api/fleet/:id/config', {
+    preHandler: requireProfileAccess,
+    schema: {
+      tags: ['Config'],
+      summary: 'Write per-instance configuration',
+      params: instanceIdParamsSchema,
+      body: {
+        type: 'object',
+        additionalProperties: true,
+      },
+      response: {
+        200: okResponseSchema,
+        400: errorResponseSchema,
+        500: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });

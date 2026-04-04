@@ -1,6 +1,8 @@
 // packages/server/src/index.ts
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyWebsocket from '@fastify/websocket';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -48,6 +50,34 @@ const httpsOptions = config.tls
   : undefined;
 
 const app = Fastify({ logger: true, ...(httpsOptions ? { https: httpsOptions } : {}) });
+
+await app.register(fastifySwagger, {
+  openapi: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Claw Fleet Manager API',
+      description: 'HTTP API for managing openclaw instance fleets',
+      version: '1.0.0',
+    },
+    components: {
+      securitySchemes: {
+        basicAuth: {
+          type: 'http',
+          scheme: 'basic',
+        },
+      },
+    },
+    security: [{ basicAuth: [] }],
+  },
+});
+
+await app.register(fastifySwaggerUi, {
+  routePrefix: '/documentation',
+  uiConfig: {
+    docExpansion: 'list',
+    deepLinking: true,
+  },
+});
 
 // ── Shared services ──────────────────────────────────────────────────────────
 const fleetConfig = new FleetConfigService(config.fleetDir, config.baseDir, resolveConfigPath());

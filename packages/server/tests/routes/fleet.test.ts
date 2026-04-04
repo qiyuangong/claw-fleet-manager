@@ -147,18 +147,20 @@ describe('Fleet routes', () => {
     });
   });
 
-  it('POST /api/fleet/instances keeps conflict status for sanitizable backend errors', async () => {
-    mockBackend.createInstance.mockRejectedValueOnce(new Error('already exists /tmp/openclaw/config.json'));
+  it('POST /api/fleet/instances returns 409 for docker name conflicts even when the message is sanitized', async () => {
+    mockBackend.createInstance.mockRejectedValueOnce(new Error('Conflict. The container name "/openclaw-1" is already in use.'));
 
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
-      payload: { kind: 'docker', name: 'team-conflict' },
+      payload: { kind: 'docker', name: 'team-alpha' },
     });
 
     expect(res.statusCode).toBe(409);
-    expect(res.json().code).toBe('CREATE_FAILED');
-    expect(res.json().error).toBe('An internal error occurred');
+    expect(res.json()).toEqual({
+      error: 'An internal error occurred',
+      code: 'CREATE_FAILED',
+    });
   });
 
   it('DELETE /api/fleet/instances/:id removes a named docker instance', async () => {

@@ -61,6 +61,8 @@ describe('Config routes — hybrid mode', () => {
       configBase: '/tmp/instances',
       workspaceBase: '/tmp/workspaces',
       tz: 'UTC',
+      openclawImage: 'openclaw:local',
+      enableNpmPackages: false,
     }));
     mockFleetConfig.readFleetEnvRaw.mockReturnValue({
       BASE_URL: 'https://api.example.com',
@@ -113,6 +115,31 @@ describe('Config routes — hybrid mode', () => {
     expect(res.json().apiKey).toBe('sk-***123');
     expect(res.json().baseDir).toBe('/tmp/managed');
     expect(mockFleetConfig.readFleetConfig).toHaveBeenCalledWith(2);
+  });
+
+  it('GET /api/config/fleet preserves numeric and boolean field types', async () => {
+    mockFleetConfig.readFleetConfig.mockReturnValueOnce({
+      baseUrl: 'https://api.example.com',
+      apiKey: 'sk-***123',
+      modelId: 'gpt-4',
+      baseDir: '/tmp/managed',
+      count: 3,
+      cpuLimit: '4',
+      memLimit: '8G',
+      portStep: 20,
+      configBase: '/tmp/instances',
+      workspaceBase: '/tmp/workspaces',
+      tz: 'UTC',
+      openclawImage: 'openclaw:local',
+      enableNpmPackages: true,
+    });
+
+    const res = await app.inject({ method: 'GET', url: '/api/config/fleet' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().count).toBeTypeOf('number');
+    expect(res.json().portStep).toBeTypeOf('number');
+    expect(res.json().enableNpmPackages).toBeTypeOf('boolean');
   });
 
   it('PUT /api/config/fleet writes config', async () => {

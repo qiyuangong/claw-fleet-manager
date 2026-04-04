@@ -48,7 +48,6 @@ describe('HybridBackend', () => {
     revealToken: vi.fn(),
     readInstanceConfig: vi.fn(),
     writeInstanceConfig: vi.fn(),
-    scaleFleet: vi.fn(),
   };
 
   const profileBackend = {
@@ -67,7 +66,6 @@ describe('HybridBackend', () => {
     revealToken: vi.fn(),
     readInstanceConfig: vi.fn(),
     writeInstanceConfig: vi.fn(),
-    scaleFleet: vi.fn(),
   };
 
   let backend: HybridBackend;

@@ -54,12 +54,9 @@ describe('Config routes — hybrid mode', () => {
       apiKey: 'sk-***123',
       modelId: 'gpt-4',
       baseDir: '/tmp/managed',
-      count: 3,
       cpuLimit: '4',
       memLimit: '8G',
       portStep: 20,
-      configBase: '/tmp/instances',
-      workspaceBase: '/tmp/workspaces',
       tz: 'UTC',
       openclawImage: 'openclaw:local',
       enableNpmPackages: false,
@@ -114,21 +111,18 @@ describe('Config routes — hybrid mode', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().apiKey).toBe('sk-***123');
     expect(res.json().baseDir).toBe('/tmp/managed');
-    expect(mockFleetConfig.readFleetConfig).toHaveBeenCalledWith(2);
+    expect(mockFleetConfig.readFleetConfig).toHaveBeenCalledWith();
   });
 
-  it('GET /api/config/fleet preserves numeric and boolean field types', async () => {
+  it('GET /api/config/fleet omits deprecated sizing/path fields', async () => {
     mockFleetConfig.readFleetConfig.mockReturnValueOnce({
       baseUrl: 'https://api.example.com',
       apiKey: 'sk-***123',
       modelId: 'gpt-4',
       baseDir: '/tmp/managed',
-      count: 3,
       cpuLimit: '4',
       memLimit: '8G',
       portStep: 20,
-      configBase: '/tmp/instances',
-      workspaceBase: '/tmp/workspaces',
       tz: 'UTC',
       openclawImage: 'openclaw:local',
       enableNpmPackages: true,
@@ -137,7 +131,9 @@ describe('Config routes — hybrid mode', () => {
     const res = await app.inject({ method: 'GET', url: '/api/config/fleet' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.json().count).toBeTypeOf('number');
+    expect(res.json()).not.toHaveProperty('count');
+    expect(res.json()).not.toHaveProperty('configBase');
+    expect(res.json()).not.toHaveProperty('workspaceBase');
     expect(res.json().portStep).toBeTypeOf('number');
     expect(res.json().enableNpmPackages).toBeTypeOf('boolean');
   });

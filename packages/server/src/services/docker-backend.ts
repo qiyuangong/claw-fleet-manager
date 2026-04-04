@@ -293,32 +293,6 @@ export class DockerBackend implements DeploymentBackend {
     this.fleetConfig.writeInstanceConfig(id, config);
   }
 
-  async scaleFleet(count: number, _fleetDir: string): Promise<FleetStatus> {
-    const currentContainers = await this.docker.listFleetContainers();
-    const currentCount = currentContainers.length;
-
-    if (count === currentCount) {
-      return this.refresh();
-    }
-
-    if (count > currentCount) {
-      for (let next = currentCount + 1; next <= count; next += 1) {
-        await this.createInstance({ name: `openclaw-${next}` });
-      }
-      return this.refresh();
-    }
-
-    const containersByDescendingIndex = currentContainers
-      .filter((container) => container.index !== undefined)
-      .sort((left, right) => (right.index ?? 0) - (left.index ?? 0));
-
-    for (const container of containersByDescendingIndex.slice(0, currentCount - count)) {
-      await this.removeInstance(container.name);
-    }
-
-    return this.refresh();
-  }
-
   private mapStatus(status: string): FleetInstance['status'] {
     if (status === 'running') return 'running';
     if (status === 'restarting') return 'restarting';

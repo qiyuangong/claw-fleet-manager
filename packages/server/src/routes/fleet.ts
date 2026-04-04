@@ -7,7 +7,6 @@ import { getManagedProfileNameError, isValidManagedProfileName } from '../profil
 import { errorResponseSchema, fleetInstanceSchema, fleetStatusSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
 import { MANAGED_INSTANCE_ID_RE, validateInstanceId } from '../validate.js';
 
-const scaleSchema = z.object({ count: z.number().int().positive() });
 const createInstanceSchema = z.object({
   kind: z.enum(['docker', 'profile']),
   name: z.string().min(1),
@@ -20,7 +19,6 @@ const createInstanceSchema = z.object({
   portStep: z.number().int().positive().optional(),
   enableNpmPackages: z.boolean().optional(),
 });
-let scaling = false;
 
 export async function fleetRoutes(app: FastifyInstance) {
   app.get('/api/fleet', {
@@ -42,58 +40,6 @@ export async function fleetRoutes(app: FastifyInstance) {
       instances: status.instances.filter((i) => assigned.has(i.id)),
       totalRunning: status.instances.filter((i) => assigned.has(i.id) && i.status === 'running').length,
     };
-  });
-
-  app.post('/api/fleet/scale', {
-    preHandler: requireAdmin,
-    attachValidation: true,
-    schema: {
-      tags: ['Fleet'],
-      summary: 'Scale fleet to the requested instance count',
-      body: {
-        type: 'object',
-        properties: {
-          count: { type: 'integer', minimum: 1 },
-        },
-        required: ['count'],
-      },
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            ok: { type: 'boolean' },
-            fleet: fleetStatusSchema,
-          },
-          required: ['ok', 'fleet'],
-        },
-        400: errorResponseSchema,
-        409: errorResponseSchema,
-        500: errorResponseSchema,
-      },
-    },
-  }, async (request, reply) => {
-    if (request.validationError) {
-      return reply.status(400).send({ error: 'count must be a positive integer', code: 'INVALID_COUNT' });
-    }
-    const parsed = scaleSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: 'count must be a positive integer', code: 'INVALID_COUNT' });
-    }
-
-    if (scaling) {
-      return reply.status(409).send({ error: 'Scale operation already in progress', code: 'SCALE_IN_PROGRESS' });
-    }
-    scaling = true;
-
-    try {
-      const { count } = parsed.data;
-      const fleetStatus = await app.backend.scaleFleet(count, app.fleetDir);
-      return { ok: true, fleet: fleetStatus };
-    } catch (error: unknown) {
-      return reply.status(500).send({ error: safeError(error), code: 'SCALE_FAILED' });
-    } finally {
-      scaling = false;
-    }
   });
 
   app.post('/api/fleet/instances', {

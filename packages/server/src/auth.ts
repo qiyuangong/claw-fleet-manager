@@ -163,6 +163,20 @@ export async function registerAuth(
     return reply.status(401).send({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
   }
 
+  function logAuthFailure(request: { log: { warn: (payload: object, message: string) => void } }, clientIp: string, rawUrl: string) {
+    request.log.warn(
+      { audit: true, event: 'auth_failed', ip: clientIp, path: rawUrl },
+      'Authentication failed',
+    );
+  }
+
+  function logAuthSuccess(request: { log: { info: (payload: object, message: string) => void } }, clientIp: string, username: string) {
+    request.log.info(
+      { audit: true, event: 'auth_success', ip: clientIp, username },
+      'Authentication succeeded',
+    );
+  }
+
   const setProxyCookie = (reply: FastifyReply, encoded: string) => {
     const securePart = secure ? '; Secure' : '';
     reply.header(
@@ -207,6 +221,7 @@ export async function registerAuth(
     };
 
     if (hasCredentialAttempt && isRateLimited(clientIp)) {
+      logAuthFailure(request, clientIp, rawUrl);
       return reply.status(429).send({ error: 'Too many failed attempts', code: 'RATE_LIMITED' });
     }
 
@@ -216,6 +231,7 @@ export async function registerAuth(
         const user = await userService.verify(headerCredentials.username, headerCredentials.password);
         if (user) {
           request.user = user;
+          logAuthSuccess(request, clientIp, user.username);
           setProxyCookie(reply, request.headers.authorization!.slice(6));
           return;
         }
@@ -230,6 +246,7 @@ export async function registerAuth(
           const user = await userService.verify(cookieCredentials.username, cookieCredentials.password);
           if (user) {
             request.user = user;
+            logAuthSuccess(request, clientIp, user.username);
             return;
           }
         }
@@ -242,6 +259,7 @@ export async function registerAuth(
           const user = await userService.verify(queryCredentials.username, queryCredentials.password);
           if (user) {
             request.user = user;
+            logAuthSuccess(request, clientIp, user.username);
             const encoded = rawUrl.match(/[?&]auth=([^&]*)/)?.[1] ?? '';
             if (encoded) setProxyCookie(reply, encoded);
             return;
@@ -251,6 +269,7 @@ export async function registerAuth(
       }
     }
 
+    logAuthFailure(request, clientIp, rawUrl);
     return sendUnauthorized(reply, rawUrl);
   });
 }

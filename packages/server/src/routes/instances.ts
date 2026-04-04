@@ -153,7 +153,10 @@ export async function instanceRoutes(app: FastifyInstance) {
     }
     try {
       const token = await app.backend.revealToken(id);
-      request.log.info({ instance: id }, 'Token revealed');
+      request.log.info(
+        { audit: true, event: 'token_revealed', instance: id, username: request.user?.username, ip: request.ip },
+        'Token revealed',
+      );
       return { token };
     } catch {
       return reply.status(404).send({ error: `Token not found for instance ${id}`, code: 'TOKEN_NOT_FOUND' });

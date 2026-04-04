@@ -155,6 +155,18 @@ describe('User routes', () => {
       expect(res.statusCode).toBe(200);
     });
 
+    it('returns INVALID_BODY for malformed payloads', async () => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/api/users/me/password',
+        headers: { authorization: basic('alice', 'updated1234') },
+        payload: { currentPassword: 'updated1234', newPassword: 'short' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('INVALID_BODY');
+    });
+
     it('returns 422 with wrong current password', async () => {
       const res = await app.inject({ method: 'PUT', url: '/api/users/me/password', headers: { authorization: basic('alice', 'updated1234') }, payload: { currentPassword: 'wrongpassword', newPassword: 'updated1234' } });
       expect(res.statusCode).toBe(422);

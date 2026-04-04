@@ -2,6 +2,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAdmin } from '../authorize.js';
+import { safeError } from '../errors.js';
 import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
 import { MANAGED_INSTANCE_ID_RE, validateInstanceId } from '../validate.js';
 
@@ -49,8 +50,8 @@ export async function fleetRoutes(app: FastifyInstance) {
       const { count } = parsed.data;
       const fleetStatus = await app.backend.scaleFleet(count, app.fleetDir);
       return { ok: true, fleet: fleetStatus };
-    } catch (error: any) {
-      return reply.status(500).send({ error: error.message, code: 'SCALE_FAILED' });
+    } catch (error: unknown) {
+      return reply.status(500).send({ error: safeError(error), code: 'SCALE_FAILED' });
     } finally {
       scaling = false;
     }
@@ -94,9 +95,10 @@ export async function fleetRoutes(app: FastifyInstance) {
         enableNpmPackages,
       });
       return instance;
-    } catch (error: any) {
-      const statusCode = error.message?.includes('already exists') || error.message?.includes('in use') ? 409 : 500;
-      return reply.status(statusCode).send({ error: error.message, code: 'CREATE_FAILED' });
+    } catch (error: unknown) {
+      const message = safeError(error);
+      const statusCode = message.includes('already exists') || message.includes('in use') ? 409 : 500;
+      return reply.status(statusCode).send({ error: message, code: 'CREATE_FAILED' });
     }
   });
 
@@ -109,8 +111,8 @@ export async function fleetRoutes(app: FastifyInstance) {
     try {
       await app.backend.removeInstance(id);
       return { ok: true };
-    } catch (error: any) {
-      return reply.status(500).send({ error: error.message, code: 'REMOVE_FAILED' });
+    } catch (error: unknown) {
+      return reply.status(500).send({ error: safeError(error), code: 'REMOVE_FAILED' });
     }
   });
 }

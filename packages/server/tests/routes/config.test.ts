@@ -17,12 +17,32 @@ const mockFleetConfig = {
     workspaceBase: '/tmp/workspaces',
     tz: 'UTC',
   }),
+  readFleetEnvRaw: vi.fn().mockReturnValue({
+    BASE_URL: 'https://api.example.com',
+    API_KEY: 'sk-test123',
+    MODEL_ID: 'gpt-4',
+    OPENCLAW_IMAGE: 'openclaw:local',
+    CPU_LIMIT: '4',
+    MEM_LIMIT: '8G',
+    PORT_STEP: '20',
+    TZ: 'UTC',
+  }),
   writeFleetConfig: vi.fn(),
   updateBaseDir: vi.fn(),
 };
 
 const mockBackend = {
   getCachedStatus: vi.fn().mockReturnValue({
+    mode: 'hybrid',
+    instances: [
+      { id: 'openclaw-1', mode: 'docker' },
+      { id: 'openclaw-2', mode: 'docker' },
+      { id: 'team-alpha', mode: 'profile' },
+    ],
+    totalRunning: 2,
+    updatedAt: Date.now(),
+  }),
+  refresh: vi.fn().mockResolvedValue({
     mode: 'hybrid',
     instances: [
       { id: 'openclaw-1', mode: 'docker' },
@@ -66,9 +86,48 @@ describe('Config routes — hybrid mode', () => {
       url: '/api/config/fleet',
       payload: { BASE_URL: 'https://new.api.com', BASE_DIR: '/srv/openclaw' },
     });
+    expect(res.statusCode).toBe(409);
+    expect(mockFleetConfig.updateBaseDir).not.toHaveBeenCalled();
+  });
+
+  it('PUT /api/config/fleet preserves hidden env values when saving visible fields', async () => {
+    mockBackend.getCachedStatus.mockReturnValueOnce({
+      mode: 'hybrid',
+      instances: [{ id: 'team-alpha', mode: 'profile' }],
+      totalRunning: 1,
+      updatedAt: Date.now(),
+    });
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/config/fleet',
+      payload: { TZ: 'Asia/Shanghai' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalledWith(expect.objectContaining({
+      API_KEY: 'sk-test123',
+      BASE_URL: 'https://api.example.com',
+      TZ: 'Asia/Shanghai',
+    }));
+  });
+
+  it('PUT /api/config/fleet allows baseDir changes when no docker instances exist', async () => {
+    mockBackend.getCachedStatus.mockReturnValueOnce({
+      mode: 'hybrid',
+      instances: [{ id: 'team-alpha', mode: 'profile' }],
+      totalRunning: 1,
+      updatedAt: Date.now(),
+    });
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/config/fleet',
+      payload: { BASE_DIR: '/srv/openclaw', TZ: 'Asia/Shanghai' },
+    });
+
     expect(res.statusCode).toBe(200);
     expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw');
-    expect(mockFleetConfig.writeFleetConfig).toHaveBeenCalledWith({ BASE_URL: 'https://new.api.com' });
   });
 
   it('GET /api/fleet/:id/config returns instance config', async () => {

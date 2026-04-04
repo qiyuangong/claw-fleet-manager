@@ -10,7 +10,7 @@ export class HybridBackend implements DeploymentBackend {
   ) {}
 
   async initialize(): Promise<void> {
-    await Promise.all([this.dockerBackend.initialize(), this.profileBackend.initialize()]);
+    await Promise.allSettled([this.dockerBackend.initialize(), this.profileBackend.initialize()]);
     await this.refresh();
   }
 
@@ -26,13 +26,23 @@ export class HybridBackend implements DeploymentBackend {
   }
 
   async refresh(): Promise<FleetStatus> {
-    const [dockerStatus, profileStatus] = await Promise.all([
+    const [dockerResult, profileResult] = await Promise.allSettled([
       this.dockerBackend.refresh(),
       this.profileBackend.refresh(),
     ]);
+
+    const dockerStatus = dockerResult.status === 'fulfilled'
+      ? dockerResult.value
+      : this.dockerBackend.getCachedStatus();
+    const profileStatus = profileResult.status === 'fulfilled'
+      ? profileResult.value
+      : this.profileBackend.getCachedStatus();
+
     const merged = this.mergeStatuses(dockerStatus, profileStatus);
     if (!merged) {
-      throw new Error('Failed to build hybrid fleet status');
+      const dockerError = dockerResult.status === 'rejected' ? dockerResult.reason : null;
+      const profileError = profileResult.status === 'rejected' ? profileResult.reason : null;
+      throw dockerError ?? profileError ?? new Error('Failed to build hybrid fleet status');
     }
     this.cache = merged;
     return merged;
@@ -51,6 +61,10 @@ export class HybridBackend implements DeploymentBackend {
   }
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
+    if (opts.name) {
+      await this.ensureInstanceIdAvailable(opts.name);
+    }
+
     if (opts.kind === 'docker') {
       const instance = await this.dockerBackend.createInstance(opts);
       await this.refresh();
@@ -124,24 +138,40 @@ export class HybridBackend implements DeploymentBackend {
   }
 
   private backendForIdSync(id: string): DeploymentBackend {
-    const instance = this.getCachedStatus()?.instances.find((item) => item.id === id);
-    if (!instance) {
+    const matches = this.getCachedStatus()?.instances.filter((item) => item.id === id) ?? [];
+    if (matches.length === 0) {
       throw new Error(`Instance "${id}" not found`);
     }
-    return instance.mode === 'docker' ? this.dockerBackend : this.profileBackend;
+    if (matches.length > 1) {
+      throw new Error(`Instance "${id}" is ambiguous across backends`);
+    }
+    return matches[0].mode === 'docker' ? this.dockerBackend : this.profileBackend;
   }
 
   private async backendForId(id: string): Promise<DeploymentBackend> {
-    const cached = this.getCachedStatus()?.instances.find((item) => item.id === id);
-    if (cached) {
-      return cached.mode === 'docker' ? this.dockerBackend : this.profileBackend;
+    const cachedMatches = this.getCachedStatus()?.instances.filter((item) => item.id === id) ?? [];
+    if (cachedMatches.length === 1) {
+      return cachedMatches[0].mode === 'docker' ? this.dockerBackend : this.profileBackend;
+    }
+    if (cachedMatches.length > 1) {
+      throw new Error(`Instance "${id}" is ambiguous across backends`);
     }
 
     const refreshed = await this.refresh();
-    const instance = refreshed.instances.find((item) => item.id === id);
-    if (!instance) {
+    const matches = refreshed.instances.filter((item) => item.id === id);
+    if (matches.length === 0) {
       throw new Error(`Instance "${id}" not found`);
     }
-    return instance.mode === 'docker' ? this.dockerBackend : this.profileBackend;
+    if (matches.length > 1) {
+      throw new Error(`Instance "${id}" is ambiguous across backends`);
+    }
+    return matches[0].mode === 'docker' ? this.dockerBackend : this.profileBackend;
+  }
+
+  private async ensureInstanceIdAvailable(id: string): Promise<void> {
+    const status = this.getCachedStatus() ?? await this.refresh();
+    if (status.instances.some((instance) => instance.id === id)) {
+      throw new Error(`Instance "${id}" already exists`);
+    }
   }
 }

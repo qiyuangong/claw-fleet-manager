@@ -19,15 +19,32 @@ export async function configRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Body must be a Record<string, string>', code: 'INVALID_BODY' });
     }
+
     const { BASE_DIR, ...vars } = parsed.data;
-    if (BASE_DIR !== undefined) {
+    const currentConfig = app.fleetConfig.readFleetConfig();
+
+    if (BASE_DIR !== undefined && BASE_DIR !== currentConfig.baseDir) {
+      const status = app.backend.getCachedStatus() ?? await app.backend.refresh().catch(() => null);
+      const hasDockerInstances = status?.instances.some((instance) => instance.mode === 'docker') ?? false;
+      if (hasDockerInstances) {
+        return reply.status(409).send({
+          error: 'Base directory can only be changed before Docker instances are created',
+          code: 'BASE_DIR_IN_USE',
+        });
+      }
+
       try {
         app.fleetConfig.updateBaseDir(BASE_DIR);
       } catch (error: any) {
         return reply.status(400).send({ error: error.message, code: 'INVALID_BASE_DIR' });
       }
     }
-    app.fleetConfig.writeFleetConfig(vars);
+
+    const currentVars = app.fleetConfig.readFleetEnvRaw();
+    app.fleetConfig.writeFleetConfig({
+      ...currentVars,
+      ...vars,
+    });
     return { ok: true };
   });
 

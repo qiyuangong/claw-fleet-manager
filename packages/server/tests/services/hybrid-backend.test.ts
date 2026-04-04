@@ -110,11 +110,47 @@ describe('HybridBackend', () => {
     expect(profileBackend.createInstance).toHaveBeenCalledWith({ kind: 'profile', name: 'team-beta' });
   });
 
+  it('rejects createInstance when the requested id already exists in the other backend', async () => {
+    await expect(backend.createInstance({ kind: 'docker', name: 'team-alpha' })).rejects.toThrow(/already exists/i);
+    expect(dockerBackend.createInstance).not.toHaveBeenCalled();
+  });
+
   it('routes instance operations by the instance mode', async () => {
     await backend.start('openclaw-1');
     await backend.stop('team-alpha');
 
     expect(dockerBackend.start).toHaveBeenCalledWith('openclaw-1');
     expect(profileBackend.stop).toHaveBeenCalledWith('team-alpha');
+  });
+
+  it('initialize tolerates docker backend initialization failure when profiles are still available', async () => {
+    dockerBackend.initialize.mockRejectedValueOnce(new Error('docker unavailable'));
+
+    await expect(backend.initialize()).resolves.toBeUndefined();
+    expect(profileBackend.initialize).toHaveBeenCalled();
+    expect(backend.getCachedStatus()?.instances.map((instance) => instance.id)).toEqual(['openclaw-1', 'team-alpha']);
+  });
+
+  it('refresh falls back to cached profile status when docker refresh fails', async () => {
+    dockerBackend.getCachedStatus.mockReturnValue(null);
+    profileBackend.getCachedStatus.mockReturnValue({
+      mode: 'profiles',
+      instances: [profileInstance],
+      totalRunning: 1,
+      updatedAt: 2000,
+    });
+    dockerBackend.refresh.mockRejectedValueOnce(new Error('docker unavailable'));
+    profileBackend.refresh.mockResolvedValueOnce({
+      mode: 'profiles',
+      instances: [profileInstance],
+      totalRunning: 1,
+      updatedAt: 3000,
+    });
+
+    const status = await backend.refresh();
+
+    expect(status.mode).toBe('hybrid');
+    expect(status.instances).toEqual([profileInstance]);
+    expect(status.updatedAt).toBe(3000);
   });
 });

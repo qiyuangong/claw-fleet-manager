@@ -18,7 +18,7 @@ async function signIn(page: Page, username: string, password: string) {
   await page.getByRole('button', { name: 'Sign In' }).click();
 }
 
-test('user login shows only assigned profile access', async ({ page }) => {
+test('user login shows only assigned instance access', async ({ page }) => {
   test.skip(!userUsername || !userPassword, 'PLAYWRIGHT_USER_USERNAME and PLAYWRIGHT_USER_PASSWORD are required');
 
   await signIn(page, userUsername!, userPassword!);
@@ -27,7 +27,8 @@ test('user login shows only assigned profile access', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'My Account' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Users' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Fleet Config' })).toHaveCount(0);
-  await expect(page.getByText(/Access your assigned profiles and account settings\.|访问已分配的配置和账户设置。/)).toBeVisible();
+  await expect(page.getByText(/You currently have \d+ assigned instance/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'My Instances' })).toBeVisible();
 });
 
 test('admin login shows admin controls', async ({ page }) => {

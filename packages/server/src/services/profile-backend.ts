@@ -1,6 +1,6 @@
 // packages/server/src/services/profile-backend.ts
 import { spawn, execFile } from 'node:child_process';
-import { readFileSync, writeFileSync, renameSync, existsSync, createReadStream, watch } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, existsSync, createReadStream, watch, openSync, closeSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { promisify } from 'node:util';
@@ -171,23 +171,24 @@ export class ProfileBackend implements DeploymentBackend {
       const logDir = join(this.fleetDir, 'logs');
       await mkdir(logDir, { recursive: true });
       const logFile = join(logDir, `${id}.log`);
-
-      // Append mode so we don't lose history
-      const { createWriteStream } = await import('node:fs');
-      const logStream = createWriteStream(logFile, { flags: 'a' });
-
-      const child = spawn(
-        this.binaryPath,
-        ['--profile', id, 'gateway', '--port', String(entry.port)],
-        {
-          stdio: ['ignore', 'pipe', 'pipe'],
-          detached: false,
-          env: this.profileEnv(entry),
-        },
-      );
-
-      child.stdout?.pipe(logStream);
-      child.stderr?.pipe(logStream);
+      const logFd = openSync(logFile, 'a');
+      let child;
+      try {
+        child = spawn(
+          this.binaryPath,
+          ['--profile', id, 'gateway', '--port', String(entry.port)],
+          {
+            stdio: ['ignore', logFd, logFd],
+            detached: true,
+            env: this.profileEnv(entry),
+          },
+        );
+      } finally {
+        try {
+          closeSync(logFd);
+        } catch {}
+      }
+      child.unref();
 
       entry.pid = child.pid ?? null;
       this.processStartTimes.set(id, Date.now());

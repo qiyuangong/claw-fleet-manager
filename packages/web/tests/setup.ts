@@ -7,6 +7,7 @@ if (!i18n.isInitialized) {
     lng: 'en',
     resources: {},
     fallbackLng: false,
+    showSupportNotice: false,
     parseMissingKeyHandler: (key) => key,
   });
 }

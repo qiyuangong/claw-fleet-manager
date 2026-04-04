@@ -1,7 +1,13 @@
 // packages/server/tests/services/docker-backend.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
 vi.mock('../../src/services/docker-instance-provisioning.js', () => ({
   provisionDockerInstance: vi.fn(),
+}));
+vi.mock('node:fs', () => ({
+  mkdirSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  existsSync: vi.fn().mockReturnValue(false),
 }));
 import { provisionDockerInstance } from '../../src/services/docker-instance-provisioning.js';
 import { DockerBackend } from '../../src/services/docker-backend.js';
@@ -22,10 +28,7 @@ const mockDocker = {
 const mockFleetConfig = {
   readFleetConfig: vi.fn().mockReturnValue({
     baseDir: '/tmp/managed',
-    count: 3,
     portStep: 20,
-    configBase: '/tmp/cfg',
-    workspaceBase: '/tmp/ws',
     openclawImage: 'openclaw:local',
     tz: 'Asia/Shanghai',
     enableNpmPackages: false,
@@ -232,26 +235,55 @@ describe('DockerBackend', () => {
     expect(mockDocker.removeContainer).toHaveBeenCalledWith('team-alpha');
   });
 
-  it('scaleFleet() removes the highest indexed container name when scaling down', async () => {
+  it('createInstanceFromMigration() creates container with explicit token and workspaceDir', async () => {
     mockDocker.listFleetContainers
-      .mockResolvedValueOnce([
-        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
-        { name: 'team-alpha', id: 'b', state: 'running', index: 2 },
-      ])
-      .mockResolvedValueOnce([
-        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
-        { name: 'team-alpha', id: 'b', state: 'running', index: 2 },
-      ])
-      .mockResolvedValueOnce([
-        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
-      ])
-      .mockResolvedValueOnce([
-        { name: 'openclaw-1', id: 'a', state: 'running', index: 1 },
-      ]);
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
+    mockFleetConfig.readFleetEnvRaw.mockReturnValue({ BASE_URL: 'http://api', API_KEY: 'key', MODEL_ID: 'gpt-4' });
 
-    await backend.scaleFleet(1, '/tmp/fleet');
+    await (backend as any).createInstanceFromMigration({
+      name: 'team-alpha',
+      workspaceDir: '/tmp/profile-states/team-alpha/workspace',
+      token: 'preserved-token-xyz',
+    });
 
-    expect(mockDocker.removeContainer).toHaveBeenCalledWith('team-alpha');
-    expect(mockDocker.removeContainer).not.toHaveBeenCalledWith('openclaw-2');
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'team-alpha',
+        token: 'preserved-token-xyz',
+        workspaceDir: '/tmp/profile-states/team-alpha/workspace',
+      }),
+    );
+  });
+
+  it('createInstanceFromMigration() writes Docker openclaw.json with container-internal workspace path', async () => {
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
+    mockFleetConfig.readFleetEnvRaw.mockReturnValue({});
+    mockFleetConfig.getDockerConfigDir.mockReturnValue('/tmp/managed/team-alpha/config');
+
+    await (backend as any).createInstanceFromMigration({
+      name: 'team-alpha',
+      workspaceDir: '/tmp/states/team-alpha/workspace',
+      token: 'tok',
+    });
+
+    const writeCalls = vi.mocked(writeFileSync).mock.calls;
+    const configWrite = writeCalls.find(([p]) => String(p).includes('openclaw.json'));
+    expect(configWrite).toBeDefined();
+    const written = JSON.parse(String(configWrite![1]));
+    expect(written.agents.defaults.workspace).toBe('/home/node/.openclaw/workspace');
+    expect(written.gateway.auth.token).toBe('tok');
+  });
+
+  it('getDockerConfigDir() delegates to fleetConfig', () => {
+    mockFleetConfig.getDockerConfigDir.mockReturnValue('/tmp/managed/foo/config');
+    expect((backend as any).getDockerConfigDir('foo')).toBe('/tmp/managed/foo/config');
+  });
+
+  it('getDockerWorkspaceDir() delegates to fleetConfig', () => {
+    mockFleetConfig.getDockerWorkspaceDir.mockReturnValue('/tmp/managed/foo/workspace');
+    expect((backend as any).getDockerWorkspaceDir('foo')).toBe('/tmp/managed/foo/workspace');
   });
 });

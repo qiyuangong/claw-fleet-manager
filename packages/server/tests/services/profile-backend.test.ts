@@ -52,7 +52,7 @@ describe('ProfileBackend — registry', () => {
     const mockServer = { listen: vi.fn((_port: number, cb: () => void) => cb()), close: vi.fn((cb: () => void) => cb()) };
     vi.mocked(net.createServer).mockReturnValue(mockServer as any);
 
-    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    const mockChild = { on: vi.fn(), unref: vi.fn(), pid: 12345, stdout: null, stderr: null };
     vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
     vi.mocked(childProcess.execFile).mockImplementation((_f, _a, _o, cb: any) => { cb(null, { stdout: '', stderr: '' }); return {} as any; });
 
@@ -107,7 +107,7 @@ describe('ProfileBackend — registry', () => {
 
     const mockServer = { listen: vi.fn((_port: number, cb: () => void) => cb()), close: vi.fn((cb: () => void) => cb()) };
     vi.mocked(net.createServer).mockReturnValue(mockServer as any);
-    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    const mockChild = { on: vi.fn(), unref: vi.fn(), pid: 12345, stdout: null, stderr: null };
     vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
     vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
       const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
@@ -153,7 +153,7 @@ describe('ProfileBackend — registry', () => {
 
     const mockServer = { listen: vi.fn((_port: number, cb: () => void) => cb()), close: vi.fn((cb: () => void) => cb()) };
     vi.mocked(net.createServer).mockReturnValue(mockServer as any);
-    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    const mockChild = { on: vi.fn(), unref: vi.fn(), pid: 12345, stdout: null, stderr: null };
     vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
     vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
       const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
@@ -298,7 +298,7 @@ describe('ProfileBackend — runtime env', () => {
       nextPort: 18809,
     });
     vi.mocked(fs.readFileSync).mockReturnValue(registry);
-    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    const mockChild = { on: vi.fn(), unref: vi.fn(), pid: 12345, stdout: null, stderr: null };
     vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
     vi.mocked(childProcess.execFile).mockImplementation((_f, _a, cb: any) => {
       cb(null, { stdout: '/usr/local/bin/openclaw\n', stderr: '' });
@@ -319,6 +319,44 @@ describe('ProfileBackend — runtime env', () => {
         }),
       }),
     );
+  });
+
+  it('start() detaches managed gateways and redirects logs to a file descriptor', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        main: {
+          name: 'main',
+          port: 18789,
+          pid: null,
+          configPath: '/custom/configs/main/openclaw.json',
+          stateDir: '/custom/states/main',
+        },
+      },
+      nextPort: 18809,
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(registry);
+    vi.mocked(fs.openSync).mockReturnValue(88 as any);
+    const mockChild = { on: vi.fn(), unref: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
+    vi.mocked(childProcess.execFile).mockImplementation((_f, _a, cb: any) => {
+      cb(null, { stdout: '/usr/local/bin/openclaw\n', stderr: '' });
+      return {} as any;
+    });
+
+    const backend = makeBackend();
+    await backend.initialize();
+    await backend.start('main');
+
+    expect(fs.openSync).toHaveBeenCalledWith('/tmp/fleet/logs/main.log', 'a');
+    expect(childProcess.spawn).toHaveBeenCalledWith(
+      expect.stringMatching(/openclaw$/),
+      ['--profile', 'main', 'gateway', '--port', '18789'],
+      expect.objectContaining({
+        detached: true,
+        stdio: ['ignore', 88, 88],
+      }),
+    );
+    expect(mockChild.unref).toHaveBeenCalled();
   });
 
   it('builds the runtime env from the registry config/state paths', async () => {
@@ -389,7 +427,7 @@ describe('ProfileBackend — runtime env', () => {
       nextPort: 18809,
     });
     vi.mocked(fs.readFileSync).mockReturnValue(registry);
-    const mockChild = { on: vi.fn(), pid: 12345, stdout: null, stderr: null };
+    const mockChild = { on: vi.fn(), unref: vi.fn(), pid: 12345, stdout: null, stderr: null };
     vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
     vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {

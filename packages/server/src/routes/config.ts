@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { validateInstanceId } from '../validate.js';
 import { requireAdmin, requireProfileAccess } from '../authorize.js';
-import { errorResponseSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
+import { errorResponseSchema, fleetConfigSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
 
 const fleetConfigBodySchema = z.record(z.string(), z.string());
 const instanceConfigBodySchema = z.record(z.string(), z.unknown());
@@ -15,10 +15,7 @@ export async function configRoutes(app: FastifyInstance) {
       tags: ['Config'],
       summary: 'Read fleet-level configuration',
       response: {
-        200: {
-          type: 'object',
-          additionalProperties: { type: 'string' },
-        },
+        200: fleetConfigSchema,
       },
     },
   }, async () => {

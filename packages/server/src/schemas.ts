@@ -62,6 +62,40 @@ export const fleetStatusSchema = {
   required: ['mode', 'instances', 'totalRunning', 'updatedAt'],
 } as const;
 
+export const fleetConfigSchema = {
+  type: 'object',
+  properties: {
+    baseUrl: { type: 'string' },
+    apiKey: { type: 'string' },
+    modelId: { type: 'string' },
+    baseDir: { type: 'string' },
+    count: { type: 'number' },
+    cpuLimit: { type: 'string' },
+    memLimit: { type: 'string' },
+    portStep: { type: 'number' },
+    configBase: { type: 'string' },
+    workspaceBase: { type: 'string' },
+    tz: { type: 'string' },
+    openclawImage: { type: 'string' },
+    enableNpmPackages: { type: 'boolean' },
+  },
+  required: [
+    'baseUrl',
+    'apiKey',
+    'modelId',
+    'baseDir',
+    'count',
+    'cpuLimit',
+    'memLimit',
+    'portStep',
+    'configBase',
+    'workspaceBase',
+    'tz',
+    'openclawImage',
+    'enableNpmPackages',
+  ],
+} as const;
+
 export const instanceIdParamsSchema = {
   type: 'object',
   properties: {

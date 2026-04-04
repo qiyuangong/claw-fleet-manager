@@ -59,6 +59,7 @@ export async function userRoutes(app: FastifyInstance) {
   });
 
   app.put('/api/users/me/password', {
+    attachValidation: true,
     schema: {
       tags: ['Users'],
       summary: 'Change the authenticated user password',
@@ -77,6 +78,9 @@ export async function userRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
+    if (request.validationError) {
+      return reply.status(400).send({ error: 'Invalid body', code: 'INVALID_BODY' });
+    }
     const parsed = changePasswordSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0]?.message ?? 'Invalid body', code: 'INVALID_BODY' });

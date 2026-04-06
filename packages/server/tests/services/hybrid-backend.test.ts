@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { join } from 'node:path';
 import { HybridBackend } from '../../src/services/hybrid-backend.js';
+
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn().mockReturnValue(false),
+  unlinkSync: vi.fn(),
+}));
 
 describe('HybridBackend', () => {
   const dockerInstance = {
@@ -73,13 +79,11 @@ describe('HybridBackend', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dockerBackend.getCachedStatus.mockReturnValue({
-      mode: 'docker',
       instances: [dockerInstance],
       totalRunning: 1,
       updatedAt: 1000,
     });
     profileBackend.getCachedStatus.mockReturnValue({
-      mode: 'profiles',
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 2000,
@@ -94,7 +98,6 @@ describe('HybridBackend', () => {
   it('refresh merges docker and profile instances into one hybrid fleet', async () => {
     const status = await backend.refresh();
 
-    expect(status.mode).toBe('hybrid');
     expect(status.instances.map((instance) => instance.id)).toEqual(['openclaw-1', 'team-alpha']);
     expect(status.totalRunning).toBe(2);
     expect(status.updatedAt).toBe(2000);
@@ -132,14 +135,12 @@ describe('HybridBackend', () => {
   it('refresh falls back to cached profile status when docker refresh fails', async () => {
     dockerBackend.getCachedStatus.mockReturnValue(null);
     profileBackend.getCachedStatus.mockReturnValue({
-      mode: 'profiles',
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 2000,
     });
     dockerBackend.refresh.mockRejectedValueOnce(new Error('docker unavailable'));
     profileBackend.refresh.mockResolvedValueOnce({
-      mode: 'profiles',
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 3000,
@@ -147,8 +148,123 @@ describe('HybridBackend', () => {
 
     const status = await backend.refresh();
 
-    expect(status.mode).toBe('hybrid');
     expect(status.instances).toEqual([profileInstance]);
     expect(status.updatedAt).toBe(3000);
+  });
+
+  describe('migrate', () => {
+    const migratedProfileInstance = {
+      id: 'openclaw-1',
+      mode: 'profile' as const,
+      status: 'running' as const,
+      port: 18789,
+      token: 'masked',
+      uptime: 10,
+      cpu: 0,
+      memory: { used: 0, limit: 0 },
+      disk: { config: 0, workspace: 0 },
+      health: 'healthy' as const,
+      image: 'openclaw',
+      profile: 'openclaw-1',
+    };
+
+    const migratedDockerInstance = {
+      ...dockerInstance,
+      id: 'team-alpha',
+      mode: 'docker' as const,
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      (dockerBackend as any).createInstanceFromMigration = vi.fn().mockResolvedValue(migratedDockerInstance);
+      (dockerBackend as any).getDockerConfigDir = vi.fn().mockReturnValue('/tmp/managed/openclaw-1/config');
+      (dockerBackend as any).getDockerWorkspaceDir = vi.fn().mockReturnValue('/tmp/managed/openclaw-1/workspace');
+      (profileBackend as any).createInstanceFromMigration = vi.fn().mockResolvedValue(migratedProfileInstance);
+      (profileBackend as any).getInstanceDir = vi.fn().mockReturnValue({
+        stateDir: '/tmp/states/team-alpha',
+        configPath: '/tmp/states/team-alpha/openclaw.json',
+      });
+
+      dockerBackend.getCachedStatus.mockReturnValue({
+        mode: 'docker',
+        instances: [dockerInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
+      profileBackend.getCachedStatus.mockReturnValue({
+        mode: 'profiles',
+        instances: [profileInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
+      dockerBackend.refresh.mockResolvedValue({
+        mode: 'docker',
+        instances: [dockerInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
+      profileBackend.refresh.mockResolvedValue({
+        mode: 'profiles',
+        instances: [profileInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
+      dockerBackend.stop.mockResolvedValue(undefined);
+      dockerBackend.revealToken.mockResolvedValue('plain-token');
+      profileBackend.stop.mockResolvedValue(undefined);
+      profileBackend.revealToken.mockResolvedValue('plain-token');
+      dockerBackend.removeInstance.mockResolvedValue(undefined);
+      profileBackend.removeInstance.mockResolvedValue(undefined);
+      backend = new HybridBackend(dockerBackend as any, profileBackend as any);
+    });
+
+    it('migrate() docker to profile stops container and calls profileBackend.createInstanceFromMigration', async () => {
+      const result = await (backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: true });
+
+      expect(dockerBackend.stop).toHaveBeenCalledWith('openclaw-1');
+      expect(dockerBackend.revealToken).toHaveBeenCalledWith('openclaw-1');
+      expect((profileBackend as any).createInstanceFromMigration).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'openclaw-1', token: 'plain-token' }),
+      );
+      expect(result.mode).toBe('profile');
+    });
+
+    it('migrate() docker to profile with deleteSource removes docker instance', async () => {
+      await (backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: true });
+
+      expect(dockerBackend.removeInstance).toHaveBeenCalledWith('openclaw-1');
+    });
+
+    it('migrate() rejects docker to profile when deleteSource is false to avoid duplicate ids', async () => {
+      await expect((backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: false }))
+        .rejects.toThrow('deleteSource');
+
+      expect((profileBackend as any).createInstanceFromMigration).not.toHaveBeenCalled();
+      expect(dockerBackend.removeInstance).not.toHaveBeenCalled();
+    });
+
+    it('migrate() profile to docker stops profile and calls dockerBackend.createInstanceFromMigration', async () => {
+      const result = await (backend as any).migrate('team-alpha', { targetMode: 'docker', deleteSource: true });
+
+      expect(profileBackend.stop).toHaveBeenCalledWith('team-alpha');
+      expect(profileBackend.revealToken).toHaveBeenCalledWith('team-alpha');
+      expect((dockerBackend as any).createInstanceFromMigration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'team-alpha',
+          token: 'plain-token',
+          workspaceDir: join('/tmp/states/team-alpha', 'workspace'),
+        }),
+      );
+      expect(result.mode).toBe('docker');
+    });
+
+    it('migrate() throws when instance not found', async () => {
+      await expect((backend as any).migrate('nonexistent', { targetMode: 'docker' })).rejects.toThrow('not found');
+    });
+
+    it('migrate() throws when instance is already in target mode', async () => {
+      await expect((backend as any).migrate('openclaw-1', { targetMode: 'docker' })).rejects.toThrow('already in docker mode');
+    });
   });
 });

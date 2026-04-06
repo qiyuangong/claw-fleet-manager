@@ -29,7 +29,6 @@ const schema = z.object({
     cert: z.string().min(1),
     key: z.string().min(1),
   }).optional(),
-  deploymentMode: z.enum(['docker', 'profiles', 'hybrid']).default('hybrid'),
   profiles: profilesSchema.optional(),
 });
 

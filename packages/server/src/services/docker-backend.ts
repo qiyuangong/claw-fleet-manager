@@ -1,6 +1,7 @@
 // packages/server/src/services/docker-backend.ts
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
@@ -121,7 +122,6 @@ export class DockerBackend implements DeploymentBackend {
     }
 
     const status: FleetStatus = {
-      mode: 'docker',
       instances,
       totalRunning: instances.filter((i) => i.status === 'running').length,
       updatedAt: Date.now(),
@@ -293,6 +293,124 @@ export class DockerBackend implements DeploymentBackend {
     this.fleetConfig.writeInstanceConfig(id, config);
   }
 
+  getDockerConfigDir(instanceId: string): string {
+    return this.fleetConfig.getDockerConfigDir(instanceId);
+  }
+
+  getDockerWorkspaceDir(instanceId: string): string {
+    return this.fleetConfig.getDockerWorkspaceDir(instanceId);
+  }
+
+  async createInstanceFromMigration(opts: {
+    name: string;
+    workspaceDir: string;
+    token: string;
+  }): Promise<FleetInstance & { tailscaleWarning?: string }> {
+    const containers = await this.docker.listFleetContainers();
+    if (containers.some((container) => container.name === opts.name)) {
+      throw new Error(`Instance "${opts.name}" already exists`);
+    }
+
+    const usedIndexes = containers
+      .map((container) => container.index)
+      .filter((index): index is number => index !== undefined)
+      .sort((left, right) => left - right);
+    const newIndex = nextAvailableIndex(usedIndexes);
+
+    const config = this.fleetConfig.readFleetConfig();
+    const resolvedPortStep = config.portStep;
+    const resolvedEnableNpmPackages = config.enableNpmPackages;
+    const vars = this.fleetConfig.readFleetEnvRaw();
+
+    const tokens = this.fleetConfig.readTokens();
+    this.fleetConfig.writeTokens({ ...tokens, [newIndex]: opts.token });
+    this.fleetConfig.ensureFleetDirectories();
+
+    const configDir = this.fleetConfig.getDockerConfigDir(opts.name);
+    mkdirSync(configDir, { recursive: true });
+    mkdirSync(opts.workspaceDir, { recursive: true });
+
+    const gatewayPort = BASE_GW_PORT + (newIndex - 1) * resolvedPortStep;
+    const openclawConfig: Record<string, unknown> = {
+      gateway: {
+        mode: 'local',
+        auth: { mode: 'token', token: opts.token },
+        controlUi: {
+          allowedOrigins: [
+            `http://127.0.0.1:${gatewayPort}`,
+            `http://localhost:${gatewayPort}`,
+          ],
+        },
+      },
+      agents: {
+        defaults: { workspace: '/home/node/.openclaw/workspace' },
+      },
+      clawFleet: { portStep: resolvedPortStep },
+    };
+
+    const baseUrl = vars.BASE_URL ?? '';
+    const apiKey = vars.API_KEY ?? '';
+    const modelId = vars.MODEL_ID ?? '';
+    if (baseUrl && modelId) {
+      openclawConfig.models = {
+        mode: 'merge',
+        providers: {
+          default: {
+            baseUrl,
+            apiKey,
+            api: 'openai-completions',
+            models: [{ id: modelId, name: modelId }],
+          },
+        },
+      };
+    }
+
+    if (this.tailscale && this.tailscaleHostname) {
+      const portMap = this.tailscale.allocatePorts([newIndex]);
+      const tsPort = portMap.get(newIndex);
+      if (tsPort !== undefined) {
+        const gateway = openclawConfig.gateway as Record<string, unknown>;
+        const auth = gateway.auth as Record<string, unknown>;
+        auth.allowTailscale = true;
+        const controlUi = gateway.controlUi as Record<string, unknown>;
+        controlUi.allowInsecureAuth = true;
+        (controlUi.allowedOrigins as string[]).push(`https://${this.tailscaleHostname}:${tsPort}`);
+      }
+    }
+
+    const configFile = join(configDir, 'openclaw.json');
+    writeFileSync(configFile, JSON.stringify(openclawConfig, null, 2) + '\n');
+
+    await this.docker.createManagedContainer({
+      name: opts.name,
+      index: newIndex,
+      image: config.openclawImage,
+      gatewayPort,
+      token: opts.token,
+      timezone: config.tz,
+      configDir,
+      workspaceDir: opts.workspaceDir,
+      npmDir: resolvedEnableNpmPackages ? join(configDir, '.npm') : undefined,
+      cpuLimit: config.cpuLimit,
+      memLimit: config.memLimit,
+    });
+
+    let tailscaleWarning: string | undefined;
+    if (this.tailscale) {
+      try {
+        await this.tailscale.setup(newIndex, gatewayPort);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        tailscaleWarning = `Tailscale setup failed: ${message}`;
+        this.log?.error({ err, newIndex }, 'Tailscale setup failed during migration');
+      }
+    }
+
+    const status = await this.refresh();
+    const instance = status.instances.find((item) => item.id === opts.name);
+    if (!instance) throw new Error(`Instance "${opts.name}" not found after migration`);
+    return tailscaleWarning ? { ...instance, tailscaleWarning } : instance;
+  }
   private mapStatus(status: string): FleetInstance['status'] {
     if (status === 'running') return 'running';
     if (status === 'restarting') return 'restarting';

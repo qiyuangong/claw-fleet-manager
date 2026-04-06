@@ -12,7 +12,6 @@ describe('Log routes', () => {
       streamLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
       streamAllLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
     });
-    app.decorate('deploymentMode', 'docker');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
     });

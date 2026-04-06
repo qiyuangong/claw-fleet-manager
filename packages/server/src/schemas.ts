@@ -54,12 +54,11 @@ export const fleetInstanceSchema = {
 export const fleetStatusSchema = {
   type: 'object',
   properties: {
-    mode: { type: 'string', enum: ['docker', 'profiles', 'hybrid'] },
     instances: { type: 'array', items: fleetInstanceSchema },
     totalRunning: { type: 'number' },
     updatedAt: { type: 'number' },
   },
-  required: ['mode', 'instances', 'totalRunning', 'updatedAt'],
+  required: ['instances', 'totalRunning', 'updatedAt'],
 } as const;
 
 export const fleetConfigSchema = {

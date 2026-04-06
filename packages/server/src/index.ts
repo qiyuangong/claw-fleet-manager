@@ -13,6 +13,7 @@ import { fleetRoutes } from './routes/fleet.js';
 import { healthRoutes } from './routes/health.js';
 import { instanceRoutes } from './routes/instances.js';
 import { logRoutes } from './routes/logs.js';
+import { migrateRoutes } from './routes/migrate.js';
 import { pluginRoutes } from './routes/plugins.js';
 import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
@@ -106,7 +107,6 @@ const backend = new HybridBackend(dockerBackend, profileBackend);
 
 // ── Decorators ───────────────────────────────────────────────────────────────
 app.decorate('backend', backend as DeploymentBackend);
-app.decorate('deploymentMode', 'hybrid');
 app.decorate('fleetConfig', fleetConfig);
 app.decorate('fleetDir', config.fleetDir);
 app.decorate('userService', userService);
@@ -118,6 +118,7 @@ await app.register(healthRoutes);
 await app.register(configRoutes);
 await app.register(fleetRoutes);
 await app.register(instanceRoutes);
+await app.register(migrateRoutes);
 await app.register(userRoutes);
 await app.register(logRoutes);
 await app.register(proxyRoutes);

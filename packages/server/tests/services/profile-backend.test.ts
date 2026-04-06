@@ -256,12 +256,12 @@ describe('ProfileBackend — revealToken', () => {
 });
 
 describe('ProfileBackend — getCachedStatus', () => {
-  it('returns mode=profiles', async () => {
+  it('returns non-null status after initialize', async () => {
     vi.mocked(fs.readFileSync).mockImplementation(() => { throw Object.assign(new Error(), { code: 'ENOENT' }); });
     const backend = makeBackend();
     await backend.initialize();
     const status = backend.getCachedStatus();
-    expect(status?.mode).toBe('profiles');
+    expect(status).not.toBeNull();
   });
 });
 
@@ -482,5 +482,70 @@ describe('ProfileBackend — runtime env', () => {
     expect(killSpy).toHaveBeenCalledWith(54321, 'SIGTERM');
     expect(killSpy).toHaveBeenCalledWith(12345, 'SIGTERM');
     expect((backend as any).stopping.has('main')).toBe(true);
+  });
+});
+
+describe('ProfileBackend — createInstanceFromMigration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fs.readFileSync).mockImplementation(() => {
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+    vi.mocked(fs.renameSync).mockReturnValue(undefined);
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
+    const mockServer = {
+      listen: vi.fn((_port: number, cb: () => void) => cb()),
+      close: vi.fn((cb: () => void) => cb()),
+      on: vi.fn(),
+    };
+    vi.mocked(net.createServer).mockReturnValue(mockServer as any);
+    const mockChild = { on: vi.fn(), unref: vi.fn(), pid: 12345 };
+    vi.mocked(childProcess.spawn).mockReturnValue(mockChild as any);
+    vi.mocked(childProcess.execFile).mockImplementation((_f, _a, _o, cb: any) => {
+      cb(null, { stdout: '/usr/local/bin/openclaw', stderr: '' });
+      return {} as any;
+    });
+  });
+
+  it('createInstanceFromMigration() writes openclaw.json with preserved token and workspace path', async () => {
+    const backend = makeBackend();
+    await backend.initialize();
+
+    await (backend as any).createInstanceFromMigration({
+      name: 'migrated',
+      workspaceDir: '/tmp/docker-base/migrated/workspace',
+      configDir: '/tmp/docker-base/migrated/config',
+      token: 'abc123preserved',
+    });
+
+    const writeCalls = vi.mocked(fs.writeFileSync).mock.calls;
+    const configWrite = writeCalls.find(([path]) => String(path).includes('openclaw.json'));
+    expect(configWrite).toBeDefined();
+    const written = JSON.parse(String(configWrite![1]));
+    expect(written.gateway.auth.token).toBe('abc123preserved');
+    expect(written.agents.defaults.workspace).toBe('/tmp/docker-base/migrated/workspace');
+  });
+
+  it('createInstanceFromMigration() registers profile in registry', async () => {
+    const backend = makeBackend();
+    await backend.initialize();
+
+    await (backend as any).createInstanceFromMigration({
+      name: 'migrated',
+      workspaceDir: '/tmp/docker-base/migrated/workspace',
+      configDir: '/tmp/docker-base/migrated/config',
+      token: 'abc123',
+    });
+
+    const { stateDir } = (backend as any).getInstanceDir('migrated');
+    expect(stateDir).toBe('/tmp/docker-base/migrated');
+  });
+
+  it('getInstanceDir() throws when profile not found', async () => {
+    const backend = makeBackend();
+    await backend.initialize();
+    expect(() => (backend as any).getInstanceDir('nonexistent')).toThrow('not found');
   });
 });

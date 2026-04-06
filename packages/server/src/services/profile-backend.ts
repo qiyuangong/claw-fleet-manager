@@ -139,7 +139,6 @@ export class ProfileBackend implements DeploymentBackend {
     );
 
     const status: FleetStatus = {
-      mode: 'profiles',
       instances,
       totalRunning: instances.filter((i) => i.status === 'running').length,
       updatedAt: Date.now(),
@@ -406,6 +405,62 @@ export class ProfileBackend implements DeploymentBackend {
     const tmpPath = `${entry.configPath}.tmp`;
     writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
     renameSync(tmpPath, entry.configPath);
+  }
+
+  getInstanceDir(id: string): { stateDir: string; configPath: string } {
+    const entry = this.registry.profiles[id];
+    if (!entry) throw new Error(`Profile "${id}" not found`);
+    return { stateDir: entry.stateDir, configPath: entry.configPath };
+  }
+
+  async createInstanceFromMigration(opts: {
+    name: string;
+    workspaceDir: string;
+    configDir: string;
+    token: string;
+    port?: number;
+  }): Promise<FleetInstance> {
+    if (this.registry.profiles[opts.name]) {
+      throw new Error(`Profile "${opts.name}" already exists`);
+    }
+
+    const port = opts.port ?? this.registry.nextPort;
+    await this.probePort(port);
+
+    const configPath = join(opts.configDir, 'openclaw.json');
+    const stateDir = dirname(opts.workspaceDir);
+
+    const profileConfig = {
+      gateway: {
+        mode: 'local',
+        auth: { mode: 'token', token: opts.token },
+      },
+      agents: {
+        defaults: { workspace: opts.workspaceDir },
+      },
+    };
+
+    await mkdir(opts.configDir, { recursive: true });
+    await mkdir(opts.workspaceDir, { recursive: true });
+    this.seedWorkspaceFiles(opts.workspaceDir);
+
+    const tmpPath = `${configPath}.tmp`;
+    writeFileSync(tmpPath, JSON.stringify(profileConfig, null, 2) + '\n', 'utf-8');
+    renameSync(tmpPath, configPath);
+
+    const entry: ProfileEntry = { name: opts.name, port, pid: null, configPath, stateDir };
+    this.registry.profiles[opts.name] = entry;
+    if (opts.port === undefined) {
+      this.registry.nextPort = port + this.cfg.portStep;
+    }
+    this.saveRegistry();
+
+    await this.start(opts.name);
+    await this.refresh();
+
+    const instance = this.cache?.instances.find((item) => item.id === opts.name);
+    if (!instance) throw new Error(`Instance "${opts.name}" not found after migration`);
+    return instance;
   }
 
   // ─── Private helpers ────────────────────────────────────────────────────────

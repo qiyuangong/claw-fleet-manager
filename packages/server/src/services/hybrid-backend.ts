@@ -1,12 +1,21 @@
+import { existsSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import type { CreateInstanceOpts, DeploymentBackend, LogHandle } from './backend.js';
+import type { DockerBackend } from './docker-backend.js';
+import type { ProfileBackend } from './profile-backend.js';
 import type { FleetInstance, FleetStatus } from '../types.js';
+
+export interface MigrateOpts {
+  targetMode: 'docker' | 'profile';
+  deleteSource?: boolean;
+}
 
 export class HybridBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
 
   constructor(
-    private dockerBackend: DeploymentBackend,
-    private profileBackend: DeploymentBackend,
+    private dockerBackend: DockerBackend,
+    private profileBackend: ProfileBackend,
   ) {}
 
   async initialize(): Promise<void> {
@@ -114,6 +123,56 @@ export class HybridBackend implements DeploymentBackend {
 
   async writeInstanceConfig(id: string, config: object): Promise<void> {
     await (await this.backendForId(id)).writeInstanceConfig(id, config);
+  }
+
+  async migrate(id: string, opts: MigrateOpts): Promise<FleetInstance> {
+    const status = this.getCachedStatus() ?? await this.refresh();
+    const source = status.instances.find((instance) => instance.id === id);
+    if (!source) throw new Error(`Instance "${id}" not found`);
+    if (source.mode === opts.targetMode) {
+      throw new Error(`Instance "${id}" is already in ${opts.targetMode} mode`);
+    }
+    if (!opts.deleteSource) {
+      throw new Error('deleteSource is required for migration to avoid duplicate ids');
+    }
+
+    if (opts.targetMode === 'profile') {
+      await this.dockerBackend.stop(id);
+      const token = await this.dockerBackend.revealToken(id);
+      const workspaceDir = this.dockerBackend.getDockerWorkspaceDir(id);
+      const configDir = this.dockerBackend.getDockerConfigDir(id);
+      const configFile = join(configDir, 'openclaw.json');
+      if (existsSync(configFile)) unlinkSync(configFile);
+
+      const instance = await this.profileBackend.createInstanceFromMigration({
+        name: id,
+        workspaceDir,
+        configDir,
+        token,
+      });
+
+      if (opts.deleteSource) await this.dockerBackend.removeInstance(id);
+      await this.refresh();
+      return instance;
+    }
+
+    await this.profileBackend.stop(id);
+    const token = await this.profileBackend.revealToken(id);
+    const { stateDir } = this.profileBackend.getInstanceDir(id);
+    const workspaceDir = join(stateDir, 'workspace');
+    const configDir = this.dockerBackend.getDockerConfigDir(id);
+    const configFile = join(configDir, 'openclaw.json');
+    if (existsSync(configFile)) unlinkSync(configFile);
+
+    const instance = await this.dockerBackend.createInstanceFromMigration({
+      name: id,
+      workspaceDir,
+      token,
+    });
+
+    if (opts.deleteSource) await this.profileBackend.removeInstance(id);
+    await this.refresh();
+    return instance;
   }
 
   private mergeStatuses(dockerStatus: FleetStatus | null, profileStatus: FleetStatus | null): FleetStatus | null {

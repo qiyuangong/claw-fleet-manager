@@ -256,12 +256,12 @@ describe('ProfileBackend — revealToken', () => {
 });
 
 describe('ProfileBackend — getCachedStatus', () => {
-  it('returns mode=profiles', async () => {
+  it('returns non-null status after initialize', async () => {
     vi.mocked(fs.readFileSync).mockImplementation(() => { throw Object.assign(new Error(), { code: 'ENOENT' }); });
     const backend = makeBackend();
     await backend.initialize();
     const status = backend.getCachedStatus();
-    expect(status?.mode).toBe('profiles');
+    expect(status).not.toBeNull();
   });
 });
 

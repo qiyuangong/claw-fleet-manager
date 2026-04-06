@@ -95,7 +95,6 @@ export class MonitorService {
     }
 
     const status: FleetStatus = {
-      mode: 'docker',
       instances,
       totalRunning: instances.filter((instance) => instance.status === 'running').length,
       updatedAt: Date.now(),

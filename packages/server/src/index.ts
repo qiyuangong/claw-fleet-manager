@@ -107,7 +107,6 @@ const backend = new HybridBackend(dockerBackend, profileBackend);
 
 // ── Decorators ───────────────────────────────────────────────────────────────
 app.decorate('backend', backend as DeploymentBackend);
-app.decorate('deploymentMode', 'hybrid');
 app.decorate('fleetConfig', fleetConfig);
 app.decorate('fleetDir', config.fleetDir);
 app.decorate('userService', userService);

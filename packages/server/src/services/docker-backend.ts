@@ -122,7 +122,6 @@ export class DockerBackend implements DeploymentBackend {
     }
 
     const status: FleetStatus = {
-      mode: 'docker',
       instances,
       totalRunning: instances.filter((i) => i.status === 'running').length,
       updatedAt: Date.now(),

@@ -11,7 +11,6 @@ export interface ServerConfig {
   baseDir?: string;
   tailscale?: { hostname: string };
   tls?: { cert: string; key: string };
-  deploymentMode?: 'docker' | 'profiles' | 'hybrid';
   profiles?: ProfilesConfig;
 }
 
@@ -46,7 +45,6 @@ export interface FleetInstance {
 }
 
 export interface FleetStatus {
-  mode: 'docker' | 'profiles' | 'hybrid';
   instances: FleetInstance[];
   totalRunning: number;
   updatedAt: number;

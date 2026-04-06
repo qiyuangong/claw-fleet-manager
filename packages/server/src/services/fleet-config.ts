@@ -9,7 +9,7 @@ export class FleetConfigService {
     private serverConfigPath?: string,
   ) {}
 
-  readFleetConfig(countOverride?: number): FleetConfig {
+  readFleetConfig(): FleetConfig {
     const vars = this.parseEnvFile(join(this.fleetDir, 'config', 'fleet.env'));
 
     return {
@@ -17,12 +17,9 @@ export class FleetConfigService {
       apiKey: vars.API_KEY ? FleetConfigService.maskToken(vars.API_KEY) : '',
       modelId: vars.MODEL_ID ?? '',
       baseDir: this.baseDir,
-      count: parseInt(vars.COUNT ?? String(countOverride ?? 2), 10),
       cpuLimit: vars.CPU_LIMIT ?? '4',
       memLimit: vars.MEM_LIMIT ?? '4G',
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),
-      configBase: this.getConfigBase(),
-      workspaceBase: this.getWorkspaceBase(),
       tz: vars.TZ ?? 'Asia/Shanghai',
       openclawImage: vars.OPENCLAW_IMAGE ?? 'openclaw:local',
       enableNpmPackages: vars.ENABLE_NPM_PACKAGES === 'true',

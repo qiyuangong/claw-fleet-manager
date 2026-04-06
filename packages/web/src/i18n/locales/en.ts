@@ -210,6 +210,16 @@ const en = {
   deleteInstanceConfirm: 'Delete instance "{{instance}}"?\n\nThis removes the managed instance from the fleet and stops its running gateway or container.',
   deleteInstanceFailed: 'Failed to delete instance.',
 
+  // Migration
+  migrateInstance: 'Migrate',
+  migrateInstanceTitle: 'Migrate Instance',
+  migrateInstanceHelp: 'Move this instance to a different runtime mode. Workspace data is preserved.',
+  migrateTargetMode: 'Target Mode',
+  migrateDeleteSource: 'Remove source instance after migration',
+  migrating: 'Migrating…',
+  migrateCta: 'Migrate',
+  migrateSuccessToast: '{{id}} migrated to {{mode}} mode',
+
   // User Management
   userManagement: 'User Management',
   userManagementDesc: 'Create users, reset passwords, and assign instance access (each instance can belong to only one user).',

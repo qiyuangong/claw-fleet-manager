@@ -19,9 +19,7 @@ export async function configRoutes(app: FastifyInstance) {
       },
     },
   }, async () => {
-    const cached = app.backend.getCachedStatus();
-    const liveCount = cached?.instances.filter((instance) => instance.mode === 'docker').length;
-    return app.fleetConfig.readFleetConfig(liveCount);
+    return app.fleetConfig.readFleetConfig();
   });
 
   app.put('/api/config/fleet', {

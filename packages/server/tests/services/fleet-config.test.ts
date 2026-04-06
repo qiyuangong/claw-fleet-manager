@@ -48,26 +48,29 @@ describe('FleetConfigService', () => {
         'BASE_URL=https://api.example.com/v1',
         'API_KEY=sk-test123',
         'MODEL_ID=gpt-4',
-        'COUNT=3',
       ].join('\n'));
 
       const config = svc.readFleetConfig();
       expect(config.baseUrl).toBe('https://api.example.com/v1');
       expect(config.apiKey).toBe('sk-t***t123');
       expect(config.modelId).toBe('gpt-4');
-      expect(config.count).toBe(3);
       expect(config.cpuLimit).toBe('4');
       expect(config.memLimit).toBe('4G');
       expect(config.portStep).toBe(20);
       expect(config.baseDir).toBe(join(dir, 'managed'));
     });
 
-    it('uses the provided count override when COUNT is absent', () => {
-      writeFileSync(join(dir, 'config', 'fleet.env'), 'BASE_URL=https://api.example.com/v1\n');
+    it('does not expose deprecated fleet sizing or derived path fields', () => {
+      writeFileSync(join(dir, 'config', 'fleet.env'), [
+        'COUNT=3',
+        'PORT_STEP=20',
+      ].join('\n'));
 
-      const config = svc.readFleetConfig(1);
+      const config = svc.readFleetConfig();
 
-      expect(config.count).toBe(1);
+      expect(config).not.toHaveProperty('count');
+      expect(config).not.toHaveProperty('configBase');
+      expect(config).not.toHaveProperty('workspaceBase');
     });
   });
 
@@ -102,8 +105,6 @@ describe('FleetConfigService', () => {
 
       const config = persistentSvc.readFleetConfig();
       expect(config.baseDir).toBe(join(dir, 'managed'));
-      expect(config.configBase).toBe(join(dir, 'managed'));
-      expect(config.workspaceBase).toBe(join(dir, 'managed', '<instance>', 'workspace'));
       expect(JSON.parse(readFileSync(serverConfigPath, 'utf-8'))).toEqual({
         baseDir: join(dir, 'next-managed'),
       });
@@ -114,8 +115,6 @@ describe('FleetConfigService', () => {
 
       const config = svc.readFleetConfig();
       expect(config.baseDir).toBe(join(dir, 'next-managed'));
-      expect(config.configBase).toBe(join(dir, 'next-managed'));
-      expect(config.workspaceBase).toBe(join(dir, 'next-managed', '<instance>', 'workspace'));
     });
   });
 

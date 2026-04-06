@@ -48,7 +48,7 @@ describe('Migrate routes', () => {
       payload: { targetMode: 'profile' },
     });
     expect(res.statusCode).toBe(200);
-    expect(mockBackend.migrate).toHaveBeenCalledWith('openclaw-1', { targetMode: 'profile', deleteSource: false });
+    expect(mockBackend.migrate).toHaveBeenCalledWith('openclaw-1', { targetMode: 'profile', deleteSource: true });
     expect(res.json().mode).toBe('profile');
   });
 

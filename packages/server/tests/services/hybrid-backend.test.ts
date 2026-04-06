@@ -226,7 +226,7 @@ describe('HybridBackend', () => {
     });
 
     it('migrate() docker to profile stops container and calls profileBackend.createInstanceFromMigration', async () => {
-      const result = await (backend as any).migrate('openclaw-1', { targetMode: 'profile' });
+      const result = await (backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: true });
 
       expect(dockerBackend.stop).toHaveBeenCalledWith('openclaw-1');
       expect(dockerBackend.revealToken).toHaveBeenCalledWith('openclaw-1');
@@ -242,14 +242,16 @@ describe('HybridBackend', () => {
       expect(dockerBackend.removeInstance).toHaveBeenCalledWith('openclaw-1');
     });
 
-    it('migrate() docker to profile without deleteSource does not remove docker instance', async () => {
-      await (backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: false });
+    it('migrate() rejects docker to profile when deleteSource is false to avoid duplicate ids', async () => {
+      await expect((backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: false }))
+        .rejects.toThrow('deleteSource');
 
+      expect((profileBackend as any).createInstanceFromMigration).not.toHaveBeenCalled();
       expect(dockerBackend.removeInstance).not.toHaveBeenCalled();
     });
 
     it('migrate() profile to docker stops profile and calls dockerBackend.createInstanceFromMigration', async () => {
-      const result = await (backend as any).migrate('team-alpha', { targetMode: 'docker' });
+      const result = await (backend as any).migrate('team-alpha', { targetMode: 'docker', deleteSource: true });
 
       expect(profileBackend.stop).toHaveBeenCalledWith('team-alpha');
       expect(profileBackend.revealToken).toHaveBeenCalledWith('team-alpha');

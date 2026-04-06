@@ -276,6 +276,33 @@ describe('DockerBackend', () => {
     expect(written.gateway.auth.token).toBe('tok');
   });
 
+  it('createInstanceFromMigration() preserves npm cache mount when enableNpmPackages is enabled', async () => {
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
+    mockFleetConfig.readFleetConfig.mockReturnValue({
+      baseDir: '/tmp/managed',
+      portStep: 20,
+      openclawImage: 'openclaw:local',
+      tz: 'Asia/Shanghai',
+      enableNpmPackages: true,
+      cpuLimit: '4',
+      memLimit: '4G',
+    });
+
+    await (backend as any).createInstanceFromMigration({
+      name: 'team-alpha',
+      workspaceDir: '/tmp/states/team-alpha/workspace',
+      token: 'tok',
+    });
+
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        npmDir: '/tmp/managed/team-alpha/config/.npm',
+      }),
+    );
+  });
+
   it('getDockerConfigDir() delegates to fleetConfig', () => {
     mockFleetConfig.getDockerConfigDir.mockReturnValue('/tmp/managed/foo/config');
     expect((backend as any).getDockerConfigDir('foo')).toBe('/tmp/managed/foo/config');

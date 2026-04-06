@@ -67,8 +67,7 @@ describe('MigrateDialog', () => {
 
     expect(screen.getByRole('radio', { name: 'Docker' })).toBeDisabled();
     expect(screen.getByRole('radio', { name: 'Profile' })).toBeChecked();
-
-    await user.click(screen.getByRole('checkbox', { name: 'migrateDeleteSource' }));
+    expect(screen.getByRole('checkbox', { name: 'migrateDeleteSource' })).toBeChecked();
     await user.click(screen.getByRole('button', { name: 'migrateCta' }));
 
     await waitFor(() => {

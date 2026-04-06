@@ -18,7 +18,7 @@ export function MigrateDialog({ instance, onClose }: Props) {
   const [targetMode, setTargetMode] = useState<'docker' | 'profile'>(
     instance.mode === 'docker' ? 'profile' : 'docker',
   );
-  const [deleteSource, setDeleteSource] = useState(false);
+  const [deleteSource, setDeleteSource] = useState(true);
   const [error, setError] = useState('');
 
   const migrate = useMutation({

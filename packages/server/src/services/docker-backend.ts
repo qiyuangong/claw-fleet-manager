@@ -320,6 +320,7 @@ export class DockerBackend implements DeploymentBackend {
 
     const config = this.fleetConfig.readFleetConfig();
     const resolvedPortStep = config.portStep;
+    const resolvedEnableNpmPackages = config.enableNpmPackages;
     const vars = this.fleetConfig.readFleetEnvRaw();
 
     const tokens = this.fleetConfig.readTokens();
@@ -390,6 +391,7 @@ export class DockerBackend implements DeploymentBackend {
       timezone: config.tz,
       configDir,
       workspaceDir: opts.workspaceDir,
+      npmDir: resolvedEnableNpmPackages ? join(configDir, '.npm') : undefined,
       cpuLimit: config.cpuLimit,
       memLimit: config.memLimit,
     });

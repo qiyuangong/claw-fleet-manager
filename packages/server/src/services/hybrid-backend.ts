@@ -132,6 +132,9 @@ export class HybridBackend implements DeploymentBackend {
     if (source.mode === opts.targetMode) {
       throw new Error(`Instance "${id}" is already in ${opts.targetMode} mode`);
     }
+    if (!opts.deleteSource) {
+      throw new Error('deleteSource is required for migration to avoid duplicate ids');
+    }
 
     if (opts.targetMode === 'profile') {
       await this.dockerBackend.stop(id);

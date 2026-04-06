@@ -53,10 +53,16 @@ export async function migrateRoutes(app: FastifyInstance) {
         code: 'INVALID_BODY',
       });
     }
+    if (parsed.data.deleteSource === false) {
+      return reply.status(400).send({
+        error: 'deleteSource is required for migration to avoid duplicate ids',
+        code: 'DELETE_SOURCE_REQUIRED',
+      });
+    }
 
     const opts: MigrateOpts = {
       targetMode: parsed.data.targetMode,
-      deleteSource: parsed.data.deleteSource ?? false,
+      deleteSource: parsed.data.deleteSource ?? true,
     };
 
     try {

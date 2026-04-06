@@ -123,6 +123,22 @@ export class FleetConfigService {
     this.atomicWrite(path, JSON.stringify(config, null, 2) + '\n');
   }
 
+  readInstanceMeta(instanceId: string): Record<string, unknown> {
+    try {
+      const path = join(this.getDockerConfigDir(instanceId), 'claw-fleet-meta.json');
+      return JSON.parse(readFileSync(path, 'utf-8')) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+
+  writeInstanceMeta(instanceId: string, meta: Record<string, unknown>): void {
+    const configDir = this.getDockerConfigDir(instanceId);
+    const path = join(configDir, 'claw-fleet-meta.json');
+    mkdirSync(configDir, { recursive: true });
+    this.atomicWrite(path, JSON.stringify(meta, null, 2) + '\n');
+  }
+
   ensureFleetDirectories(): void {
     mkdirSync(join(this.fleetDir, 'config'), { recursive: true });
     mkdirSync(this.baseDir, { recursive: true });

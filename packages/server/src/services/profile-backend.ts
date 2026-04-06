@@ -139,7 +139,6 @@ export class ProfileBackend implements DeploymentBackend {
     );
 
     const status: FleetStatus = {
-      mode: 'profiles',
       instances,
       totalRunning: instances.filter((i) => i.status === 'running').length,
       updatedAt: Date.now(),

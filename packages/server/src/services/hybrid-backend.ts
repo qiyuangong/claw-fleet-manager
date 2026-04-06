@@ -130,7 +130,6 @@ export class HybridBackend implements DeploymentBackend {
     ].sort((left, right) => left.id.localeCompare(right.id));
 
     return {
-      mode: 'hybrid',
       instances,
       totalRunning: instances.filter((instance) => instance.status === 'running').length,
       updatedAt: Math.max(dockerStatus?.updatedAt ?? 0, profileStatus?.updatedAt ?? 0),

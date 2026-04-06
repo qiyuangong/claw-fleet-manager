@@ -33,7 +33,7 @@ export async function fleetRoutes(app: FastifyInstance) {
     },
   }, async (request) => {
     const status = app.backend.getCachedStatus()
-      ?? { mode: app.deploymentMode, instances: [], totalRunning: 0, updatedAt: Date.now() };
+      ?? { instances: [], totalRunning: 0, updatedAt: Date.now() };
     if (!request.user || request.user.role === 'admin') return status;
     // Filter instances to assigned profiles only for non-admin users
     const assigned = new Set(request.user.assignedProfiles);

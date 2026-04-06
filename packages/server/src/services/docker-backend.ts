@@ -410,7 +410,6 @@ export class DockerBackend implements DeploymentBackend {
     if (!instance) throw new Error(`Instance "${opts.name}" not found after migration`);
     return tailscaleWarning ? { ...instance, tailscaleWarning } : instance;
   }
-
   private mapStatus(status: string): FleetInstance['status'] {
     if (status === 'running') return 'running';
     if (status === 'restarting') return 'restarting';

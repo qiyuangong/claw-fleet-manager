@@ -234,7 +234,6 @@ describe('DockerBackend', () => {
 
     expect(mockDocker.removeContainer).toHaveBeenCalledWith('team-alpha');
   });
-
   it('createInstanceFromMigration() creates container with explicit token and workspaceDir', async () => {
     mockDocker.listFleetContainers
       .mockResolvedValueOnce([])

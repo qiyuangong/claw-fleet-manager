@@ -6,7 +6,6 @@ import type { User } from './types.js';
 declare module 'fastify' {
   interface FastifyInstance {
     backend: DeploymentBackend;
-    deploymentMode: 'docker' | 'profiles' | 'hybrid';
     fleetConfig: FleetConfigService;
     fleetDir: string;
     userService: UserService;

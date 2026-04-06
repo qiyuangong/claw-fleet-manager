@@ -18,7 +18,6 @@ export interface FleetInstance {
 }
 
 export interface FleetStatus {
-  mode: 'docker' | 'profiles' | 'hybrid';
   instances: FleetInstance[];
   totalRunning: number;
   updatedAt: number;

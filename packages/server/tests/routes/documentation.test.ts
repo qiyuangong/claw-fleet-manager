@@ -35,7 +35,6 @@ describe('OpenAPI documentation', () => {
         updatedAt: Date.now(),
       }),
       refresh: vi.fn(),
-      scaleFleet: vi.fn(),
       createInstance: vi.fn(),
       removeInstance: vi.fn(),
       start: vi.fn(),
@@ -114,8 +113,7 @@ describe('OpenAPI documentation', () => {
     const spec = (await app.inject({ method: 'GET', url: '/documentation/json' })).json();
 
     expect(spec.paths['/api/fleet'].get.summary).toBe('Get current fleet status');
-    expect(spec.paths['/api/fleet/scale'].post.tags).toEqual(['Fleet']);
-    expect(spec.paths['/api/fleet/scale'].post.requestBody).toBeDefined();
+    expect(spec.paths['/api/fleet/scale']).toBeUndefined();
     expect(spec.paths['/api/fleet/instances'].post.responses['200']).toBeDefined();
     expect(spec.paths['/api/fleet/instances/{id}'].delete.parameters).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'id', in: 'path', required: true })]),

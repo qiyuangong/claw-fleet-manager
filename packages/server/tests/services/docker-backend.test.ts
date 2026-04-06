@@ -176,12 +176,11 @@ describe('DockerBackend', () => {
     expect(instance.id).toBe('team-beta');
   });
 
-  it('refresh() returns FleetStatus with mode=docker', async () => {
+  it('refresh() returns FleetStatus', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([
       { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
     ]);
     const status = await backend.refresh();
-    expect(status.mode).toBe('docker');
     expect(status.instances).toHaveLength(1);
     expect(status.instances[0].id).toBe('openclaw-1');
     expect(status.instances[0].index).toBe(1);
@@ -201,7 +200,6 @@ describe('DockerBackend', () => {
   it('getCachedStatus() returns the last refresh result', async () => {
     await backend.refresh();
     expect(backend.getCachedStatus()).not.toBeNull();
-    expect(backend.getCachedStatus()?.mode).toBe('docker');
   });
 
   it('createInstance() uses the next available slot index for named instances', async () => {

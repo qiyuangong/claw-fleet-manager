@@ -44,7 +44,6 @@ describe('OpenAPI documentation', () => {
       revealToken: vi.fn(),
       execInstanceCommand: vi.fn(),
     });
-    app.decorate('deploymentMode', 'hybrid');
     app.decorate('fleetDir', '/tmp/claw-fleet-manager');
     app.decorate('fleetConfig', {
       readFleetConfig: vi.fn(),

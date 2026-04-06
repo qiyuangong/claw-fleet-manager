@@ -35,7 +35,6 @@ describe('Profile routes', () => {
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'profiles');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
     });

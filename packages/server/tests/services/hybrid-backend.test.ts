@@ -75,13 +75,11 @@ describe('HybridBackend', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dockerBackend.getCachedStatus.mockReturnValue({
-      mode: 'docker',
       instances: [dockerInstance],
       totalRunning: 1,
       updatedAt: 1000,
     });
     profileBackend.getCachedStatus.mockReturnValue({
-      mode: 'profiles',
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 2000,
@@ -96,7 +94,6 @@ describe('HybridBackend', () => {
   it('refresh merges docker and profile instances into one hybrid fleet', async () => {
     const status = await backend.refresh();
 
-    expect(status.mode).toBe('hybrid');
     expect(status.instances.map((instance) => instance.id)).toEqual(['openclaw-1', 'team-alpha']);
     expect(status.totalRunning).toBe(2);
     expect(status.updatedAt).toBe(2000);
@@ -134,14 +131,12 @@ describe('HybridBackend', () => {
   it('refresh falls back to cached profile status when docker refresh fails', async () => {
     dockerBackend.getCachedStatus.mockReturnValue(null);
     profileBackend.getCachedStatus.mockReturnValue({
-      mode: 'profiles',
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 2000,
     });
     dockerBackend.refresh.mockRejectedValueOnce(new Error('docker unavailable'));
     profileBackend.refresh.mockResolvedValueOnce({
-      mode: 'profiles',
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 3000,
@@ -149,7 +144,6 @@ describe('HybridBackend', () => {
 
     const status = await backend.refresh();
 
-    expect(status.mode).toBe('hybrid');
     expect(status.instances).toEqual([profileInstance]);
     expect(status.updatedAt).toBe(3000);
   });

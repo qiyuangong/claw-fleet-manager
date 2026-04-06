@@ -4,7 +4,6 @@ import Fastify from 'fastify';
 import { fleetRoutes } from '../../src/routes/fleet.js';
 
 const mockStatus = {
-  mode: 'hybrid' as const,
   instances: [
     { id: 'openclaw-1', mode: 'docker' as const, index: 1, status: 'running', port: 18789, token: 'abc1***f456',
       uptime: 100, cpu: 12, memory: { used: 400, limit: 8000 }, disk: { config: 0, workspace: 0 },
@@ -29,7 +28,6 @@ describe('Fleet routes', () => {
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'hybrid');
     app.decorate('fleetDir', '/tmp');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
@@ -40,10 +38,9 @@ describe('Fleet routes', () => {
 
   afterAll(() => app.close());
 
-  it('GET /api/fleet returns fleet status with mode', async () => {
+  it('GET /api/fleet returns fleet status', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/fleet' });
     expect(res.statusCode).toBe(200);
-    expect(res.json().mode).toBe('hybrid');
     expect(res.json().instances).toHaveLength(1);
     expect(res.json().totalRunning).toBe(1);
   });
@@ -180,7 +177,6 @@ describe('Fleet routes — hybrid validation', () => {
       removeInstance: vi.fn().mockResolvedValue(undefined),
       scaleFleet: vi.fn().mockResolvedValue(mockStatus),
     });
-    app.decorate('deploymentMode', 'hybrid');
     app.decorate('fleetDir', '/tmp');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };

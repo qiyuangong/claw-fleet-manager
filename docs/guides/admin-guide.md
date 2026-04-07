@@ -287,3 +287,23 @@ Use this to add or remove extensions from an instance.
 > **Note:** Some plugins may require an instance restart after install or removal. Use the **Overview** tab to restart.
 
 ---
+
+## 8. Edit Instance Configuration
+
+Use this to change an instance's settings — model, API key, provider, or any other `openclaw.json` field.
+
+**Steps:**
+
+1. Click the instance name in the sidebar → **Config** tab.
+
+   ![Config tab showing the Monaco JSON editor with openclaw.json content](screenshots/08-config-tab.png)
+
+2. The editor shows the current `openclaw.json` for this instance. Edit the fields you need to change.
+
+3. Click **Save**.
+
+   > **JSON errors:** The editor highlights syntax errors in red. Fix them before saving — invalid JSON is rejected.
+
+4. Go to the **Overview** tab and click **Restart**. Configuration changes take effect only after a restart.
+
+   > **Important:** Do not skip the restart step — the instance continues running with the old settings until it is restarted.

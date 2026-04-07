@@ -146,7 +146,7 @@ Users with the **User** role can only access instances listed in their profile a
 2. Select which profile instances this user may access.
 3. Click **Save**.
 
-![User edit panel with instance assignment selector](screenshots/03-assign-profiles.png)
+![User management panel](screenshots/03-users-panel.png)
 
 ---
 

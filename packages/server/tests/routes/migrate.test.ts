@@ -30,7 +30,6 @@ describe('Migrate routes', () => {
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend);
-    app.decorate('deploymentMode', 'hybrid');
     app.decorate('fleetDir', '/tmp');
     app.addHook('onRequest', async (request) => {
       (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
@@ -61,26 +60,14 @@ describe('Migrate routes', () => {
     expect(mockBackend.migrate).toHaveBeenCalledWith('openclaw-1', { targetMode: 'profile', deleteSource: true });
   });
 
-  it('POST /api/fleet/instances/:id/migrate returns 400 for non-hybrid mode', async () => {
-    const app2 = Fastify();
-    app2.decorate('backend', mockBackend);
-    app2.decorate('deploymentMode', 'docker');
-    app2.decorate('fleetDir', '/tmp');
-    app2.addHook('onRequest', async (request) => {
-      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
-    });
-    await app2.register(migrateRoutes);
-    await app2.ready();
-
-    const res = await app2.inject({
+  it('POST /api/fleet/instances/:id/migrate returns 400 when deleteSource is false', async () => {
+    const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances/openclaw-1/migrate',
-      payload: { targetMode: 'profile' },
+      payload: { targetMode: 'profile', deleteSource: false },
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('MODE_UNAVAILABLE');
-
-    await app2.close();
+    expect(res.json().code).toBe('DELETE_SOURCE_REQUIRED');
   });
 
   it('POST /api/fleet/instances/:id/migrate returns 400 for invalid targetMode', async () => {

@@ -10,6 +10,8 @@ async function signIn(page: Page, username: string, password: string) {
   await page.evaluate(() => {
     sessionStorage.clear();
     localStorage.clear();
+    sessionStorage.setItem('fleet_manager_auth_mode', 'manual');
+    sessionStorage.setItem('fleet_manager_auth_disabled', '1');
   });
   await page.reload();
 
@@ -27,6 +29,7 @@ test('user login shows only assigned instance access', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'My Account' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Users' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Fleet Config' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'My Account' }).click();
   await expect(page.getByText(/You currently have \d+ assigned instance/i)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'My Instances' })).toBeVisible();
 });

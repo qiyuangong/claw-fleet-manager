@@ -34,13 +34,6 @@ export async function migrateRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
-    if (app.deploymentMode !== 'hybrid') {
-      return reply.status(400).send({
-        error: 'Migration is only available in hybrid deployment mode',
-        code: 'MODE_UNAVAILABLE',
-      });
-    }
-
     const { id } = request.params;
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });

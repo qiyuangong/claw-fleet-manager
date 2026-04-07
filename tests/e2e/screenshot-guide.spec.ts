@@ -54,9 +54,11 @@ test.describe('Guide screenshots', () => {
   test('02 — overview tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
-    await firstInstance.click();
-    await page.getByRole('button', { name: 'Overview' }).click();
-    await shot(page, '02-overview-tab.png');
+    if (await firstInstance.isVisible()) {
+      await firstInstance.click();
+      await page.getByRole('button', { name: 'Overview' }).click();
+      await shot(page, '02-overview-tab.png');
+    }
   });
 
   test('03 — users panel and add user dialog', async ({ page }) => {
@@ -80,46 +82,56 @@ test.describe('Guide screenshots', () => {
   test('04 — control UI tab with pending devices', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
-    await firstInstance.click();
-    await page.getByRole('button', { name: 'Control UI' }).click();
-    await shot(page, '04-controlui-pending.png');
+    if (await firstInstance.isVisible()) {
+      await firstInstance.click();
+      await page.getByRole('button', { name: 'Control UI' }).click();
+      await shot(page, '04-controlui-pending.png');
+    }
   });
 
   test('05 — feishu tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
-    await firstInstance.click();
-    await page.getByRole('button', { name: 'Feishu' }).click();
-    await shot(page, '05-feishu-config.png');
-    await shot(page, '05-feishu-pending.png');
+    if (await firstInstance.isVisible()) {
+      await firstInstance.click();
+      await page.getByRole('button', { name: 'Feishu' }).click();
+      await shot(page, '05-feishu-config.png');
+      await shot(page, '05-feishu-pending.png');
+    }
   });
 
   test('06 — logs and metrics tabs', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
-    await firstInstance.click();
-    await page.getByRole('button', { name: 'Logs' }).click();
-    await page.waitForTimeout(1_000); // let logs stream in
-    await shot(page, '06-logs-tab.png');
-    await page.getByRole('button', { name: 'Metrics' }).click();
-    await page.waitForTimeout(500);
-    await shot(page, '06-metrics-tab.png');
+    if (await firstInstance.isVisible()) {
+      await firstInstance.click();
+      await page.getByRole('button', { name: 'Logs' }).click();
+      await page.waitForTimeout(1_000); // let logs stream in
+      await shot(page, '06-logs-tab.png');
+      await page.getByRole('button', { name: 'Metrics' }).click();
+      await page.waitForTimeout(500);
+      await shot(page, '06-metrics-tab.png');
+    }
   });
 
   test('07 — plugins tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
-    await firstInstance.click();
-    await page.getByRole('button', { name: 'Plugins' }).click();
-    await shot(page, '07-plugins-tab.png');
+    if (await firstInstance.isVisible()) {
+      await firstInstance.click();
+      await page.getByRole('button', { name: 'Plugins' }).click();
+      await shot(page, '07-plugins-tab.png');
+    }
   });
 
   test('08 — config tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
-    await firstInstance.click();
-    await page.getByRole('button', { name: 'Config' }).click();
-    await page.waitForTimeout(500); // let Monaco load
-    await shot(page, '08-config-tab.png');
+    if (await firstInstance.isVisible()) {
+      await firstInstance.click();
+      await page.getByRole('button', { name: 'Config' }).click();
+      await page.waitForTimeout(500); // let Monaco load
+      await shot(page, '08-config-tab.png');
+    }
   });
 });

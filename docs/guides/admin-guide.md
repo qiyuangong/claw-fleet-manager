@@ -257,3 +257,33 @@ Use this to check whether an instance is under load or running low on memory.
    | Memory | Used vs. total available memory |
 
 ---
+
+## 7. Install or Remove a Plugin
+
+Use this to add or remove extensions from an instance.
+
+### 7a. Install a plugin
+
+1. Click the instance name in the sidebar → **Plugins** tab.
+
+   ![Plugins tab showing the installed plugins list and Install Plugin button](screenshots/07-plugins-tab.png)
+
+2. Click **Install Plugin**.
+
+3. Enter the plugin identifier (e.g. `@anthropic/plugin-name`).
+
+4. Click **Install**. The plugin appears in the installed list once complete.
+
+---
+
+### 7b. Remove a plugin
+
+1. Find the plugin in the installed list.
+
+2. Click **Remove** (or the trash icon) next to it.
+
+3. Confirm the removal in the prompt that appears.
+
+> **Note:** Some plugins may require an instance restart after install or removal. Use the **Overview** tab to restart.
+
+---

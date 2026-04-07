@@ -1,0 +1,125 @@
+// tests/e2e/screenshot-guide.spec.ts
+import { expect, test, type Page } from '@playwright/test';
+import path from 'path';
+import fs from 'fs';
+
+const adminUsername = process.env.PLAYWRIGHT_ADMIN_USERNAME;
+const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD;
+
+const screenshotsDir = path.resolve('docs/guides/screenshots');
+
+async function signInAsAdmin(page: Page) {
+  await page.goto('/');
+  await page.evaluate(() => {
+    sessionStorage.clear();
+    localStorage.clear();
+    sessionStorage.setItem('fleet_manager_auth_mode', 'manual');
+    sessionStorage.setItem('fleet_manager_auth_disabled', '1');
+  });
+  await page.reload();
+  await page.getByPlaceholder('Username').fill(adminUsername!);
+  await page.getByPlaceholder('Password').fill(adminPassword!);
+  await page.getByRole('button', { name: 'Sign In' }).click();
+  await expect(page.getByRole('button', { name: /admin/i })).toBeVisible({ timeout: 10_000 });
+}
+
+async function shot(page: Page, filename: string) {
+  fs.mkdirSync(screenshotsDir, { recursive: true });
+  await page.screenshot({ path: path.join(screenshotsDir, filename), fullPage: false });
+}
+
+test.describe('Guide screenshots', () => {
+  test.skip(!adminUsername || !adminPassword,
+    'Set PLAYWRIGHT_ADMIN_USERNAME and PLAYWRIGHT_ADMIN_PASSWORD to capture screenshots');
+
+  test('00 — dashboard overview', async ({ page }) => {
+    await signInAsAdmin(page);
+    // Select first instance if any exist so the tab row is visible
+    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    if (await firstInstance.isVisible()) await firstInstance.click();
+    await shot(page, '00-dashboard.png');
+  });
+
+  test('01 — manage instances panel and add instance dialog', async ({ page }) => {
+    await signInAsAdmin(page);
+    await page.getByRole('button', { name: 'Manage Instances' }).click();
+    await shot(page, '01-sidebar-manage-instances.png');
+    await page.getByRole('button', { name: 'Add Instance' }).click();
+    await shot(page, '01-add-instance-button.png');
+    await page.getByRole('button', { name: 'Create Profile Instance' }).click();
+    await shot(page, '01-add-instance-dialog.png');
+    await page.keyboard.press('Escape');
+  });
+
+  test('02 — overview tab', async ({ page }) => {
+    await signInAsAdmin(page);
+    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    await firstInstance.click();
+    await page.getByRole('button', { name: 'Overview' }).click();
+    await shot(page, '02-overview-tab.png');
+  });
+
+  test('03 — users panel and add user dialog', async ({ page }) => {
+    await signInAsAdmin(page);
+    await page.getByRole('button', { name: 'Users' }).click();
+    await shot(page, '03-sidebar-users.png');
+    await shot(page, '03-users-panel.png');
+    // Add User dialog
+    await page.getByRole('button', { name: 'Add User' }).click();
+    await shot(page, '03-add-user-dialog.png');
+    await page.keyboard.press('Escape');
+    // Assign profiles — click Edit on first non-admin user if present
+    const editBtn = page.getByRole('button', { name: 'Edit' }).first();
+    if (await editBtn.isVisible()) {
+      await editBtn.click();
+      await shot(page, '03-assign-profiles.png');
+      await page.keyboard.press('Escape');
+    }
+  });
+
+  test('04 — control UI tab with pending devices', async ({ page }) => {
+    await signInAsAdmin(page);
+    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    await firstInstance.click();
+    await page.getByRole('button', { name: 'Control UI' }).click();
+    await shot(page, '04-controlui-pending.png');
+  });
+
+  test('05 — feishu tab', async ({ page }) => {
+    await signInAsAdmin(page);
+    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    await firstInstance.click();
+    await page.getByRole('button', { name: 'Feishu' }).click();
+    await shot(page, '05-feishu-config.png');
+    await shot(page, '05-feishu-pending.png');
+  });
+
+  test('06 — logs and metrics tabs', async ({ page }) => {
+    await signInAsAdmin(page);
+    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    await firstInstance.click();
+    await page.getByRole('button', { name: 'Logs' }).click();
+    await page.waitForTimeout(1_000); // let logs stream in
+    await shot(page, '06-logs-tab.png');
+    await page.getByRole('button', { name: 'Metrics' }).click();
+    await page.waitForTimeout(500);
+    await shot(page, '06-metrics-tab.png');
+  });
+
+  test('07 — plugins tab', async ({ page }) => {
+    await signInAsAdmin(page);
+    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    await firstInstance.click();
+    await page.getByRole('button', { name: 'Plugins' }).click();
+    await shot(page, '07-plugins-tab.png');
+  });
+
+  test('08 — config tab', async ({ page }) => {
+    await signInAsAdmin(page);
+    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    await firstInstance.click();
+    await page.getByRole('button', { name: 'Config' }).click();
+    await page.waitForTimeout(500); // let Monaco load
+    await shot(page, '08-config-tab.png');
+  });
+});

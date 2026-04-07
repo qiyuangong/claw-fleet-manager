@@ -22,7 +22,7 @@ const emptyDockerOverrides: DockerOverridesForm = {
   cpuLimit: '',
   memoryLimit: '',
   portStep: '',
-  enableNpmPackages: false,
+  enableNpmPackages: true,
 };
 
 export function AddInstanceDialog({ kind, onClose }: Props) {

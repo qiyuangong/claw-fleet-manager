@@ -36,12 +36,12 @@ describe('UserService.initialize', () => {
     const usersFile = join(tmpDir, 'users.json');
     writeFileSync(usersFile, JSON.stringify({
       users: [
-        { username: 'qiyuan', passwordHash: 'scrypt$deadbeef$deadbeef', role: 'user' },
+        { username: 'testuser', passwordHash: 'scrypt$deadbeef$deadbeef', role: 'user' },
       ],
     }), 'utf-8');
 
     await svc.initialize({ username: 'admin', password: 'password123' });
-    expect(svc.get('qiyuan')?.assignedProfiles).toEqual([]);
+    expect(svc.get('testuser')?.assignedProfiles).toEqual([]);
   });
 });
 

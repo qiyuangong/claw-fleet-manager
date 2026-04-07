@@ -118,10 +118,10 @@ PLAYWRIGHT_SERVER_COMMAND="npm run dev" PLAYWRIGHT_BASE_URL=http://127.0.0.1:517
 The auth smoke tests also read credentials from environment variables and skip cleanly when they are not provided:
 
 ```bash
-PLAYWRIGHT_USER_USERNAME=qiyuan \
-PLAYWRIGHT_USER_PASSWORD=1234qwer \
+PLAYWRIGHT_USER_USERNAME=testuser \
+PLAYWRIGHT_USER_PASSWORD=testuser \
 PLAYWRIGHT_ADMIN_USERNAME=admin \
-PLAYWRIGHT_ADMIN_PASSWORD=bigdl123 \
+PLAYWRIGHT_ADMIN_PASSWORD=changeme \
 PLAYWRIGHT_BASE_URL=https://localhost:3001 \
 npm run test:e2e
 ```

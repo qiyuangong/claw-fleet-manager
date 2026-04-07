@@ -181,3 +181,46 @@ Use this when a user's browser or client is waiting for approval to connect to a
 > **No pending devices?** If the card does not appear, there are no devices waiting for approval at this time.
 
 ---
+
+## 5. Feishu Pairing
+
+Use this to connect an instance to a Feishu (Lark) bot channel and approve user pairing requests.
+
+### 5a. Configure Feishu credentials
+
+You only need to do this once per instance (or when credentials change).
+
+1. Click the instance name in the sidebar → **Feishu** tab.
+
+   ![Feishu tab showing App ID, App Secret, Group Policy, and Save Config button](screenshots/05-feishu-config.png)
+
+2. Enter the **App ID** and **App Secret** from your Feishu developer console (e.g. `cli_xxx` and the corresponding secret).
+
+3. Set **Group Policy**:
+   - **Open** — any group the bot is added to can use it
+   - **Allowlist** — only approved groups
+   - **Disabled** — groups cannot use the bot
+
+4. Check or uncheck **Require Mention** — when checked, users must @mention the bot to get a response.
+
+5. Click **Save Config**.
+
+6. Go to the **Overview** tab and click **Restart** for the credentials to take effect.
+
+---
+
+### 5b. Approve a Feishu pairing request
+
+When a Feishu user sends the pairing command to the bot, their code appears here.
+
+1. Click the instance → **Feishu** tab.
+
+2. In the **Pending Pairing Requests** section, find the pairing code for the user.
+
+   ![Feishu tab showing a pending pairing request card with an Approve button](screenshots/05-feishu-pending.png)
+
+3. Click **Approve** next to the code.
+
+> **No pending requests?** The section shows "No pending pairing requests." — the user either hasn't sent the command yet or the bot isn't running (check that the instance is started and Feishu credentials are saved).
+
+---

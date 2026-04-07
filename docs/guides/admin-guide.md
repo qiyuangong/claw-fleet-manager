@@ -159,3 +159,25 @@ Users with the **User** role can only access instances listed in their profile a
 > **Note:** Users can change their own password from the My Account panel.
 
 ---
+
+## 4. Approve a Device
+
+Use this when a user's browser or client is waiting for approval to connect to an instance's Control UI.
+
+**Steps:**
+
+1. Click the instance name in the sidebar.
+
+2. Click the **Control UI** tab.
+
+3. If there are pending devices, a yellow card shows the count and each device's IP address and request ID.
+
+   ![Control UI tab showing a yellow pending devices card with Approve and Approve All buttons](screenshots/04-controlui-pending.png)
+
+4. Click **Approve** next to a specific device to approve it individually, or click **Approve All** to approve all at once.
+
+5. Approved devices disappear from the list immediately.
+
+> **No pending devices?** If the card does not appear, there are no devices waiting for approval at this time.
+
+---

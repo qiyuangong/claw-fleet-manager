@@ -215,11 +215,18 @@ A short orientation section followed by standalone task sections. Each task sect
 
 ---
 
-## Output File
+## Output Files
 
-`docs/guides/admin-guide.md`
+| File | Purpose |
+|------|---------|
+| `docs/guides/admin-guide.md` | Full guide — all 9 sections with screenshots, for onboarding new admins |
+| `docs/guides/admin-quick-reference.md` | Quick reference card — one compact table summarizing "where to click" for each task, no screenshots, for experienced admins doing quick lookups |
 
 Screenshot images go in `docs/guides/screenshots/` with filenames matching their section (e.g., `01-sidebar-add-instance.png`, `03a-user-management.png`).
+
+### Quick Reference Card Format
+
+A single Markdown table or numbered checklist — one row per task, columns: **Task**, **Where to go**, **Key action**. No screenshots. Derived from the full guide; stays in sync by summarizing it.
 
 ---
 

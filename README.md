@@ -28,6 +28,27 @@ Both types can coexist in the same fleet.
 | Auto-restart on crash | ✓ | — |
 | Tailscale per-instance HTTPS URLs | — | ✓ |
 
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><b>Dashboard</b></td>
+    <td align="center"><b>Live Logs</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/guides/screenshots/00-dashboard.png" alt="Dashboard overview" width="400"/></td>
+    <td><img src="docs/guides/screenshots/06-logs-tab.png" alt="Live log streaming" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>CPU / Memory Metrics</b></td>
+    <td align="center"><b>User Management</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU metrics chart" width="400"/></td>
+    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="User management" width="400"/></td>
+  </tr>
+</table>
+
 ## Quick Start
 
 1. Install dependencies:

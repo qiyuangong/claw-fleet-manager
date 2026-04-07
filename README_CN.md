@@ -1,8 +1,23 @@
 # Claw Fleet Manager
 
-[English](README.md)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"/></a>
+  <img src="https://img.shields.io/badge/Node.js-20+-green?style=for-the-badge" alt="Node.js 20+"/>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19"/>
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="docs/arch/README_CN.md">架构文档</a> ·
+  <a href="docs/guides/admin-guide-cn.md">管理员指南</a> ·
+  <a href="docs/guides/admin-quick-reference-cn.md">快速参考</a>
+</p>
 
 在浏览器中管理 `openclaw` 集群 —— 无需命令行，即可启停实例、编辑配置、查看监控。
+
+<p align="center">
+  <img src="docs/guides/screenshots/00-dashboard.png" alt="Claw Fleet Manager 管理面板" width="800"/>
+</p>
 
 服务端运行单一**混合后端**，同时支持两种实例类型：
 
@@ -27,6 +42,21 @@
 | 在实例类型之间迁移 | ✓ | ✓ |
 | 崩溃后自动重启 | ✓ | — |
 | Tailscale 每实例 HTTPS 访问地址 | — | ✓ |
+
+## 截图
+
+<table>
+  <tr>
+    <td align="center"><b>实时日志</b></td>
+    <td align="center"><b>性能指标</b></td>
+    <td align="center"><b>用户管理</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/guides/screenshots/06-logs-tab.png" alt="实时日志流" width="260"/></td>
+    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU 性能图表" width="260"/></td>
+    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="用户管理" width="260"/></td>
+  </tr>
+</table>
 
 ## 快速开始
 

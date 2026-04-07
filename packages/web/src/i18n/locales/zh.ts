@@ -168,6 +168,7 @@ const zh = {
   portStep: '端口步长',
   enableNpmPackages: '启用 npm 包支持',
   enableNpmPackagesHint: '为每个实例添加 .npm 缓存挂载。',
+  enableNpmPackagesWarning: '未挂载 npm 缓存时插件安装将失败。',
   showDockerConfig: '高级 Docker 配置',
   hideDockerConfig: '收起 Docker 配置',
   dockerAdvancedHelp: '这些覆盖项只会应用到当前正在创建的 Docker 实例。',

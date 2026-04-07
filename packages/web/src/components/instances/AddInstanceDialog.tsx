@@ -186,6 +186,11 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
                 <p className="muted" style={{ marginTop: 0 }}>
                   {t('enableNpmPackagesHint')}
                 </p>
+                {!dockerOverrides.enableNpmPackages ? (
+                  <p className="error-text" style={{ marginTop: 0 }}>
+                    {t('enableNpmPackagesWarning')}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>

@@ -168,6 +168,7 @@ const en = {
   portStep: 'Port Step',
   enableNpmPackages: 'Enable npm packages',
   enableNpmPackagesHint: 'Adds a per-instance .npm cache mount.',
+  enableNpmPackagesWarning: 'Plugin installation will fail without the npm cache mount.',
   showDockerConfig: 'Advanced Docker Config',
   hideDockerConfig: 'Hide Docker Config',
   dockerAdvancedHelp: 'These overrides apply only to the Docker instance you are creating right now.',

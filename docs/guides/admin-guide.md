@@ -142,8 +142,8 @@ The Users panel lists all accounts.
 
 Users with the **User** role can only access instances listed in their profile assignment.
 
-1. Find the user in the table and click **Edit** (or the assignment control next to their name).
-2. Select which profile instances this user may access.
+1. Find the user in the table and click **Instances** (shown in the Actions column for non-admin users).
+2. Check or uncheck the profile instances this user may access.
 3. Click **Save**.
 
 ![User management panel](screenshots/03-users-panel.png)

@@ -31,9 +31,10 @@ test.describe('Guide screenshots', () => {
 
   test('00 — dashboard overview', async ({ page }) => {
     await signInAsAdmin(page);
-    // Select first instance if any exist so the tab row is visible
     const firstInstance = page.locator('.sidebar-item').first();
-    if (await firstInstance.isVisible()) await firstInstance.click();
+    if (await firstInstance.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      await firstInstance.click();
+    }
     await shot(page, '00-dashboard.png');
   });
 
@@ -51,11 +52,10 @@ test.describe('Guide screenshots', () => {
   test('02 — overview tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-item').first();
-    if (await firstInstance.isVisible()) {
-      await firstInstance.click();
-      await page.getByRole('button', { name: /overview/i }).click();
-      await shot(page, '02-overview-tab.png');
-    }
+    await expect(firstInstance, 'At least one fleet instance must be running to capture instance tab screenshots').toBeVisible({ timeout: 10_000 });
+    await firstInstance.click();
+    await page.getByRole('button', { name: /overview/i }).click();
+    await shot(page, '02-overview-tab.png');
   });
 
   test('03 — users panel and add user dialog', async ({ page }) => {
@@ -70,56 +70,51 @@ test.describe('Guide screenshots', () => {
   test('04 — control UI tab with pending devices', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-item').first();
-    if (await firstInstance.isVisible()) {
-      await firstInstance.click();
-      await page.getByRole('button', { name: /control ui/i }).click();
-      await shot(page, '04-controlui-pending.png');
-    }
+    await expect(firstInstance, 'At least one fleet instance must be running to capture instance tab screenshots').toBeVisible({ timeout: 10_000 });
+    await firstInstance.click();
+    await page.getByRole('button', { name: /control ui/i }).click();
+    await shot(page, '04-controlui-pending.png');
   });
 
   test('05 — feishu tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-item').first();
-    if (await firstInstance.isVisible()) {
-      await firstInstance.click();
-      await page.getByRole('button', { name: /feishu/i }).click();
-      await shot(page, '05-feishu-config.png');
-      await shot(page, '05-feishu-pending.png');
-    }
+    await expect(firstInstance, 'At least one fleet instance must be running to capture instance tab screenshots').toBeVisible({ timeout: 10_000 });
+    await firstInstance.click();
+    await page.getByRole('button', { name: /feishu/i }).click();
+    await shot(page, '05-feishu-config.png');
+    await shot(page, '05-feishu-pending.png');
   });
 
   test('06 — logs and metrics tabs', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-item').first();
-    if (await firstInstance.isVisible()) {
-      await firstInstance.click();
-      await page.getByRole('button', { name: /logs/i }).click();
-      await page.waitForTimeout(1_000); // let logs stream in
-      await shot(page, '06-logs-tab.png');
-      await page.getByRole('button', { name: /metrics/i }).click();
-      await page.waitForTimeout(500);
-      await shot(page, '06-metrics-tab.png');
-    }
+    await expect(firstInstance, 'At least one fleet instance must be running to capture instance tab screenshots').toBeVisible({ timeout: 10_000 });
+    await firstInstance.click();
+    await page.getByRole('button', { name: /logs/i }).click();
+    await page.waitForTimeout(1_000); // let logs stream in
+    await shot(page, '06-logs-tab.png');
+    await page.getByRole('button', { name: /metrics/i }).click();
+    await page.waitForTimeout(500);
+    await shot(page, '06-metrics-tab.png');
   });
 
   test('07 — plugins tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-item').first();
-    if (await firstInstance.isVisible()) {
-      await firstInstance.click();
-      await page.getByRole('button', { name: /plugins/i }).click();
-      await shot(page, '07-plugins-tab.png');
-    }
+    await expect(firstInstance, 'At least one fleet instance must be running to capture instance tab screenshots').toBeVisible({ timeout: 10_000 });
+    await firstInstance.click();
+    await page.getByRole('button', { name: /plugins/i }).click();
+    await shot(page, '07-plugins-tab.png');
   });
 
   test('08 — config tab', async ({ page }) => {
     await signInAsAdmin(page);
     const firstInstance = page.locator('.sidebar-item').first();
-    if (await firstInstance.isVisible()) {
-      await firstInstance.click();
-      await page.getByRole('button', { name: /^config$/i }).click();
-      await page.waitForTimeout(500); // let Monaco load
-      await shot(page, '08-config-tab.png');
-    }
+    await expect(firstInstance, 'At least one fleet instance must be running to capture instance tab screenshots').toBeVisible({ timeout: 10_000 });
+    await firstInstance.click();
+    await page.getByRole('button', { name: /^config$/i }).click();
+    await page.waitForTimeout(500); // let Monaco load
+    await shot(page, '08-config-tab.png');
   });
 });

@@ -4,26 +4,28 @@
 
 Manage an `openclaw` fleet from a browser — start, stop, configure, and monitor instances without touching the command line.
 
-Two deployment backends are supported:
+The server runs a single **hybrid** backend that supports both instance types simultaneously:
 
-- **Profile mode** (recommended): manage native `openclaw --profile` gateway processes directly
-- **Docker mode**: manage `openclaw-N` containers directly from the fleet manager, including per-instance config and workspace provisioning
+- **Profile instances** — native `openclaw --profile` gateway processes with auto-restart and full lifecycle management
+- **Docker instances** — `openclaw-N` containers managed directly, including per-instance config and workspace provisioning
+
+Both types can coexist in the same fleet.
 
 ## Features
 
-| Feature | Profile | Docker |
+| Feature | Profile instances | Docker instances |
 |---|:---:|:---:|
 | Fleet overview (health, CPU, memory, disk, uptime) | ✓ | ✓ |
-| Start / stop / restart instances | ✓ | ✓ |
+| Start / stop / restart | ✓ | ✓ |
 | Live log streaming over WebSocket | ✓ | ✓ |
 | Per-instance `openclaw.json` editing | ✓ | ✓ |
 | Embedded Control UI via reverse proxy | ✓ | ✓ |
 | Device approval and Feishu pairing | ✓ | ✓ |
 | Multi-user access with admin/user roles | ✓ | ✓ |
-| Create / remove instances | ✓ | — |
+| Create / remove instances | ✓ | ✓ |
 | Plugin install / uninstall | ✓ | ✓ |
+| Migrate between instance types | ✓ | ✓ |
 | Auto-restart on crash | ✓ | — |
-| Fleet-wide scaling | — | ✓ |
 | Tailscale per-instance HTTPS URLs | — | ✓ |
 
 ## Quick Start
@@ -42,10 +44,9 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 
 3. Edit `packages/server/server.config.json`:
    - Set `fleetDir` to your fleet directory
-   - Set `deploymentMode` to `"profiles"` (recommended) or `"docker"`
-   - In Docker mode, the fleet manager will create `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed. No `docker compose` or external setup script is required.
-   - In profile mode, avoid using `main` as a managed profile name. OpenClaw reserves that standalone default profile under `~/.openclaw`, which conflicts with fleet-managed profile directories.
    - `auth.username` / `auth.password` seed the first admin account on startup
+   - Optionally add a `profiles` block to customize profile instance settings (binary path, ports, auto-restart, etc. — see example config). Profile support is always active with built-in defaults. Avoid using `main` as a profile name — OpenClaw reserves that name for the standalone default profile.
+   - Docker instances work out of the box when Docker is available. The fleet manager creates `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed — no `docker compose` or external setup script required.
    - **TLS** — TLS is required for the Control UI (device auth needs a secure context). Generate a self-signed cert for local development:
      ```bash
      openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
@@ -81,13 +82,16 @@ Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001
 │                                           └─ Logs / Proxy   │
 └─────────────────────────────────────────────────────────────┘
                               │
+                    HybridBackend (always active)
               ┌───────────────┴───────────────┐
-       Profile mode                      Docker mode
-   openclaw --profile <name>          openclaw-N containers
-   config / state / workspace         per-instance config / workspace
+      ProfileBackend                    DockerBackend
+  openclaw --profile <name>          openclaw-N containers
+  config / state / workspace         per-instance config / workspace
 ```
 
 See [docs/arch/README.md](docs/arch/README.md) for the full architecture walkthrough.
+
+For day-to-day admin workflows see [docs/guides/admin-guide.md](docs/guides/admin-guide.md) and the [quick reference](docs/guides/admin-quick-reference.md).
 
 ## Commands
 

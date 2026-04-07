@@ -1,12 +1,10 @@
 {
-  "_comment_docker_mode": "Default mode — requires Docker",
+  "_comment": "Docker instances work when Docker is available. Add a 'profiles' block to also manage profile instances.",
   "port": 3001,
   "auth": { "username": "admin", "password": "changeme" },
   "fleetDir": "/path/to/your/openclaw-fleet",
-  "deploymentMode": "docker",
 
-  "_comment_profile_mode": "Uncomment deploymentMode and profiles block to use native profiles",
-  "_deploymentMode": "profiles",
+  "_comment_profiles": "Optional — add this block to enable profile (native openclaw --profile) instances",
   "_profiles": {
     "openclawBinary": "openclaw",
     "basePort": 18789,

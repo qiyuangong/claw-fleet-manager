@@ -4,14 +4,16 @@
 
 在浏览器中管理 `openclaw` 集群 —— 无需命令行，即可启停实例、编辑配置、查看监控。
 
-支持两种部署后端：
+服务端运行单一**混合后端**，同时支持两种实例类型：
 
-- **Profile 模式**（推荐）：直接管理原生 `openclaw --profile` 网关进程
-- **Docker 模式**：管理现有 fleet 目录中的 `openclaw-N` 容器
+- **Profile 实例** — 原生 `openclaw --profile` 网关进程，支持自动重启和完整生命周期管理
+- **Docker 实例** — 直接管理 `openclaw-N` 容器，含按实例配置和 workspace 自动生成
+
+两种类型可在同一集群中共存。
 
 ## 功能
 
-| 功能 | Profile | Docker |
+| 功能 | Profile 实例 | Docker 实例 |
 |---|:---:|:---:|
 | 集群总览（健康状态、CPU、内存、磁盘、运行时长） | ✓ | ✓ |
 | 启动 / 停止 / 重启实例 | ✓ | ✓ |
@@ -20,10 +22,10 @@
 | 通过反向代理嵌入 Control UI | ✓ | ✓ |
 | 设备审批与飞书配对 | ✓ | ✓ |
 | 多用户访问，支持 admin/user 角色 | ✓ | ✓ |
-| 创建 / 删除实例 | ✓ | — |
-| 插件安装 / 卸载 | ✓ | — |
+| 创建 / 删除实例 | ✓ | ✓ |
+| 插件安装 / 卸载 | ✓ | ✓ |
+| 在实例类型之间迁移 | ✓ | ✓ |
 | 崩溃后自动重启 | ✓ | — |
-| 集群扩缩容 | — | ✓ |
 | Tailscale 每实例 HTTPS 访问地址 | — | ✓ |
 
 ## 快速开始
@@ -42,8 +44,9 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 
 3. 编辑 `packages/server/server.config.json`：
    - 将 `fleetDir` 设置为你的 fleet 目录
-   - 将 `deploymentMode` 设置为 `"profiles"`（推荐）或 `"docker"`
    - `auth.username` / `auth.password` 用于首次启动时初始化管理员账号
+   - 可选：添加 `profiles` 块自定义 Profile 实例设置（二进制路径、端口、自动重启等，字段说明见示例配置）。Profile 支持始终启用，缺省时使用内置默认值。避免使用 `main` 作为 profile 名称 —— OpenClaw 为独立默认 profile 保留了该名称。
+   - Docker 实例在 Docker 可用时开箱即用。Fleet manager 会自动创建 `config/fleet.env`、`.env`、按实例的 `openclaw.json` 和 workspace 目录，无需 `docker compose` 或额外初始化脚本。
    - **TLS** — Control UI 的设备认证需要安全上下文，因此 TLS 是必须的。本地开发可以生成自签名证书：
      ```bash
      openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
@@ -79,13 +82,16 @@ npm run dev
 │                                          └─ 日志 / UI 代理       │
 └──────────────────────────────────────────────────────────────────┘
                               │
+                  HybridBackend（始终启用）
               ┌───────────────┴───────────────┐
-         Profile 模式                     Docker 模式
-   openclaw --profile <name>          openclaw-N 容器
-   配置目录 / 状态目录 / workspace     config/N  workspace/N
+        ProfileBackend                  DockerBackend
+  openclaw --profile <name>          openclaw-N 容器
+  配置目录 / 状态目录 / workspace     config/N  workspace/N
 ```
 
 完整架构说明请参阅 [docs/arch/README_CN.md](docs/arch/README_CN.md)。
+
+日常管理操作请参阅[管理员指南](docs/guides/admin-guide-cn.md)和[快速参考](docs/guides/admin-quick-reference-cn.md)。
 
 ## 常用命令
 

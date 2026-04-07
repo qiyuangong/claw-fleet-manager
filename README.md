@@ -1,8 +1,23 @@
 # Claw Fleet Manager
 
-[简体中文](README_CN.md)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"/></a>
+  <img src="https://img.shields.io/badge/Node.js-20+-green?style=for-the-badge" alt="Node.js 20+"/>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19"/>
+</p>
+
+<p align="center">
+  <a href="README_CN.md">简体中文</a> ·
+  <a href="docs/arch/README.md">Architecture</a> ·
+  <a href="docs/guides/admin-guide.md">Admin Guide</a> ·
+  <a href="docs/guides/admin-quick-reference.md">Quick Reference</a>
+</p>
 
 Manage an `openclaw` fleet from a browser — start, stop, configure, and monitor instances without touching the command line.
+
+<p align="center">
+  <img src="docs/guides/screenshots/00-dashboard.png" alt="Claw Fleet Manager dashboard" width="800"/>
+</p>
 
 The server runs a single **hybrid** backend that supports both instance types simultaneously:
 
@@ -32,20 +47,14 @@ Both types can coexist in the same fleet.
 
 <table>
   <tr>
-    <td align="center"><b>Dashboard</b></td>
     <td align="center"><b>Live Logs</b></td>
-  </tr>
-  <tr>
-    <td><img src="docs/guides/screenshots/00-dashboard.png" alt="Dashboard overview" width="400"/></td>
-    <td><img src="docs/guides/screenshots/06-logs-tab.png" alt="Live log streaming" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>CPU / Memory Metrics</b></td>
+    <td align="center"><b>Metrics</b></td>
     <td align="center"><b>User Management</b></td>
   </tr>
   <tr>
-    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU metrics chart" width="400"/></td>
-    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="User management" width="400"/></td>
+    <td><img src="docs/guides/screenshots/06-logs-tab.png" alt="Live log streaming" width="260"/></td>
+    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU metrics chart" width="260"/></td>
+    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="User management" width="260"/></td>
   </tr>
 </table>
 

@@ -28,10 +28,10 @@ export class HybridBackend implements DeploymentBackend {
   }
 
   getCachedStatus(): FleetStatus | null {
-    return this.cache ?? this.mergeStatuses(
+    return this.mergeStatuses(
       this.dockerBackend.getCachedStatus(),
       this.profileBackend.getCachedStatus(),
-    );
+    ) ?? this.cache;
   }
 
   async refresh(): Promise<FleetStatus> {

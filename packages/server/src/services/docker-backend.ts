@@ -184,12 +184,9 @@ export class DockerBackend implements DeploymentBackend {
       vars,
       token,
       tailscaleConfig: this.tailscaleHostname ? { hostname: this.tailscaleHostname, portMap } : undefined,
-      configOverride: this.mergeConfigOverride(opts.config, {
-        clawFleet: {
-          portStep: resolvedPortStep,
-        },
-      }),
+      configOverride: opts.config,
     });
+    this.fleetConfig.writeInstanceMeta(name, { portStep: resolvedPortStep });
 
     await this.docker.createManagedContainer({
       name,
@@ -204,6 +201,9 @@ export class DockerBackend implements DeploymentBackend {
       cpuLimit: resolvedCpuLimit,
       memLimit: resolvedMemoryLimit,
     });
+    if (!resolvedEnableNpmPackages) {
+      this.log?.warn({ instanceId: name }, 'npm packages mount is disabled — plugin installation will fail for this instance');
+    }
 
     if (this.tailscale) {
       const gwPort = BASE_GW_PORT + (newIndex - 1) * resolvedPortStep;
@@ -345,7 +345,6 @@ export class DockerBackend implements DeploymentBackend {
       agents: {
         defaults: { workspace: '/home/node/.openclaw/workspace' },
       },
-      clawFleet: { portStep: resolvedPortStep },
     };
 
     const baseUrl = vars.BASE_URL ?? '';
@@ -380,6 +379,7 @@ export class DockerBackend implements DeploymentBackend {
 
     const configFile = join(configDir, 'openclaw.json');
     writeFileSync(configFile, JSON.stringify(openclawConfig, null, 2) + '\n');
+    this.fleetConfig.writeInstanceMeta(opts.name, { portStep: resolvedPortStep });
 
     await this.docker.createManagedContainer({
       name: opts.name,
@@ -427,6 +427,13 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   private resolveInstancePortStep(instanceId: string, fallback: number): number {
+    // Prefer the dedicated meta file (new path).
+    const meta = this.fleetConfig.readInstanceMeta(instanceId);
+    const metaPortStep = meta.portStep;
+    if (typeof metaPortStep === 'number' && Number.isFinite(metaPortStep) && metaPortStep > 0) {
+      return metaPortStep;
+    }
+    // Fall back to legacy clawFleet key in openclaw.json.
     try {
       const config = this.fleetConfig.readInstanceConfig(instanceId) as Record<string, unknown>;
       const clawFleet = config.clawFleet as Record<string, unknown> | undefined;
@@ -435,14 +442,9 @@ export class DockerBackend implements DeploymentBackend {
         return portStep;
       }
     } catch {
-      // Legacy instances may not have per-instance metadata yet.
+      // Instance may not have per-instance metadata yet.
     }
     return fallback;
-  }
-
-  private mergeConfigOverride(base: object | undefined, extra: object): object {
-    if (!base) return extra;
-    return Object.assign({}, base, extra);
   }
 
   private demuxDockerChunk(chunk: Buffer): string[] {

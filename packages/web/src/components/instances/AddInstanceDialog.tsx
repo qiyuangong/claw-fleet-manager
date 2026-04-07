@@ -22,7 +22,7 @@ const emptyDockerOverrides: DockerOverridesForm = {
   cpuLimit: '',
   memoryLimit: '',
   portStep: '',
-  enableNpmPackages: false,
+  enableNpmPackages: true,
 };
 
 export function AddInstanceDialog({ kind, onClose }: Props) {
@@ -186,6 +186,11 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
                 <p className="muted" style={{ marginTop: 0 }}>
                   {t('enableNpmPackagesHint')}
                 </p>
+                {!dockerOverrides.enableNpmPackages ? (
+                  <p className="error-text" style={{ marginTop: 0 }}>
+                    {t('enableNpmPackagesWarning')}
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>

@@ -17,12 +17,12 @@ export class FleetConfigService {
       apiKey: vars.API_KEY ? FleetConfigService.maskToken(vars.API_KEY) : '',
       modelId: vars.MODEL_ID ?? '',
       baseDir: this.baseDir,
-      cpuLimit: vars.CPU_LIMIT ?? '4',
+      cpuLimit: vars.CPU_LIMIT ?? '2',
       memLimit: vars.MEM_LIMIT ?? '4G',
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),
       tz: vars.TZ ?? 'Asia/Shanghai',
       openclawImage: vars.OPENCLAW_IMAGE ?? 'openclaw:local',
-      enableNpmPackages: vars.ENABLE_NPM_PACKAGES === 'true',
+      enableNpmPackages: vars.ENABLE_NPM_PACKAGES !== 'false',
     };
   }
 
@@ -121,6 +121,22 @@ export class FleetConfigService {
     const path = join(configDir, 'openclaw.json');
     mkdirSync(configDir, { recursive: true });
     this.atomicWrite(path, JSON.stringify(config, null, 2) + '\n');
+  }
+
+  readInstanceMeta(instanceId: string): Record<string, unknown> {
+    try {
+      const path = join(this.getDockerConfigDir(instanceId), 'claw-fleet-meta.json');
+      return JSON.parse(readFileSync(path, 'utf-8')) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+
+  writeInstanceMeta(instanceId: string, meta: Record<string, unknown>): void {
+    const configDir = this.getDockerConfigDir(instanceId);
+    const path = join(configDir, 'claw-fleet-meta.json');
+    mkdirSync(configDir, { recursive: true });
+    this.atomicWrite(path, JSON.stringify(meta, null, 2) + '\n');
   }
 
   ensureFleetDirectories(): void {

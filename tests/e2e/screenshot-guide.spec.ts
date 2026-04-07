@@ -14,6 +14,7 @@ async function signInAsAdmin(page: Page) {
   await page.goto('/');
   await page.evaluate((t: string) => {
     sessionStorage.setItem('fleet_manager_session_auth', t);
+    localStorage.setItem('lang', 'en');
   }, token);
   await page.reload();
   await expect(page.getByRole('button', { name: /admin/i })).toBeVisible({ timeout: 15_000 });
@@ -31,7 +32,7 @@ test.describe('Guide screenshots', () => {
   test('00 — dashboard overview', async ({ page }) => {
     await signInAsAdmin(page);
     // Select first instance if any exist so the tab row is visible
-    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    const firstInstance = page.locator('.sidebar-item').first();
     if (await firstInstance.isVisible()) await firstInstance.click();
     await shot(page, '00-dashboard.png');
   });
@@ -49,7 +50,7 @@ test.describe('Guide screenshots', () => {
 
   test('02 — overview tab', async ({ page }) => {
     await signInAsAdmin(page);
-    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    const firstInstance = page.locator('.sidebar-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
       await page.getByRole('button', { name: /overview/i }).click();
@@ -62,22 +63,13 @@ test.describe('Guide screenshots', () => {
     await page.getByRole('button', { name: 'Users' }).click();
     await shot(page, '03-sidebar-users.png');
     await shot(page, '03-users-panel.png');
-    // Add User dialog
-    await page.getByRole('button', { name: 'Add User' }).click();
+    // Add User form is always visible inline — capture it directly
     await shot(page, '03-add-user-dialog.png');
-    await page.keyboard.press('Escape');
-    // Assign profiles — click Edit on first non-admin user if present
-    const editBtn = page.getByRole('button', { name: 'Edit' }).first();
-    if (await editBtn.isVisible()) {
-      await editBtn.click();
-      await shot(page, '03-assign-profiles.png');
-      await page.keyboard.press('Escape');
-    }
   });
 
   test('04 — control UI tab with pending devices', async ({ page }) => {
     await signInAsAdmin(page);
-    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    const firstInstance = page.locator('.sidebar-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
       await page.getByRole('button', { name: /control ui/i }).click();
@@ -87,7 +79,7 @@ test.describe('Guide screenshots', () => {
 
   test('05 — feishu tab', async ({ page }) => {
     await signInAsAdmin(page);
-    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    const firstInstance = page.locator('.sidebar-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
       await page.getByRole('button', { name: /feishu/i }).click();
@@ -98,7 +90,7 @@ test.describe('Guide screenshots', () => {
 
   test('06 — logs and metrics tabs', async ({ page }) => {
     await signInAsAdmin(page);
-    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    const firstInstance = page.locator('.sidebar-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
       await page.getByRole('button', { name: /logs/i }).click();
@@ -112,7 +104,7 @@ test.describe('Guide screenshots', () => {
 
   test('07 — plugins tab', async ({ page }) => {
     await signInAsAdmin(page);
-    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    const firstInstance = page.locator('.sidebar-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
       await page.getByRole('button', { name: /plugins/i }).click();
@@ -122,7 +114,7 @@ test.describe('Guide screenshots', () => {
 
   test('08 — config tab', async ({ page }) => {
     await signInAsAdmin(page);
-    const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
+    const firstInstance = page.locator('.sidebar-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
       await page.getByRole('button', { name: /^config$/i }).click();

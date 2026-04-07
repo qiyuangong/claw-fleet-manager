@@ -47,3 +47,35 @@ When an instance is selected, the tab row gives you: Overview · Logs · Config 
 > **Note:** Non-admin users only see the instances assigned to them and do not see the Users or Fleet Config buttons.
 
 ---
+
+## 1. Create a New Instance
+
+Use this when you need to add a new profile gateway to the fleet.
+
+**Steps:**
+
+1. In the sidebar, click **Manage Instances** (under the Admin section).
+
+   ![Sidebar with Manage Instances button highlighted](screenshots/01-sidebar-manage-instances.png)
+
+2. Click **Add Instance**.
+
+   ![Instance management panel with Add Instance button](screenshots/01-add-instance-button.png)
+
+3. From the dropdown that appears, click **Create Profile Instance**.
+
+4. In the dialog that opens, enter a name for the instance.
+
+   ![Add Instance dialog showing the name field](screenshots/01-add-instance-dialog.png)
+
+   > **Name rules:** lowercase letters, numbers, and hyphens only (e.g. `team-a`, `dev-1`). The name `main` is reserved — do not use it.
+
+5. Optionally enter a **Gateway Port** if you need a specific port. Leave it blank to let the system assign one automatically.
+
+6. Click **Create Profile Instance**.
+
+7. The new instance appears in the sidebar. Click its name to open it.
+
+> **After creating:** The instance starts in a stopped state. Go to [Section 2](#2-start--stop--restart-an-instance) to start it.
+
+---

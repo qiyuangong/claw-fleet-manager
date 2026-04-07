@@ -224,3 +224,36 @@ When a Feishu user sends the pairing command to the bot, their code appears here
 > **No pending requests?** The section shows "No pending pairing requests." — the user either hasn't sent the command yet or the bot isn't running (check that the instance is started and Feishu credentials are saved).
 
 ---
+
+## 6. View Logs and Monitor Health
+
+### 6a. Live log stream
+
+Use this to watch what an instance is doing in real time or to investigate a problem.
+
+1. Click the instance name in the sidebar → **Logs** tab.
+
+   ![Logs tab showing streaming log output in a terminal-style panel](screenshots/06-logs-tab.png)
+
+2. Logs stream in automatically. Scroll up to see older entries.
+
+> **Tip:** If the instance is stopped, the log panel shows the last captured output before shutdown.
+
+---
+
+### 6b. CPU and memory metrics
+
+Use this to check whether an instance is under load or running low on memory.
+
+1. Click the instance name in the sidebar → **Metrics** tab.
+
+   ![Metrics tab showing time-series charts for CPU and memory usage](screenshots/06-metrics-tab.png)
+
+2. The charts update live every few seconds.
+
+   | Chart | What it shows |
+   |-------|--------------|
+   | CPU | Percentage of allocated CPU used |
+   | Memory | Used vs. total available memory |
+
+---

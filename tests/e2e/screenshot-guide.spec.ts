@@ -44,9 +44,9 @@ test.describe('Guide screenshots', () => {
     await signInAsAdmin(page);
     await page.getByRole('button', { name: 'Manage Instances' }).click();
     await shot(page, '01-sidebar-manage-instances.png');
-    await page.getByRole('button', { name: 'Add Instance' }).click();
+    await page.getByRole('button', { name: /Add Instance/i }).click();
     await shot(page, '01-add-instance-button.png');
-    await page.getByRole('button', { name: 'Create Profile Instance' }).click();
+    await page.getByRole('button', { name: 'Create Profile' }).click();
     await shot(page, '01-add-instance-dialog.png');
     await page.keyboard.press('Escape');
   });
@@ -56,7 +56,7 @@ test.describe('Guide screenshots', () => {
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
-      await page.getByRole('button', { name: 'Overview' }).click();
+      await page.getByRole('button', { name: /overview/i }).click();
       await shot(page, '02-overview-tab.png');
     }
   });
@@ -84,7 +84,7 @@ test.describe('Guide screenshots', () => {
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
-      await page.getByRole('button', { name: 'Control UI' }).click();
+      await page.getByRole('button', { name: /control ui/i }).click();
       await shot(page, '04-controlui-pending.png');
     }
   });
@@ -94,7 +94,7 @@ test.describe('Guide screenshots', () => {
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
-      await page.getByRole('button', { name: 'Feishu' }).click();
+      await page.getByRole('button', { name: /feishu/i }).click();
       await shot(page, '05-feishu-config.png');
       await shot(page, '05-feishu-pending.png');
     }
@@ -105,10 +105,10 @@ test.describe('Guide screenshots', () => {
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
-      await page.getByRole('button', { name: 'Logs' }).click();
+      await page.getByRole('button', { name: /logs/i }).click();
       await page.waitForTimeout(1_000); // let logs stream in
       await shot(page, '06-logs-tab.png');
-      await page.getByRole('button', { name: 'Metrics' }).click();
+      await page.getByRole('button', { name: /metrics/i }).click();
       await page.waitForTimeout(500);
       await shot(page, '06-metrics-tab.png');
     }
@@ -119,7 +119,7 @@ test.describe('Guide screenshots', () => {
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
-      await page.getByRole('button', { name: 'Plugins' }).click();
+      await page.getByRole('button', { name: /plugins/i }).click();
       await shot(page, '07-plugins-tab.png');
     }
   });
@@ -129,7 +129,7 @@ test.describe('Guide screenshots', () => {
     const firstInstance = page.locator('.sidebar-nav .sidebar-nav-item').first();
     if (await firstInstance.isVisible()) {
       await firstInstance.click();
-      await page.getByRole('button', { name: 'Config' }).click();
+      await page.getByRole('button', { name: /^config$/i }).click();
       await page.waitForTimeout(500); // let Monaco load
       await shot(page, '08-config-tab.png');
     }

@@ -14,9 +14,13 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [spec, setSpec] = useState('');
+  const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<ProfilePlugin | null>(null);
+
+  const PAGE_SIZE = 10;
 
   const pluginsQuery = useQuery({
     queryKey: ['plugins', instance.id],
@@ -71,6 +75,15 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
   });
 
   const plugins = pluginsQuery.data?.plugins ?? [];
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? plugins.filter((p) =>
+        (p.name ?? '').toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        (p.description ?? '').toLowerCase().includes(q),
+      )
+    : plugins;
+  const visible = showAll || q ? filtered : filtered.slice(0, PAGE_SIZE);
 
   return (
     <section className="panel-card">
@@ -126,12 +139,23 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
         </div>
       ) : null}
 
-      {!pluginsQuery.isLoading ? (
-        <p className="muted" style={{ marginTop: 0 }}>{t('installedPluginsCount', { count: plugins.length })}</p>
+      {!pluginsQuery.isLoading && plugins.length > 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+          <input
+            className="text-input"
+            style={{ flex: 1 }}
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setShowAll(false); }}
+            placeholder={t('searchPlugins')}
+          />
+          <p className="muted" style={{ margin: 0, whiteSpace: 'nowrap' }}>
+            {t('installedPluginsCount', { count: plugins.length })}
+          </p>
+        </div>
       ) : null}
 
       <div className="section-grid">
-        {plugins.map((plugin) => (
+        {visible.map((plugin) => (
           <div key={plugin.id} className="metric-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start' }}>
               <div>
@@ -167,6 +191,20 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
           </div>
         ))}
       </div>
+
+      {!q && !showAll && filtered.length > PAGE_SIZE ? (
+        <button className="secondary-button" style={{ marginTop: '0.75rem' }} onClick={() => setShowAll(true)}>
+          {t('showAllPlugins', { count: filtered.length })}
+        </button>
+      ) : null}
+      {!q && showAll && filtered.length > PAGE_SIZE ? (
+        <button className="secondary-button" style={{ marginTop: '0.75rem' }} onClick={() => setShowAll(false)}>
+          {t('showFewerPlugins')}
+        </button>
+      ) : null}
+      {q && filtered.length === 0 ? (
+        <p className="muted">{t('noPluginsMatch')}</p>
+      ) : null}
 
       {!pluginsQuery.isLoading && plugins.length === 0 ? (
         <div className="panel-card muted" style={{ marginTop: '1rem' }}>

@@ -105,3 +105,57 @@ Use this to control whether an instance is running.
 > **Tip:** After editing an instance's configuration (Section 8), use **Restart** for the changes to take effect.
 
 ---
+
+## 3. Manage Users
+
+Use this to create accounts, control which instances a user can access, and reset passwords.
+
+### 3a. Open User Management
+
+Click **Users** in the sidebar (under the Admin section).
+
+![Sidebar with Users button highlighted](screenshots/03-sidebar-users.png)
+
+The Users panel lists all accounts.
+
+![User management panel showing a table of users](screenshots/03-users-panel.png)
+
+---
+
+### 3b. Create a User
+
+1. Click **Add User**.
+
+   ![Add User dialog with username and password fields](screenshots/03-add-user-dialog.png)
+
+2. Enter a **username** and **initial password**.
+
+3. Set the **role**:
+   - **Admin** — full access to all instances and admin panels
+   - **User** — access only to instances you assign to them
+
+4. Click **Create**.
+
+---
+
+### 3c. Assign Instances to a User
+
+Users with the **User** role can only access instances listed in their profile assignment.
+
+1. Find the user in the table and click **Edit** (or the assignment control next to their name).
+2. Select which profile instances this user may access.
+3. Click **Save**.
+
+![User edit panel with instance assignment selector](screenshots/03-assign-profiles.png)
+
+---
+
+### 3d. Reset a Password
+
+1. Find the user in the table and click **Reset Password**.
+2. Enter the new password and confirm it.
+3. Click **Reset**.
+
+> **Note:** Users can change their own password from the My Account panel.
+
+---

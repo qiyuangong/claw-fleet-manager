@@ -79,3 +79,29 @@ Use this when you need to add a new profile gateway to the fleet.
 > **After creating:** The instance starts in a stopped state. Go to [Section 2](#2-start--stop--restart-an-instance) to start it.
 
 ---
+
+## 2. Start / Stop / Restart an Instance
+
+Use this to control whether an instance is running.
+
+**Steps:**
+
+1. Click the instance name in the sidebar.
+
+2. Make sure you are on the **Overview** tab (it is selected by default).
+
+   ![Overview tab showing status badge and Start / Stop / Restart buttons](screenshots/02-overview-tab.png)
+
+3. Click the action you need:
+
+   | Button | When to use | Enabled when |
+   |--------|-------------|--------------|
+   | **Start** | Launch a stopped instance | Instance is stopped |
+   | **Stop** | Shut down a running instance | Instance is running |
+   | **Restart** | Stop then immediately start | Instance is running |
+
+4. The **status badge** in the top-right of the panel updates to `running` or `stopped`.
+
+> **Tip:** After editing an instance's configuration (Section 8), use **Restart** for the changes to take effect.
+
+---

@@ -38,9 +38,10 @@ A short orientation section followed by standalone task sections. Each task sect
 | 2 | Start / Stop / Restart an Instance | Control instance lifecycle from the Overview tab |
 | 3 | Manage Users | Create users, assign them to instances, reset passwords |
 | 4 | Approve a Device | Review and approve pending device requests (Control UI tab) |
-| 5 | View Logs & Monitor Health | Live log streaming and CPU/memory metrics |
-| 6 | Install / Remove a Plugin | Add or remove extensions from an instance |
-| 7 | Edit Instance Configuration | Modify openclaw.json settings from the Config tab |
+| 5 | Feishu Pairing | Configure and approve Feishu bot channel pairing (Feishu tab) |
+| 6 | View Logs & Monitor Health | Live log streaming and CPU/memory metrics |
+| 7 | Install / Remove a Plugin | Add or remove extensions from an instance |
+| 8 | Edit Instance Configuration | Modify openclaw.json settings from the Config tab |
 
 ---
 
@@ -126,27 +127,39 @@ A short orientation section followed by standalone task sections. Each task sect
 
 **Trigger:** A user has connected a new device (browser/client) to an instance and it is pending approval.
 
-**Note:** There are two separate pairing flows:
-- **Device approval** (this section) — approves gateway client connections, lives in the **Control UI** tab
-- **Feishu pairing** — approves Feishu messaging bot connections, lives in the **Feishu** tab (covered in Section 4b below)
-
-**Steps (device approval via Control UI tab):**
+**Steps:**
 1. Click the instance in the sidebar
 2. Click the **Control UI** tab
 3. If there are pending devices, a yellow warning card shows the count and device IDs
 4. Click **Approve** next to a specific device, or **Approve All** to approve all at once
 
-**Steps (Feishu pairing via Feishu tab):**
-1. Click the instance in the sidebar
-2. Click the **Feishu** tab
-3. Pending pairing requests appear in the lower section with their pairing codes
-4. Click **Approve** next to the relevant code
-
-**Screenshot slots:** Control UI tab with yellow pending devices card → Approve All button; Feishu tab with pending pairing codes → Approve button
+**Screenshot slots:** Control UI tab with yellow pending devices card → Approve All button highlighted
 
 ---
 
-### Section 5: View Logs & Monitor Health
+### Section 5: Feishu Pairing
+
+**Trigger:** A Feishu bot user needs to be paired to an instance's Feishu channel.
+
+**Sub-tasks:**
+
+#### 5a. Configure Feishu credentials
+1. Click the instance in the sidebar → **Feishu** tab
+2. Enter **App ID** and **App Secret** from your Feishu developer console
+3. Set **Group Policy** (open / allowlist / disabled) and **Require Mention** as needed
+4. Click **Save Config**
+5. Restart the instance for the credentials to take effect
+
+#### 5b. Approve a pairing request
+1. A Feishu user initiates pairing from the bot — a pairing code is generated
+2. In the **Feishu** tab, pending pairing codes appear in the **Pending Pairing Requests** section
+3. Click **Approve** next to the relevant code
+
+**Screenshot slots:** Feishu tab with App ID/Secret fields → Save Config button → pending pairing request card → Approve button
+
+---
+
+### Section 6: View Logs & Monitor Health
 
 **Trigger:** Admin wants to check what an instance is doing or investigate a problem.
 
@@ -164,7 +177,7 @@ A short orientation section followed by standalone task sections. Each task sect
 
 ---
 
-### Section 6: Install / Remove a Plugin
+### Section 7: Install / Remove a Plugin
 
 **Trigger:** Admin wants to add or remove an extension from an instance.
 
@@ -183,7 +196,7 @@ A short orientation section followed by standalone task sections. Each task sect
 
 ---
 
-### Section 7: Edit Instance Configuration
+### Section 8: Edit Instance Configuration
 
 **Trigger:** Admin needs to change an instance's `openclaw.json` settings (model, API key, etc.).
 

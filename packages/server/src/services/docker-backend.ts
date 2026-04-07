@@ -201,6 +201,9 @@ export class DockerBackend implements DeploymentBackend {
       cpuLimit: resolvedCpuLimit,
       memLimit: resolvedMemoryLimit,
     });
+    if (!resolvedEnableNpmPackages) {
+      this.log?.warn({ instanceId: name }, 'npm packages mount is disabled — plugin installation will fail for this instance');
+    }
 
     if (this.tailscale) {
       const gwPort = BASE_GW_PORT + (newIndex - 1) * resolvedPortStep;

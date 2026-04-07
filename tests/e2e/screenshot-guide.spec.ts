@@ -9,18 +9,14 @@ const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD;
 const screenshotsDir = path.resolve('docs/guides/screenshots');
 
 async function signInAsAdmin(page: Page) {
+  // Inject auth token directly into sessionStorage — bypasses the login form entirely
+  const token = Buffer.from(`${adminUsername}:${adminPassword}`).toString('base64');
   await page.goto('/');
-  await page.evaluate(() => {
-    sessionStorage.clear();
-    localStorage.clear();
-    sessionStorage.setItem('fleet_manager_auth_mode', 'manual');
-    sessionStorage.setItem('fleet_manager_auth_disabled', '1');
-  });
+  await page.evaluate((t: string) => {
+    sessionStorage.setItem('fleet_manager_session_auth', t);
+  }, token);
   await page.reload();
-  await page.getByPlaceholder('Username').fill(adminUsername!);
-  await page.getByPlaceholder('Password').fill(adminPassword!);
-  await page.getByRole('button', { name: 'Sign In' }).click();
-  await expect(page.getByRole('button', { name: /admin/i })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByRole('button', { name: /admin/i })).toBeVisible({ timeout: 15_000 });
 }
 
 async function shot(page: Page, filename: string) {

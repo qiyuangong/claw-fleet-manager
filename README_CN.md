@@ -45,7 +45,7 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 3. 编辑 `packages/server/server.config.json`：
    - 将 `fleetDir` 设置为你的 fleet 目录
    - `auth.username` / `auth.password` 用于首次启动时初始化管理员账号
-   - 添加 `profiles` 块以启用 Profile 实例（字段说明见示例配置）。避免使用 `main` 作为 profile 名称 —— OpenClaw 为独立默认 profile 保留了该名称。
+   - 可选：添加 `profiles` 块自定义 Profile 实例设置（二进制路径、端口、自动重启等，字段说明见示例配置）。Profile 支持始终启用，缺省时使用内置默认值。避免使用 `main` 作为 profile 名称 —— OpenClaw 为独立默认 profile 保留了该名称。
    - Docker 实例在 Docker 可用时开箱即用。Fleet manager 会自动创建 `config/fleet.env`、`.env`、按实例的 `openclaw.json` 和 workspace 目录，无需 `docker compose` 或额外初始化脚本。
    - **TLS** — Control UI 的设备认证需要安全上下文，因此 TLS 是必须的。本地开发可以生成自签名证书：
      ```bash

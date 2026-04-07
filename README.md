@@ -45,7 +45,7 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 3. Edit `packages/server/server.config.json`:
    - Set `fleetDir` to your fleet directory
    - `auth.username` / `auth.password` seed the first admin account on startup
-   - Add a `profiles` block to enable profile instances (see example config for keys). Avoid using `main` as a profile name — OpenClaw reserves that name for the standalone default profile.
+   - Optionally add a `profiles` block to customize profile instance settings (binary path, ports, auto-restart, etc. — see example config). Profile support is always active with built-in defaults. Avoid using `main` as a profile name — OpenClaw reserves that name for the standalone default profile.
    - Docker instances work out of the box when Docker is available. The fleet manager creates `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed — no `docker compose` or external setup script required.
    - **TLS** — TLS is required for the Control UI (device auth needs a secure context). Generate a self-signed cert for local development:
      ```bash

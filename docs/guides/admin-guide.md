@@ -58,11 +58,11 @@ Use this when you need to add a new profile gateway to the fleet.
 
    ![Sidebar with Manage Instances button highlighted](screenshots/01-sidebar-manage-instances.png)
 
-2. Click **Add Instance**.
+2. Click **+ Add Instance**.
 
    ![Instance management panel with Add Instance button](screenshots/01-add-instance-button.png)
 
-3. From the dropdown that appears, click **Create Profile Instance**.
+3. From the dropdown that appears, click **Create Profile**.
 
 4. In the dialog that opens, enter a name for the instance.
 
@@ -72,7 +72,7 @@ Use this when you need to add a new profile gateway to the fleet.
 
 5. Optionally enter a **Gateway Port** if you need a specific port. Leave it blank to let the system assign one automatically.
 
-6. Click **Create Profile Instance**.
+6. Click **Create Profile**.
 
 7. The new instance appears in the sidebar. Click its name to open it.
 
@@ -124,9 +124,9 @@ The Users panel lists all accounts.
 
 ### 3b. Create a User
 
-1. Click **Add User**.
+1. In the **Add User** section, enter the new account details.
 
-   ![Add User dialog with username and password fields](screenshots/03-add-user-dialog.png)
+   ![Add User section with username and password fields](screenshots/03-add-user-dialog.png)
 
 2. Enter a **username** and **initial password**.
 
@@ -134,7 +134,7 @@ The Users panel lists all accounts.
    - **Admin** — full access to all instances and admin panels
    - **User** — access only to instances you assign to them
 
-4. Click **Create**.
+4. Click **Add**.
 
 ---
 
@@ -146,6 +146,8 @@ Users with the **User** role can only access instances listed in their profile a
 2. Check or uncheck the profile instances this user may access.
 3. Click **Save**.
 
+> **Important:** Each profile instance can belong to only one user at a time. Assigning an instance here removes it from the previous user's access list.
+
 ![User management panel](screenshots/03-users-panel.png)
 
 ---
@@ -154,7 +156,7 @@ Users with the **User** role can only access instances listed in their profile a
 
 1. Find the user in the table and click **Reset Password**.
 2. Enter the new password and confirm it.
-3. Click **Reset**.
+3. Click **Save**.
 
 > **Note:** Users can change their own password from the My Account panel.
 
@@ -178,7 +180,7 @@ Use this when a user's browser or client is waiting for approval to connect to a
 
 5. Approved devices disappear from the list immediately.
 
-> **No pending devices?** If the card does not appear, there are no devices waiting for approval at this time.
+> **No pending devices?** The page shows `No device approvals are waiting right now.`
 
 ---
 
@@ -221,7 +223,7 @@ When a Feishu user sends the pairing command to the bot, their code appears here
 
 3. Click **Approve** next to the code.
 
-> **No pending requests?** The section shows "No pending pairing requests." — the user either hasn't sent the command yet or the bot isn't running (check that the instance is started and Feishu credentials are saved).
+> **No pending requests?** The section may show `No pending pairing requests.` or the latest pairing command output. If nothing is waiting, check that the instance is started and Feishu credentials are saved.
 
 ---
 
@@ -235,9 +237,9 @@ Use this to watch what an instance is doing in real time or to investigate a pro
 
    ![Logs tab showing streaming log output in a terminal-style panel](screenshots/06-logs-tab.png)
 
-2. Logs stream in automatically. Scroll up to see older entries.
+2. Logs stream in automatically. Scroll up to see older entries already shown in the panel.
 
-> **Tip:** If the instance is stopped, the log panel shows the last captured output before shutdown.
+> **Tip:** If no new lines appear, confirm the instance is running and generating output.
 
 ---
 
@@ -268,9 +270,9 @@ Use this to add or remove extensions from an instance.
 
    ![Plugins tab showing the installed plugins list and Install Plugin button](screenshots/07-plugins-tab.png)
 
-2. Click **Install Plugin**.
+2. In the **Install Plugin** section, enter the plugin package name or local path.
 
-3. Enter the plugin identifier (e.g. `@anthropic/plugin-name`).
+3. For example, enter a plugin identifier such as `@anthropic/plugin-name`.
 
 4. Click **Install**. The plugin appears in the installed list once complete.
 

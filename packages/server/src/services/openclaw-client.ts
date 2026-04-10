@@ -25,7 +25,10 @@ export async function fetchInstanceSessions(
   timeoutMs = 5_000,
 ): Promise<InstanceSessionRow[]> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    // Origin must match gateway.controlUi.allowedOrigins for control-ui client auth
+    const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
+      headers: { Origin: `http://127.0.0.1:${port}` },
+    });
     const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
     let settled = false;
 

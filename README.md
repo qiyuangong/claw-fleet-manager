@@ -9,6 +9,7 @@
 <p align="center">
   <a href="README_CN.md">简体中文</a> ·
   <a href="docs/arch/README.md">Architecture</a> ·
+  <a href="docs/guides/installation-guide.md">Installation Guide</a> ·
   <a href="docs/guides/admin-guide.md">Admin Guide</a> ·
   <a href="docs/guides/admin-quick-reference.md">Quick Reference</a>
 </p>
@@ -73,8 +74,9 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 ```
 
 3. Edit `packages/server/server.config.json`:
-   - Set `fleetDir` to your fleet directory
+   - Create the `fleetDir` directory before first startup, then set `fleetDir` to that path
    - `auth.username` / `auth.password` seed the first admin account on startup
+   - Remove the `tailscale` block unless you explicitly want Tailscale and have the CLI installed
    - Optionally add a `profiles` block to customize profile instance settings (binary path, ports, auto-restart, etc. — see example config). Profile support is always active with built-in defaults. Avoid using `main` as a profile name — OpenClaw reserves that name for the standalone default profile.
    - Docker instances work out of the box when Docker is available. The fleet manager creates `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed — no `docker compose` or external setup script required.
    - **TLS** — TLS is required for the Control UI (device auth needs a secure context). Generate a self-signed cert for local development:
@@ -100,7 +102,7 @@ cp packages/web/.env.example packages/web/.env.local
 npm run dev
 ```
 
-Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001` (or `http://` if you removed TLS).
+Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001`.
 
 ## Architecture
 
@@ -121,7 +123,7 @@ Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001
 
 See [docs/arch/README.md](docs/arch/README.md) for the full architecture walkthrough.
 
-For day-to-day admin workflows see [docs/guides/admin-guide.md](docs/guides/admin-guide.md) and the [quick reference](docs/guides/admin-quick-reference.md).
+For local setup, see [docs/guides/installation-guide.md](docs/guides/installation-guide.md). For day-to-day admin workflows, see [docs/guides/admin-guide.md](docs/guides/admin-guide.md) and the [quick reference](docs/guides/admin-quick-reference.md).
 
 ## Commands
 

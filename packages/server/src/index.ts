@@ -15,6 +15,7 @@ import { instanceRoutes } from './routes/instances.js';
 import { logRoutes } from './routes/logs.js';
 import { migrateRoutes } from './routes/migrate.js';
 import { pluginRoutes } from './routes/plugins.js';
+import { sessionRoutes } from './routes/sessions.js';
 import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
@@ -123,6 +124,7 @@ await app.register(userRoutes);
 await app.register(logRoutes);
 await app.register(proxyRoutes);
 await app.register(pluginRoutes);
+await app.register(sessionRoutes);
 
 const { profileRoutes } = await import('./routes/profiles.js');
 await app.register(profileRoutes);

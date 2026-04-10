@@ -33,6 +33,15 @@ const zh = {
   addInstance: '+ 添加实例',
   manageInstances: '管理实例',
   fleetConfig: 'Fleet 配置',
+  activeSessions: '活跃会话',
+  manageSessions: '会话',
+  noActiveSessions: '所有运行中的实例暂无活跃会话。',
+  sessionFetchError: '无法获取该实例的会话',
+  sessionRunning: '运行中',
+  sessionDone: '已完成',
+  sessionFailed: '失败',
+  sessionKilled: '已终止',
+  sessionTimeout: '超时',
 
   // Instance Panel
   instanceNotFound: '实例未找到',

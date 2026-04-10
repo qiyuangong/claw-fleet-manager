@@ -33,6 +33,15 @@ const en = {
   addInstance: '+ Add Instance',
   manageInstances: 'Manage Instances',
   fleetConfig: 'Fleet Config',
+  activeSessions: 'Active Sessions',
+  manageSessions: 'Sessions',
+  noActiveSessions: 'No active sessions across any running instance.',
+  sessionFetchError: 'Could not fetch sessions for this instance',
+  sessionRunning: 'running',
+  sessionDone: 'done',
+  sessionFailed: 'failed',
+  sessionKilled: 'killed',
+  sessionTimeout: 'timeout',
 
   // Instance Panel
   instanceNotFound: 'Instance not found',

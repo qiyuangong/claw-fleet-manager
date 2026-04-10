@@ -54,6 +54,7 @@ export type InstanceSessionRow = {
   runtimeMs?: number;
   model?: string;
   modelProvider?: string;
+  kind?: string;
 };
 
 export type InstanceSessionsEntry = {

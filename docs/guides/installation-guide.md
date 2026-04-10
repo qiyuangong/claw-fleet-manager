@@ -141,7 +141,7 @@ Use this section to create the minimum local server configuration.
 
 4. If you do not plan to use Tailscale for this local setup, remove the `tailscale` block from the example config.
 
-5. Profile instances already work with the built-in defaults. If you want to customize those settings, copy the `_profiles` block from the example config, rename it to `profiles`, and update the values for your machine.
+5. Profile instances already work with the built-in defaults. If you want to customize those settings, copy the `_profiles` block from the example config, rename it to `profiles`, and update the values for your machine. `openclawBinary` is the command the server should run for OpenClaw, the port settings control which local ports profile instances use, and `stateBaseDir` plus `configBaseDir` are the folders where those profile instances store their local state and config files.
 
 > **Note:** Avoid using `main` as a profile name. OpenClaw reserves that name for the standalone default profile.
 

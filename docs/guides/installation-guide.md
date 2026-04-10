@@ -171,7 +171,7 @@ TLS is required because the Control UI authentication flow needs a secure browse
    - `tls.cert` points to `cert.pem`
    - `tls.key` points to `key.pem`
 
-> **Note:** Your browser will show a warning the first time you open the app with a self-signed certificate. That is expected in local setup.
+> **Note:** If you open `https://localhost:3001` directly, or otherwise encounter the self-signed API certificate, your browser may show a warning. Accept it for local development and continue.
 
 ---
 
@@ -226,8 +226,8 @@ Use this section to confirm the setup works end to end.
 **Steps:**
 
 1. Open `http://localhost:5173` in your browser.
-2. If the browser warns about the self-signed certificate, accept it for local use.
-3. Sign in with the username and password you set in `packages/server/server.config.json`.
+2. If `.env.local` is configured correctly, the dashboard may sign you in automatically; if it prompts, use the username and password from your current local setup.
+3. If the browser warns about the self-signed API certificate, accept it for local use.
 4. Confirm the dashboard loads successfully.
 
 **Optional sanity check:**
@@ -270,9 +270,9 @@ Fix: accept the warning for local development and continue.
 
 ### Login fails or API requests do not work
 
-Likely cause: the credentials in `packages/web/.env.local` do not match `packages/server/server.config.json`.
+Likely cause: the active login credentials do not match the current local setup, or this fleet is already using `fleetDir/users.json`.
 
-Fix: make the values match exactly, then restart `npm run dev`.
+Fix: for a first run, match `packages/server/server.config.json`; otherwise verify the existing `fleetDir/users.json`, then restart `npm run dev`.
 
 ### `openclaw: command not found`
 

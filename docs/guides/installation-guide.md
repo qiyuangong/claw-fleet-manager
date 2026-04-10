@@ -25,7 +25,7 @@ It focuses on setup and first launch, not contributor workflows or production de
 
 ## 0. Overview
 
-Use this guide when you need to run Claw Fleet Manager locally on macOS and do not need contributor-level setup details.
+Use this guide when you need to run Claw Fleet Manager locally on macOS and do not need setup details for contributors.
 
 This guide covers:
 
@@ -51,14 +51,14 @@ Before you start, make sure these are already installed on your Mac:
 
 - Homebrew
 - Git
-- Node.js
+- Node.js 20+
 - `openclaw`
 
 For `openclaw` installation, follow the official OpenClaw docs:
 
 - [Install OpenClaw](https://docs.openclaw.ai/install)
 
-**Optional for Docker-backed instances only:**
+**Optional if you plan to use Docker later:**
 
 - Docker Desktop
 

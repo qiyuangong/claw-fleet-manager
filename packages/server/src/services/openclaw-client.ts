@@ -71,10 +71,10 @@ export async function fetchInstanceSessions(
               minProtocol: 3,
               maxProtocol: 3,
               client: {
-                id: 'openclaw-probe',
+                id: 'openclaw-control-ui',
                 version: '1.0.0',
                 platform: 'node',
-                mode: 'backend',
+                mode: 'ui',
               },
               role: 'operator',
               scopes: ['operator.read'],

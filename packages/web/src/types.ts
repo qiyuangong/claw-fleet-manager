@@ -41,3 +41,28 @@ export interface PublicUser {
   role: 'admin' | 'user';
   assignedProfiles: string[];
 }
+
+export type InstanceSessionRow = {
+  key: string;
+  label?: string;
+  displayName?: string;
+  derivedTitle?: string;
+  lastMessagePreview?: string;
+  status?: 'running' | 'done' | 'failed' | 'killed' | 'timeout';
+  startedAt?: number;
+  endedAt?: number;
+  runtimeMs?: number;
+  model?: string;
+  modelProvider?: string;
+};
+
+export type InstanceSessionsEntry = {
+  instanceId: string;
+  sessions: InstanceSessionRow[];
+  error?: string;
+};
+
+export type FleetSessionsResult = {
+  instances: InstanceSessionsEntry[];
+  updatedAt: number;
+};

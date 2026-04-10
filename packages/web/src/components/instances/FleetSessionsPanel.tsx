@@ -4,6 +4,14 @@ import { useFleetSessions } from '../../hooks/useFleetSessions';
 import { StatusBadge } from '../common/StatusBadge';
 import type { InstanceSessionRow } from '../../types';
 
+const STATUS_LABEL_KEYS: Record<NonNullable<InstanceSessionRow['status']>, string> = {
+  running: 'sessionRunning',
+  done: 'sessionDone',
+  failed: 'sessionFailed',
+  killed: 'sessionKilled',
+  timeout: 'sessionTimeout',
+} as const;
+
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : `${s.slice(0, n)}…`;
 }
@@ -36,7 +44,7 @@ function sessionStatusClass(status: InstanceSessionRow['status']): string {
 function SessionRow({ session }: { session: InstanceSessionRow }) {
   const { t } = useTranslation();
   const statusLabel = session.status
-    ? t(`session${session.status.charAt(0).toUpperCase()}${session.status.slice(1)}` as Parameters<typeof t>[0])
+    ? t(STATUS_LABEL_KEYS[session.status] as Parameters<typeof t>[0])
     : '—';
 
   return (
@@ -56,7 +64,7 @@ function SessionRow({ session }: { session: InstanceSessionRow }) {
 
 export function FleetSessionsPanel() {
   const { t } = useTranslation();
-  const { data, isLoading, error, dataUpdatedAt, refetch, isFetching } = useFleetSessions();
+  const { data, isLoading, error, refetch, isFetching } = useFleetSessions();
   const selectInstance = useAppStore((state) => state.selectInstance);
 
   const totalRunningSessions = data?.instances.reduce(
@@ -64,10 +72,6 @@ export function FleetSessionsPanel() {
     0,
   ) ?? 0;
   const instanceCount = data?.instances.filter((e) => e.sessions.length > 0 || !!e.error).length ?? 0;
-
-  const updatedAgo = dataUpdatedAt
-    ? Math.floor((Date.now() - dataUpdatedAt) / 1000)
-    : null;
 
   return (
     <div className="field-grid">
@@ -78,7 +82,6 @@ export function FleetSessionsPanel() {
             {data ? (
               <p className="muted">
                 {instanceCount} instances · {totalRunningSessions} running
-                {updatedAgo != null ? ` · updated ${updatedAgo}s ago` : null}
               </p>
             ) : null}
           </div>
@@ -87,12 +90,12 @@ export function FleetSessionsPanel() {
             onClick={() => void refetch()}
             disabled={isFetching}
           >
-            {isFetching ? '…' : 'Refresh'}
+            {isFetching ? '…' : t('refresh')}
           </button>
         </div>
 
         {isLoading ? (
-          <p className="muted">Loading sessions…</p>
+          <p className="muted">{t('loadingSessions')}</p>
         ) : error ? (
           <p className="error-text">{(error as Error).message}</p>
         ) : !data || data.instances.every((e) => e.sessions.length === 0 && !e.error) ? (
@@ -116,13 +119,9 @@ export function FleetSessionsPanel() {
                 ) : null}
               </div>
 
-              {entry.error && entry.sessions.length === 0 ? (
-                <p className="muted" style={{ margin: 0 }}>⚠ {t('sessionFetchError')}</p>
-              ) : (
-                entry.sessions.map((session) => (
-                  <SessionRow key={session.key} session={session} />
-                ))
-              )}
+              {entry.sessions.map((session) => (
+                <SessionRow key={session.key} session={session} />
+              ))}
             </div>
           ))
         )}

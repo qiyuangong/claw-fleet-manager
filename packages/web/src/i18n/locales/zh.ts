@@ -42,6 +42,8 @@ const zh = {
   sessionFailed: '失败',
   sessionKilled: '已终止',
   sessionTimeout: '超时',
+  refresh: '刷新',
+  loadingSessions: '加载会话中…',
 
   // Instance Panel
   instanceNotFound: '实例未找到',

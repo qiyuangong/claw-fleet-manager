@@ -42,6 +42,8 @@ const en = {
   sessionFailed: 'failed',
   sessionKilled: 'killed',
   sessionTimeout: 'timeout',
+  refresh: 'Refresh',
+  loadingSessions: 'Loading sessions…',
 
   // Instance Panel
   instanceNotFound: 'Instance not found',

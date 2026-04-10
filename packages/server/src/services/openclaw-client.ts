@@ -37,6 +37,10 @@ export async function fetchInstanceSessions(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      // Drain pending requests so their promises don't silently leak
+      const drainError = err ?? new Error('connection closed before response');
+      for (const p of pending.values()) p.reject(drainError);
+      pending.clear();
       ws.terminate();
       if (err) reject(err);
       else resolve(sessions ?? []);
@@ -70,6 +74,7 @@ export async function fetchInstanceSessions(
               scopes: ['operator.read'],
               auth: { token },
             });
+            // sessions active within the last hour
             const result = await request<{ sessions?: InstanceSessionRow[] }>(
               'sessions.list',
               { activeMinutes: 60 },

@@ -72,8 +72,19 @@ describe('GET /api/fleet/sessions', () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
       const body = res.json<{ instances: { instanceId: string; sessions: unknown[]; error?: string }[] }>();
+      expect(body.instances[0].instanceId).toBe('openclaw-1');
       expect(body.instances[0].sessions).toEqual([]);
       expect(body.instances[0].error).toContain('connection refused');
+    });
+
+    it('returns error string when fetchInstanceSessions rejects with non-Error value', async () => {
+      const { fetchInstanceSessions } = await import('../../src/services/openclaw-client.js');
+      (fetchInstanceSessions as ReturnType<typeof vi.fn>).mockRejectedValueOnce('plain string error');
+      const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ instances: { instanceId: string; sessions: unknown[]; error?: string }[] }>();
+      expect(body.instances[0].sessions).toEqual([]);
+      expect(body.instances[0].error).toContain('plain string error');
     });
 
     it('returns empty instances when no running instances', async () => {

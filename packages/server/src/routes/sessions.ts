@@ -39,7 +39,27 @@ const fleetSessionsResponseSchema = {
         type: 'object',
         properties: {
           instanceId: { type: 'string' },
-          sessions: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          sessions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                key: { type: 'string' },
+                label: { type: 'string' },
+                displayName: { type: 'string' },
+                derivedTitle: { type: 'string' },
+                lastMessagePreview: { type: 'string' },
+                status: { type: 'string', enum: ['running', 'done', 'failed', 'killed', 'timeout'] },
+                startedAt: { type: 'number' },
+                endedAt: { type: 'number' },
+                runtimeMs: { type: 'number' },
+                model: { type: 'string' },
+                modelProvider: { type: 'string' },
+                kind: { type: 'string' },
+              },
+              required: ['key'],
+            },
+          },
           error: { type: 'string' },
         },
         required: ['instanceId', 'sessions'],

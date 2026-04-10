@@ -135,11 +135,13 @@ Use this section to create the minimum local server configuration.
 
 3. Set the required fields:
 
-   - `fleetDir`: the path to your OpenClaw fleet directory
+   - `fleetDir`: the folder where your OpenClaw fleet data lives, for example `/Users/your-name/openclaw-fleet`
    - `auth.username` and `auth.password`: the local admin account you will use to sign in
    - `tls.cert` and `tls.key`: the certificate paths you will create in the next section
 
-4. If you want native profile instances, add the `profiles` block from the example config and update the values for your machine.
+4. If you do not plan to use Tailscale for this local setup, remove or ignore the `tailscale` block from the example config.
+
+5. If you want native profile instances, copy the `_profiles` block from the example config, rename it to `profiles`, and update the values for your machine.
 
 > **Note:** Avoid using `main` as a profile name. OpenClaw reserves that name for the standalone default profile.
 
@@ -214,7 +216,5 @@ Use this section to launch the local server and web app together.
 
    - Dashboard: `http://localhost:5173`
    - API server: `https://localhost:3001`
-
-If you removed TLS from your server config, the API will run on `http://localhost:3001` instead.
 
 ---

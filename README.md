@@ -102,7 +102,7 @@ cp packages/web/.env.example packages/web/.env.local
 npm run dev
 ```
 
-Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001` (or `http://` if you removed TLS).
+Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001`.
 
 ## Architecture
 

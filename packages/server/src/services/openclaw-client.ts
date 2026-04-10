@@ -70,6 +70,12 @@ export async function fetchInstanceSessions(
             await request('connect', {
               minProtocol: 3,
               maxProtocol: 3,
+              client: {
+                id: 'openclaw-probe',
+                version: '1.0.0',
+                platform: 'node',
+                mode: 'backend',
+              },
               role: 'operator',
               scopes: ['operator.read'],
               auth: { token },

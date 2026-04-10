@@ -139,9 +139,9 @@ Use this section to create the minimum local server configuration.
    - `auth.username` and `auth.password`: the local admin account you will use to sign in
    - `tls.cert` and `tls.key`: the certificate paths you will create in the next section
 
-4. If you do not plan to use Tailscale for this local setup, remove or ignore the `tailscale` block from the example config.
+4. If you do not plan to use Tailscale for this local setup, remove the `tailscale` block from the example config.
 
-5. If you want native profile instances, copy the `_profiles` block from the example config, rename it to `profiles`, and update the values for your machine.
+5. Profile instances already work with the built-in defaults. If you want to customize those settings, copy the `_profiles` block from the example config, rename it to `profiles`, and update the values for your machine.
 
 > **Note:** Avoid using `main` as a profile name. OpenClaw reserves that name for the standalone default profile.
 

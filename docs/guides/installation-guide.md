@@ -65,3 +65,156 @@ For `openclaw` installation, follow the official OpenClaw docs:
 > **Important:** This guide assumes `openclaw` is already available in your shell `PATH`. If `openclaw --version` fails, fix that first before continuing.
 
 ---
+
+## 2. Get the Code
+
+Use this section to put the project on your machine in a known location.
+
+**Steps:**
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/qiyuangong/claw-fleet-manager.git
+   ```
+
+2. Change into the project directory:
+
+   ```bash
+   cd claw-fleet-manager
+   ```
+
+3. Confirm you are in the repository root:
+
+   ```bash
+   pwd
+   ls
+   ```
+
+---
+
+## 3. Install Project Dependencies
+
+Use this section to install the JavaScript dependencies needed to run the dashboard locally.
+
+**Steps:**
+
+1. Run:
+
+   ```bash
+   npm install
+   ```
+
+2. Wait until installation completes without errors.
+
+**Optional: Docker-backed instances**
+
+You do **not** need Docker just to launch the dashboard itself.
+
+If you plan to use Docker-backed instances later:
+
+- make sure Docker Desktop is installed and running
+- make sure you have an OpenClaw image available locally
+- the default local image tag used by the fleet manager is `openclaw:local`
+
+---
+
+## 4. Create the Server Config
+
+Use this section to create the minimum local server configuration.
+
+**Steps:**
+
+1. Copy the example config:
+
+   ```bash
+   cp packages/server/server.config.example.json packages/server/server.config.json
+   ```
+
+2. Open `packages/server/server.config.json` in your editor.
+
+3. Set the required fields:
+
+   - `fleetDir`: the path to your OpenClaw fleet directory
+   - `auth.username` and `auth.password`: the local admin account you will use to sign in
+   - `tls.cert` and `tls.key`: the certificate paths you will create in the next section
+
+4. If you want native profile instances, add the `profiles` block from the example config and update the values for your machine.
+
+> **Note:** Avoid using `main` as a profile name. OpenClaw reserves that name for the standalone default profile.
+
+---
+
+## 5. Generate Local TLS Certificates
+
+Use this section to create a self-signed local certificate.
+
+TLS is required because the Control UI authentication flow needs a secure browser context.
+
+**Steps:**
+
+1. Run:
+
+   ```bash
+   openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
+     -keyout key.pem -out cert.pem \
+     -subj "/CN=localhost" \
+     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+   ```
+
+2. Save `cert.pem` and `key.pem` somewhere easy to find.
+
+3. Update `packages/server/server.config.json` so:
+
+   - `tls.cert` points to `cert.pem`
+   - `tls.key` points to `key.pem`
+
+> **Note:** Your browser will show a warning the first time you open the app with a self-signed certificate. That is expected in local setup.
+
+---
+
+## 6. Create the Web Env File
+
+Use this section to make the web app send the same basic auth credentials as the server.
+
+**Steps:**
+
+1. Copy the example env file:
+
+   ```bash
+   cp packages/web/.env.example packages/web/.env.local
+   ```
+
+2. Open `packages/web/.env.local`.
+
+3. Set:
+
+   - `VITE_BASIC_AUTH_USER`
+   - `VITE_BASIC_AUTH_PASSWORD`
+
+4. Make sure those values exactly match `auth.username` and `auth.password` in `packages/server/server.config.json`.
+
+---
+
+## 7. Start the Dashboard
+
+Use this section to launch the local server and web app together.
+
+**Steps:**
+
+1. Start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+2. Wait for both dev processes to come up.
+
+3. Open the dashboard in your browser:
+
+   - Dashboard: `http://localhost:5173`
+   - API server: `https://localhost:3001`
+
+If you removed TLS from your server config, the API will run on `http://localhost:3001` instead.
+
+---

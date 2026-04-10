@@ -63,7 +63,7 @@ export function FleetSessionsPanel() {
     (sum, entry) => sum + entry.sessions.filter((s) => s.status === 'running').length,
     0,
   ) ?? 0;
-  const instanceCount = data?.instances.filter((e) => e.sessions.length > 0 || e.error).length ?? 0;
+  const instanceCount = data?.instances.filter((e) => e.sessions.length > 0 || !!e.error).length ?? 0;
 
   const updatedAgo = dataUpdatedAt
     ? Math.floor((Date.now() - dataUpdatedAt) / 1000)
@@ -95,10 +95,10 @@ export function FleetSessionsPanel() {
           <p className="muted">Loading sessions…</p>
         ) : error ? (
           <p className="error-text">{(error as Error).message}</p>
-        ) : !data || data.instances.length === 0 ? (
+        ) : !data || data.instances.every((e) => e.sessions.length === 0 && !e.error) ? (
           <p className="muted">{t('noActiveSessions')}</p>
         ) : (
-          data.instances.map((entry) => (
+          data.instances.filter((e) => e.sessions.length > 0 || !!e.error).map((entry) => (
             <div key={entry.instanceId} className="panel-card" style={{ marginBottom: '0.75rem' }}>
               <div className="panel-header" style={{ marginBottom: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -118,8 +118,6 @@ export function FleetSessionsPanel() {
 
               {entry.error && entry.sessions.length === 0 ? (
                 <p className="muted" style={{ margin: 0 }}>⚠ {t('sessionFetchError')}</p>
-              ) : entry.sessions.length === 0 ? (
-                <p className="muted" style={{ margin: 0 }}>No sessions</p>
               ) : (
                 entry.sessions.map((session) => (
                   <SessionRow key={session.key} session={session} />

@@ -9,6 +9,7 @@
 <p align="center">
   <a href="README_CN.md">简体中文</a> ·
   <a href="docs/arch/README.md">Architecture</a> ·
+  <a href="docs/guides/installation-guide.md">Installation Guide</a> ·
   <a href="docs/guides/admin-guide.md">Admin Guide</a> ·
   <a href="docs/guides/admin-quick-reference.md">Quick Reference</a>
 </p>
@@ -121,7 +122,7 @@ Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001
 
 See [docs/arch/README.md](docs/arch/README.md) for the full architecture walkthrough.
 
-For day-to-day admin workflows see [docs/guides/admin-guide.md](docs/guides/admin-guide.md) and the [quick reference](docs/guides/admin-quick-reference.md).
+For local setup, see [docs/guides/installation-guide.md](docs/guides/installation-guide.md). For day-to-day admin workflows, see [docs/guides/admin-guide.md](docs/guides/admin-guide.md) and the [quick reference](docs/guides/admin-quick-reference.md).
 
 ## Commands
 

@@ -218,3 +218,70 @@ Use this section to launch the local server and web app together.
    - API server: `https://localhost:3001`
 
 ---
+
+## 8. First Login and Sanity Check
+
+Use this section to confirm the setup works end to end.
+
+**Steps:**
+
+1. Open `http://localhost:5173` in your browser.
+2. If the browser warns about the self-signed certificate, accept it for local use.
+3. Sign in with the username and password you set in `packages/server/server.config.json`.
+4. Confirm the dashboard loads successfully.
+
+**Optional sanity check:**
+
+- open the admin dashboard and confirm the main layout loads
+- if you already have fleet data configured, confirm existing instances appear
+
+---
+
+## 9. Stop the App
+
+Use this section when you are finished with the local session.
+
+**Steps:**
+
+1. Return to the terminal where `npm run dev` is running.
+2. Press `Ctrl+C`.
+
+---
+
+## 10. Troubleshooting
+
+### `npm: command not found`
+
+Likely cause: Node.js is not installed correctly.
+
+Fix: install or repair Node.js, then confirm `node --version` and `npm --version` both work.
+
+### Port already in use
+
+Likely cause: another local process is already using port `5173` or `3001`.
+
+Fix: stop the conflicting process, then run `npm run dev` again.
+
+### Browser warns about the certificate
+
+Likely cause: you are using a self-signed local certificate.
+
+Fix: accept the warning for local development and continue.
+
+### Login fails or API requests do not work
+
+Likely cause: the credentials in `packages/web/.env.local` do not match `packages/server/server.config.json`.
+
+Fix: make the values match exactly, then restart `npm run dev`.
+
+### `openclaw: command not found`
+
+Likely cause: OpenClaw is not installed or is not in your shell `PATH`.
+
+Fix: install OpenClaw from the official docs, then confirm `openclaw --version` works.
+
+### Docker-backed instances do not work
+
+Likely cause: Docker Desktop is not running, or the configured image tag is not available locally.
+
+Fix: start Docker Desktop and confirm the expected OpenClaw image tag exists locally.

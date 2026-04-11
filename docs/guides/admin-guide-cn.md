@@ -62,7 +62,7 @@
 
    ![实例管理面板中的 Add Instance 按钮](screenshots/01-add-instance-button.png)
 
-3. 在弹出的下拉菜单中，点击 **Create Profile Instance**。
+3. 在弹出的下拉菜单中，点击 **Create Profile**。
 
 4. 在打开的对话框中，输入实例名称。
 
@@ -72,7 +72,7 @@
 
 5. 如需指定特定端口，可填写 **Gateway Port**；留空则由系统自动分配。
 
-6. 点击 **Create Profile Instance**。
+6. 点击 **Create Profile**。
 
 7. 新实例将出现在侧边栏中，点击其名称即可打开。
 
@@ -124,7 +124,7 @@ Users 面板将列出所有账号。
 
 ### 3b. 创建用户
 
-1. 点击 **Add User**。
+1. 在 **Add User** 区域中填写新用户信息。
 
    ![显示用户名和密码输入框的 Add User 对话框](screenshots/03-add-user-dialog.png)
 
@@ -134,7 +134,7 @@ Users 面板将列出所有账号。
    - **Admin** — 可访问所有实例和管理面板
    - **User** — 只能访问分配给该用户的实例
 
-4. 点击 **Create**。
+4. 点击 **Add**。
 
 ---
 
@@ -154,7 +154,7 @@ Users 面板将列出所有账号。
 
 1. 在表格中找到该用户，点击 **Reset Password**。
 2. 输入新密码并确认。
-3. 点击 **Reset**。
+3. 点击 **Save**。
 
 > **注意：** 用户可在 My Account 面板中自行修改密码。
 

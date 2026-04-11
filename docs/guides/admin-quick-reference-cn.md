@@ -2,13 +2,13 @@
 
 | 任务 | 操作路径 | 关键操作 |
 |------|----------|----------|
-| 创建实例 | 侧边栏 → Manage Instances → Add Instance | 输入名称 → Create Profile Instance |
+| 创建实例 | 侧边栏 → Manage Instances → + Add Instance | 输入名称 → Create Profile |
 | 启动实例 | 侧边栏 → 实例名称 → Overview 标签页 | 点击 **Start** |
 | 停止实例 | 侧边栏 → 实例名称 → Overview 标签页 | 点击 **Stop** |
 | 重启实例 | 侧边栏 → 实例名称 → Overview 标签页 | 点击 **Restart** |
-| 添加用户 | 侧边栏 → Users → Add User | 输入用户名 + 密码 → Create |
+| 添加用户 | 侧边栏 → Users → Add User 区域 | 输入用户名 + 密码 → Add |
 | 为用户分配实例 | 侧边栏 → Users → 点击用户的 Instances 按钮 | 勾选 profile → Save |
-| 重置用户密码 | 侧边栏 → Users → Reset Password | 输入新密码 → 确认 |
+| 重置用户密码 | 侧边栏 → Users → Reset Password | 输入新密码 → Save |
 | 审批设备 | 侧边栏 → 实例 → Control UI 标签页 | 点击 **Approve** 或 **Approve All** |
 | 配置飞书 | 侧边栏 → 实例 → Feishu 标签页 | 输入 App ID + Secret → Save Config |
 | 审批飞书配对 | 侧边栏 → 实例 → Feishu 标签页 | 点击配对码旁的 **Approve** |

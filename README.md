@@ -1,9 +1,19 @@
 # Claw Fleet Manager
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"/></a>
-  <img src="https://img.shields.io/badge/Node.js-20+-green?style=for-the-badge" alt="Node.js 20+"/>
+  <a href="README_CN.md"><strong>简体中文</strong></a>
+</p>
+
+<p align="center">
+  <strong>Manage an OpenClaw fleet from the browser.</strong><br/>
+  Start, stop, configure, and monitor profile-based and Docker-based instances from one dashboard.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"/>
+  <img src="https://img.shields.io/badge/Node.js-20+-43853D?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js 20+"/>
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19"/>
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 8"/>
 </p>
 
 <p align="center">
@@ -11,38 +21,52 @@
   <a href="docs/arch/README.md">Architecture</a> ·
   <a href="docs/guides/installation-guide.md">Installation Guide</a> ·
   <a href="docs/guides/admin-guide.md">Admin Guide</a> ·
-  <a href="docs/guides/admin-quick-reference.md">Quick Reference</a>
+  <a href="docs/guides/admin-quick-reference.md">Quick Reference</a> ·
+  <a href="tests/README.md">Tests</a> ·
+  <a href="tests/README_CN.md">测试说明（中文）</a>
 </p>
-
-Manage an `openclaw` fleet from a browser — start, stop, configure, and monitor instances without touching the command line.
 
 <p align="center">
-  <img src="docs/guides/screenshots/00-dashboard.png" alt="Claw Fleet Manager dashboard" width="800"/>
+  <img src="docs/guides/screenshots/00-dashboard.png" alt="Claw Fleet Manager dashboard" width="900"/>
 </p>
 
-The server runs a single **hybrid** backend that supports both instance types simultaneously:
+**Claw Fleet Manager** is a web UI and API server for operating multiple OpenClaw instances without living in the terminal.
 
-- **Profile instances** — native `openclaw --profile` gateway processes with auto-restart and full lifecycle management
-- **Docker instances** — `openclaw-N` containers managed directly, including per-instance config and workspace provisioning
+It supports a **hybrid fleet** model:
 
-Both types can coexist in the same fleet.
+- **Profile instances** backed by native `openclaw --profile` processes
+- **Docker instances** backed by managed `openclaw-N` containers
 
-## Features
+Both can run side by side in the same fleet, with a shared dashboard for lifecycle actions, logs, config, metrics, and access control.
 
-| Feature | Profile instances | Docker instances |
+## Why this project exists
+
+Running several OpenClaw instances quickly becomes operational work: credentials, per-instance config, logs, health checks, plugin management, and restarts. This project centralizes that work behind a browser-based control plane.
+
+Use it when you want to:
+
+- manage a fleet instead of a single local instance
+- give admins and operators a usable control surface
+- monitor health, uptime, CPU, memory, and disk in one place
+- inspect logs and edit per-instance config without SSH-heavy workflows
+- mix native profile deployments and Docker deployments in the same environment
+
+## What you can do
+
+| Capability | Profile instances | Docker instances |
 |---|:---:|:---:|
-| Fleet overview (health, CPU, memory, disk, uptime) | ✓ | ✓ |
-| Start / stop / restart | ✓ | ✓ |
+| Fleet overview and health metrics | ✓ | ✓ |
+| Start / stop / restart instances | ✓ | ✓ |
 | Live log streaming over WebSocket | ✓ | ✓ |
-| Per-instance `openclaw.json` editing | ✓ | ✓ |
+| Edit per-instance `openclaw.json` | ✓ | ✓ |
 | Embedded Control UI via reverse proxy | ✓ | ✓ |
 | Device approval and Feishu pairing | ✓ | ✓ |
-| Multi-user access with admin/user roles | ✓ | ✓ |
+| Multi-user access with admin / user roles | ✓ | ✓ |
 | Create / remove instances | ✓ | ✓ |
-| Plugin install / uninstall | ✓ | ✓ |
+| Install / uninstall plugins | ✓ | ✓ |
 | Migrate between instance types | ✓ | ✓ |
 | Auto-restart on crash | ✓ | — |
-| Tailscale per-instance HTTPS URLs | — | ✓ |
+| Per-instance Tailscale HTTPS URLs | — | ✓ |
 
 ## Screenshots
 
@@ -54,55 +78,88 @@ Both types can coexist in the same fleet.
   </tr>
   <tr>
     <td><img src="docs/guides/screenshots/06-logs-tab.png" alt="Live log streaming" width="260"/></td>
-    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU metrics chart" width="260"/></td>
-    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="User management" width="260"/></td>
+    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU and memory metrics" width="260"/></td>
+    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="User management panel" width="260"/></td>
   </tr>
 </table>
 
-## Quick Start
+## Quick start
 
-1. Install dependencies:
+### 1. Install dependencies
 
 ```bash
 npm install
 ```
 
-2. Create the server config:
+### 2. Create the server config
 
 ```bash
 cp packages/server/server.config.example.json packages/server/server.config.json
 ```
 
-3. Edit `packages/server/server.config.json`:
-   - Create the `fleetDir` directory before first startup, then set `fleetDir` to that path
-   - `auth.username` / `auth.password` seed the first admin account on startup
-   - Remove the `tailscale` block unless you explicitly want Tailscale and have the CLI installed
-   - Optionally add a `profiles` block to customize profile instance settings (binary path, ports, auto-restart, etc. — see example config). Profile support is always active with built-in defaults. Avoid using `main` as a profile name — OpenClaw reserves that name for the standalone default profile.
-   - Docker instances work out of the box when Docker is available. The fleet manager creates `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed — no `docker compose` or external setup script required.
-   - **TLS** — TLS is required for the Control UI (device auth needs a secure context). Generate a self-signed cert for local development:
-     ```bash
-     openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
-       -keyout key.pem -out cert.pem \
-       -subj "/CN=localhost" \
-       -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
-     ```
-     Then set `tls.cert` and `tls.key` in `server.config.json` to the paths of the generated files. Your browser will show a security warning for a self-signed cert — accept it once to proceed.
+### 3. Edit `packages/server/server.config.json`
 
-4. Create the web env file:
+Minimum setup:
+
+- create the `fleetDir` directory first, then point `fleetDir` to it
+- set `auth.username` and `auth.password` to seed the first admin account
+- remove the `tailscale` block unless you want Tailscale integration and have the CLI installed
+
+Optional profile settings:
+
+- add a `profiles` block to customize profile instance defaults such as binary path, ports, and auto-restart
+- avoid using `main` as a profile name because OpenClaw reserves it for the standalone default profile
+
+Docker behavior:
+
+- Docker-backed instances work when Docker is available
+- the fleet manager creates `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed
+
+TLS note:
+
+- TLS is required for the embedded Control UI because device authentication needs a secure context
+- for local development, generate a self-signed certificate:
+
+```bash
+openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
+  -keyout key.pem -out cert.pem \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+Then set `tls.cert` and `tls.key` in `server.config.json` to those files. Your browser will warn about the self-signed cert once; accept it locally and continue.
+
+### 4. Create the web env file
 
 ```bash
 cp packages/web/.env.example packages/web/.env.local
 ```
 
-5. Set `VITE_BASIC_AUTH_USER` and `VITE_BASIC_AUTH_PASSWORD` in `.env.local` to match the server config.
+Set these to match the server config:
 
-6. Start:
+- `VITE_BASIC_AUTH_USER`
+- `VITE_BASIC_AUTH_PASSWORD`
+
+### 5. Start the app
 
 ```bash
 npm run dev
 ```
 
-Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001`.
+Default local endpoints:
+
+- dashboard: `http://localhost:5173`
+- API server: `https://localhost:3001`
+
+## Repo layout
+
+```text
+.
+├─ packages/server   Fastify API server, fleet backend, auth, logs, proxying
+├─ packages/web      React + Vite dashboard
+├─ tests/e2e         Playwright end-to-end and smoke tests
+└─ docs              Architecture and operator-facing guides
+```
 
 ## Architecture
 
@@ -121,42 +178,26 @@ Dashboard runs at `http://localhost:5173`, API server at `https://localhost:3001
   config / state / workspace         per-instance config / workspace
 ```
 
-See [docs/arch/README.md](docs/arch/README.md) for the full architecture walkthrough.
+For the full architecture walkthrough, see [docs/arch/README.md](docs/arch/README.md).
 
-For local setup, see [docs/guides/installation-guide.md](docs/guides/installation-guide.md). For day-to-day admin workflows, see [docs/guides/admin-guide.md](docs/guides/admin-guide.md) and the [quick reference](docs/guides/admin-quick-reference.md).
-
-## Commands
+## Development commands
 
 ```bash
-npm run dev      # start server (port 3001) and dashboard (port 5173)
-npm run build    # compile both packages
-npm run test     # run server tests
+npm run dev      # start the dashboard and API server in watch mode
+npm run build    # build both packages
+npm run test     # run workspace tests
 npm run lint     # lint the web package
-npm run test:e2e # run Playwright smoke tests against a configured deployment
+npm run test:e2e # run Playwright end-to-end tests
 ```
 
-## Playwright Smoke Tests
+For Playwright setup, environment variables, and smoke-test usage, see [tests/README.md](tests/README.md).
 
-`npm run test:e2e` needs either a running dashboard URL or a command that Playwright can use to start one:
+## Documentation
 
-```bash
-# Point at an existing deployment
-PLAYWRIGHT_BASE_URL=https://localhost:3001 npm run test:e2e
-
-# Or let Playwright boot the app for the test run
-PLAYWRIGHT_SERVER_COMMAND="npm run dev" PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e
-```
-
-The auth smoke tests also read credentials from environment variables and skip cleanly when they are not provided:
-
-```bash
-PLAYWRIGHT_USER_USERNAME=testuser \
-PLAYWRIGHT_USER_PASSWORD=testuser \
-PLAYWRIGHT_ADMIN_USERNAME=admin \
-PLAYWRIGHT_ADMIN_PASSWORD=changeme \
-PLAYWRIGHT_BASE_URL=https://localhost:3001 \
-npm run test:e2e
-```
+- [docs/guides/installation-guide.md](docs/guides/installation-guide.md)
+- [docs/guides/admin-guide.md](docs/guides/admin-guide.md)
+- [docs/guides/admin-quick-reference.md](docs/guides/admin-quick-reference.md)
+- [docs/arch/README.md](docs/arch/README.md)
 
 ## License
 

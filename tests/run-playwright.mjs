@@ -18,7 +18,7 @@ if (!hasBaseUrl && !hasServerCommand) {
 }
 
 const playwrightBinary = process.platform === 'win32' ? 'playwright.cmd' : 'playwright';
-const result = spawnSync(playwrightBinary, ['test'], {
+const result = spawnSync(playwrightBinary, ['test', '--config', 'tests/playwright.config.ts'], {
   env: process.env,
   stdio: 'inherit',
 });

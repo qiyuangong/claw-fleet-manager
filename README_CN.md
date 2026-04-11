@@ -1,47 +1,72 @@
 # Claw Fleet Manager
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"/></a>
-  <img src="https://img.shields.io/badge/Node.js-20+-green?style=for-the-badge" alt="Node.js 20+"/>
+  <a href="README.md"><strong>English</strong></a>
+</p>
+
+<p align="center">
+  <strong>在浏览器中管理 OpenClaw 集群。</strong><br/>
+  用一个面板统一启停、配置和监控 Profile 实例与 Docker 实例。
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="Apache 2.0 License"/>
+  <img src="https://img.shields.io/badge/Node.js-20+-43853D?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js 20+"/>
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 19"/>
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 8"/>
 </p>
 
 <p align="center">
   <a href="README.md">English</a> ·
   <a href="docs/arch/README_CN.md">架构文档</a> ·
+  <a href="docs/guides/installation-guide.md">安装指南（英文）</a> ·
   <a href="docs/guides/admin-guide-cn.md">管理员指南</a> ·
-  <a href="docs/guides/admin-quick-reference-cn.md">快速参考</a>
+  <a href="docs/guides/admin-quick-reference-cn.md">快速参考</a> ·
+  <a href="tests/README.md">Tests</a> ·
+  <a href="tests/README_CN.md">测试说明</a>
 </p>
-
-在浏览器中管理 `openclaw` 集群 —— 无需命令行，即可启停实例、编辑配置、查看监控。
 
 <p align="center">
-  <img src="docs/guides/screenshots/00-dashboard.png" alt="Claw Fleet Manager 管理面板" width="800"/>
+  <img src="docs/guides/screenshots/00-dashboard.png" alt="Claw Fleet Manager 管理面板" width="900"/>
 </p>
 
-服务端运行单一**混合后端**，同时支持两种实例类型：
+**Claw Fleet Manager** 是一个用于管理多实例 OpenClaw 的 Web 控制台和 API 服务。
 
-- **Profile 实例** — 原生 `openclaw --profile` 网关进程，支持自动重启和完整生命周期管理
-- **Docker 实例** — 直接管理 `openclaw-N` 容器，含按实例配置和 workspace 自动生成
+它支持一种**混合集群**模型：
 
-两种类型可在同一集群中共存。
+- **Profile 实例**：基于原生 `openclaw --profile` 进程运行
+- **Docker 实例**：基于受控的 `openclaw-N` 容器运行
 
-## 功能
+两类实例可以在同一个 fleet 中并存，并共享统一的管理界面来处理生命周期操作、日志、配置、监控和访问控制。
 
-| 功能 | Profile 实例 | Docker 实例 |
+## 为什么需要这个项目
+
+当 OpenClaw 实例数量变多之后，运维工作很快会变得琐碎：账号和凭据、按实例配置、日志查看、健康检查、插件管理、异常重启处理。这个项目把这些工作集中到一个浏览器控制面里。
+
+适合以下场景：
+
+- 你管理的是一个实例集群，而不是单个本地实例
+- 你希望给管理员或运营人员提供可用的图形化控制面
+- 你需要在一个页面里查看健康状态、运行时长、CPU、内存和磁盘指标
+- 你希望无需频繁 SSH 或进容器，也能查看日志和编辑配置
+- 你需要在同一环境中同时管理原生 profile 部署和 Docker 部署
+
+## 你可以做什么
+
+| 能力 | Profile 实例 | Docker 实例 |
 |---|:---:|:---:|
-| 集群总览（健康状态、CPU、内存、磁盘、运行时长） | ✓ | ✓ |
+| 集群总览与健康指标 | ✓ | ✓ |
 | 启动 / 停止 / 重启实例 | ✓ | ✓ |
-| WebSocket 实时日志流 | ✓ | ✓ |
-| 按实例编辑 `openclaw.json` | ✓ | ✓ |
+| 通过 WebSocket 实时查看日志 | ✓ | ✓ |
+| 编辑按实例划分的 `openclaw.json` | ✓ | ✓ |
 | 通过反向代理嵌入 Control UI | ✓ | ✓ |
 | 设备审批与飞书配对 | ✓ | ✓ |
-| 多用户访问，支持 admin/user 角色 | ✓ | ✓ |
+| 多用户访问与 admin / user 角色 | ✓ | ✓ |
 | 创建 / 删除实例 | ✓ | ✓ |
-| 插件安装 / 卸载 | ✓ | ✓ |
-| 在实例类型之间迁移 | ✓ | ✓ |
+| 安装 / 卸载插件 | ✓ | ✓ |
+| 在两类实例之间迁移 | ✓ | ✓ |
 | 崩溃后自动重启 | ✓ | — |
-| Tailscale 每实例 HTTPS 访问地址 | — | ✓ |
+| 每实例独立的 Tailscale HTTPS 地址 | — | ✓ |
 
 ## 截图
 
@@ -53,108 +78,126 @@
   </tr>
   <tr>
     <td><img src="docs/guides/screenshots/06-logs-tab.png" alt="实时日志流" width="260"/></td>
-    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU 性能图表" width="260"/></td>
-    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="用户管理" width="260"/></td>
+    <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU 与内存指标" width="260"/></td>
+    <td><img src="docs/guides/screenshots/03-users-panel.png" alt="用户管理面板" width="260"/></td>
   </tr>
 </table>
 
 ## 快速开始
 
-1. 安装依赖：
+### 1. 安装依赖
 
 ```bash
 npm install
 ```
 
-2. 创建服务端配置：
+### 2. 创建服务端配置
 
 ```bash
 cp packages/server/server.config.example.json packages/server/server.config.json
 ```
 
-3. 编辑 `packages/server/server.config.json`：
-   - 将 `fleetDir` 设置为你的 fleet 目录
-   - `auth.username` / `auth.password` 用于首次启动时初始化管理员账号
-   - 可选：添加 `profiles` 块自定义 Profile 实例设置（二进制路径、端口、自动重启等，字段说明见示例配置）。Profile 支持始终启用，缺省时使用内置默认值。避免使用 `main` 作为 profile 名称 —— OpenClaw 为独立默认 profile 保留了该名称。
-   - Docker 实例在 Docker 可用时开箱即用。Fleet manager 会自动创建 `config/fleet.env`、`.env`、按实例的 `openclaw.json` 和 workspace 目录，无需 `docker compose` 或额外初始化脚本。
-   - **TLS** — Control UI 的设备认证需要安全上下文，因此 TLS 是必须的。本地开发可以生成自签名证书：
-     ```bash
-     openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
-       -keyout key.pem -out cert.pem \
-       -subj "/CN=localhost" \
-       -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
-     ```
-     然后在 `server.config.json` 中将 `tls.cert` 和 `tls.key` 设置为生成文件的路径。使用自签名证书时浏览器会显示安全警告，接受一次即可继续。
+### 3. 编辑 `packages/server/server.config.json`
 
-4. 创建前端环境变量文件：
+最小配置：
+
+- 先创建 `fleetDir` 对应目录，再把 `fleetDir` 指向该目录
+- 设置 `auth.username` 和 `auth.password`，用于首次启动时初始化管理员账号
+- 如果不打算使用 Tailscale，删除 `tailscale` 配置块
+
+可选的 Profile 配置：
+
+- 可以增加 `profiles` 配置块，自定义 Profile 实例默认项，例如二进制路径、端口和自动重启
+- 不要使用 `main` 作为 profile 名称，因为 OpenClaw 为默认独立 profile 保留了这个名字
+
+Docker 行为：
+
+- 只要系统中 Docker 可用，就可以直接使用 Docker 实例
+- fleet manager 会按需创建 `config/fleet.env`、`.env`、按实例的 `openclaw.json` 以及 workspace 脚手架
+
+TLS 说明：
+
+- 嵌入式 Control UI 依赖安全上下文，因此 TLS 是必需的
+- 本地开发可以先生成一个自签名证书：
+
+```bash
+openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
+  -keyout key.pem -out cert.pem \
+  -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+然后在 `server.config.json` 中把 `tls.cert` 和 `tls.key` 指向这两个文件。浏览器会对自签名证书提示一次风险警告，本地接受后即可继续。
+
+### 4. 创建前端环境变量文件
 
 ```bash
 cp packages/web/.env.example packages/web/.env.local
 ```
 
-5. 在 `.env.local` 中设置 `VITE_BASIC_AUTH_USER` 和 `VITE_BASIC_AUTH_PASSWORD`，与服务端配置保持一致。
+将以下变量设置为与服务端配置一致：
 
-6. 启动：
+- `VITE_BASIC_AUTH_USER`
+- `VITE_BASIC_AUTH_PASSWORD`
+
+### 5. 启动应用
 
 ```bash
 npm run dev
 ```
 
-管理面板运行在 `http://localhost:5173`，API 服务运行在 `https://localhost:3001`（若已移除 TLS 则为 `http://`）。
+默认本地地址：
+
+- 管理面板：`http://localhost:5173`
+- API 服务：`https://localhost:3001`
+
+## 仓库结构
+
+```text
+.
+├─ packages/server   Fastify API 服务、fleet 后端、认证、日志、代理
+├─ packages/web      React + Vite 管理面板
+├─ tests/e2e         Playwright 端到端与冒烟测试
+└─ docs              架构文档与运维指南
+```
 
 ## 架构
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│  浏览器  →  React 管理面板 (Vite)  →  Fastify API 服务           │
-│                                          ├─ 认证与用户管理        │
-│                                          ├─ 集群配置             │
-│                                          └─ 日志 / UI 代理       │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  浏览器  →  React 管理面板 (Vite)  →  Fastify API 服务       │
+│                                          ├─ 认证与用户管理   │
+│                                          ├─ Fleet 配置      │
+│                                          └─ 日志 / 代理     │
+└─────────────────────────────────────────────────────────────┘
                               │
-                  HybridBackend（始终启用）
+                    HybridBackend（始终启用）
               ┌───────────────┴───────────────┐
-        ProfileBackend                  DockerBackend
+      ProfileBackend                    DockerBackend
   openclaw --profile <name>          openclaw-N 容器
-  配置目录 / 状态目录 / workspace     config/N  workspace/N
+  配置 / 状态 / workspace            按实例配置 / workspace
 ```
 
-完整架构说明请参阅 [docs/arch/README_CN.md](docs/arch/README_CN.md)。
+完整架构说明见 [docs/arch/README_CN.md](docs/arch/README_CN.md)。
 
-日常管理操作请参阅[管理员指南](docs/guides/admin-guide-cn.md)和[快速参考](docs/guides/admin-quick-reference-cn.md)。
-
-## 常用命令
+## 开发命令
 
 ```bash
-npm run dev      # 启动服务端（3001 端口）和管理面板（5173 端口）
-npm run build    # 编译两个包
-npm run test     # 运行服务端测试
+npm run dev      # 以 watch 模式启动管理面板和 API 服务
+npm run build    # 构建两个 package
+npm run test     # 运行工作区测试
 npm run lint     # 检查前端代码
-npm run test:e2e # 运行 Playwright 冒烟测试
+npm run test:e2e # 运行 Playwright 端到端测试
 ```
 
-## Playwright 冒烟测试
+Playwright 的环境变量、启动方式和认证冒烟测试说明见 [tests/README.md](tests/README.md)。
 
-`npm run test:e2e` 需要以下两类环境变量中的至少一种：
+## 文档
 
-```bash
-# 指向一个已经启动的部署
-PLAYWRIGHT_BASE_URL=https://localhost:3001 npm run test:e2e
-
-# 或让 Playwright 在测试期间启动应用
-PLAYWRIGHT_SERVER_COMMAND="npm run dev" PLAYWRIGHT_BASE_URL=http://127.0.0.1:5173 npm run test:e2e
-```
-
-认证冒烟测试会从环境变量读取账号信息；如果未提供，会自动跳过而不是失败：
-
-```bash
-PLAYWRIGHT_USER_USERNAME=testuser \
-PLAYWRIGHT_USER_PASSWORD=testuser \
-PLAYWRIGHT_ADMIN_USERNAME=admin \
-PLAYWRIGHT_ADMIN_PASSWORD=changeme \
-PLAYWRIGHT_BASE_URL=https://localhost:3001 \
-npm run test:e2e
-```
+- [docs/guides/installation-guide.md](docs/guides/installation-guide.md)（英文）
+- [docs/guides/admin-guide-cn.md](docs/guides/admin-guide-cn.md)
+- [docs/guides/admin-quick-reference-cn.md](docs/guides/admin-quick-reference-cn.md)
+- [docs/arch/README_CN.md](docs/arch/README_CN.md)
 
 ## 许可证
 

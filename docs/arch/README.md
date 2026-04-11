@@ -1,6 +1,8 @@
 # Claw Fleet Manager Architecture
 
-[中文](README_CN.md)
+<p align="center">
+  <a href="README_CN.md"><strong>中文</strong></a>
+</p>
 
 ## Overview
 

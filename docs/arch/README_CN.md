@@ -1,6 +1,8 @@
 # Claw Fleet Manager 架构文档
 
-[English](README.md)
+<p align="center">
+  <a href="README.md"><strong>English</strong></a>
+</p>
 
 ## 概览
 

@@ -5,7 +5,7 @@ const webServerCommand = process.env.PLAYWRIGHT_SERVER_COMMAND;
 const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH;
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: './e2e',
   timeout: 30_000,
   fullyParallel: false,
   workers: 1,

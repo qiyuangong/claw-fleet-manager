@@ -1,104 +1,141 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
 ## Commands
 
 ```bash
-# Development
 npm install
-npm run dev              # Starts server (port 3001) and web (port 5173 via Vite proxy)
+npm run dev
+npm run build
+npm run test
+npm run lint
+npm run test:e2e
 
-# Build
-npm run build            # Compiles both packages to dist/
-
-# Test (server only — vitest)
 cd packages/server && npx vitest run
-cd packages/server && npx vitest run tests/routes/fleet.test.ts  # single test file
-
-# Lint
-npm run lint             # ESLint on web package
+cd packages/server && npx vitest run tests/routes/fleet.test.ts
 ```
 
-## First-time Setup
+## First-Time Setup
 
-1. `cp packages/server/server.config.example.json packages/server/server.config.json` — set `fleetDir` to your `openclaw` directory, auth credentials, and optionally `tailscale.hostname`
-2. `cp packages/web/.env.example packages/web/.env.local` — set `VITE_BASIC_AUTH_USER` / `VITE_BASIC_AUTH_PASSWORD` to match server config
+1. `cp packages/server/server.config.example.json packages/server/server.config.json`
+   - set `fleetDir` to a fleet runtime/data directory
+   - set `auth.username` / `auth.password` for initial admin bootstrap
+   - configure `tls` if you need local HTTPS for the embedded Control UI
+   - add `tailscale` only if you want it and the CLI is installed
+2. `cp packages/web/.env.example packages/web/.env.local`
+   - set `VITE_BASIC_AUTH_USER` / `VITE_BASIC_AUTH_PASSWORD` to match server auth
+
+## Repo Mental Model
+
+- `packages/server`: Fastify API server, auth, fleet backends, logs, proxying
+- `packages/web`: React 19 + Vite dashboard
+- `tests/e2e`: Playwright tests
+- `docs/arch`: architecture docs
+
+This repo supports two deployment backends behind one control plane:
+
+- `profiles`: native `openclaw --profile <name>` processes
+- `docker`: managed `openclaw-N` containers
+
+## Server Mental Model
+
+- loads and validates `server.config.json`
+- bootstraps `FleetConfigService` and `UserService`
+- constructs the active backend for the configured deployment mode
+- registers auth, authorization, WebSocket routes, API routes, proxy routes, and static asset serving
+- serves `packages/web/dist` in production when available
+
+Important server components:
+
+- `DockerBackend`
+- `ProfileBackend`
+- `FleetConfigService`
+- `UserService`
+- `DockerService`
+- `TailscaleService`
+- `docker-instance-provisioning`
+
+Important route groups in `packages/server/src/routes`:
+
+- `health.ts`
+- `fleet.ts`
+- `config.ts`
+- `instances.ts`
+- `users.ts`
+- `logs.ts`
+- `proxy.ts`
+- `plugins.ts`
+
+Profile mode also registers profile-management routes.
+
+## Auth And Validation
+
+- HTTP API uses Basic Auth
+- WebSocket and proxy bootstrap may use `?auth=<base64(username:password)>`
+- proxied Control UI traffic uses a cookie / proxy-token flow
+- `admin` users can access everything
+- non-admin users are limited to assigned profiles
+
+Validation rules to remember:
+
+- Docker instance IDs: `openclaw-<number>`
+- Profile instance IDs: lowercase alphanumeric plus hyphen, and not Docker-style
+
+## Web Mental Model
+
+- React Query handles server synchronization
+- Zustand stores selected view, active tab, and user snapshot
+- Monaco is used for config editing
+- Recharts is used for metrics
+- Vite proxies `/api/*`, `/ws/*`, and `/proxy/*` to the Fastify server during development
 
 ## Local Deployment Conventions
 
-- The long-lived local deploy lives in a sibling directory named `../claw-fleet-manager-deploy` relative to the main repo checkout. Treat it as the runtime/deploy directory, not the active dev worktree.
-- The deploy directory is typically a synced runtime copy rather than a git working tree. Do git operations in the real repo checkout first, then sync/copy files into the deploy directory.
-- The deployed server is expected to run under tmux session `fleet-runtime-https`.
-- Prefer HTTPS deployments over HTTP. When local TLS is available, validate and use `https://localhost:3001` rather than `http://localhost:3001`.
-- Before redeploying, check the existing deploy first:
-  - inspect tmux (`tmux ls`, `tmux capture-pane -pt fleet-runtime-https:0`)
-  - inspect the current runtime PID/logs in the deploy dir (`.runtime.pid`, `.runtime.log`)
-  - confirm HTTPS/server health on `https://localhost:3001/`
-- Prefer `.runtime.log` over tmux pane capture when investigating runtime behavior; the log is usually more informative than the visible pane contents.
-- Redeploys should normally sync/copy refreshed source into `../claw-fleet-manager-deploy`, while preserving deploy-only files such as `packages/server/server.config.json`, `certs/`, and runtime logs/PID files.
-- After syncing, run `npm install` and `npm run build` in `../claw-fleet-manager-deploy`, then restart `node packages/server/dist/index.js` inside tmux session `fleet-runtime-https`.
-- Before choosing deployment mode, check whether the local profile-based setup exists and is usable. If local profiles are not present, fall back to Docker mode instead of assuming profile mode will work.
-- A fleet-manager restart may adopt already-running profile gateways instead of recreating them. Check the runtime log before assuming instance processes were restarted.
-- Do not assume the bootstrap auth values in `server.config.json` are still the active login credentials. If auth checks fail, inspect the live users data under the configured `fleetDir` before concluding the deploy is unhealthy.
-- Prefer validating the deployed app against the live HTTPS endpoint (`https://localhost:3001`) after restart, including both the SPA shell/assets and authenticated API/proxy checks when credentials are available.
+- the long-lived local deploy lives in `../claw-fleet-manager-deploy`
+- treat it as a runtime copy, not the main development worktree
+- expected tmux session: `fleet-runtime-https`
+- prefer HTTPS at `https://localhost:3001` when local TLS is available
 
-## Architecture
+Before redeploying:
 
-This is an npm workspaces monorepo (Turbo build) with two packages:
+- inspect `tmux ls`
+- inspect `tmux capture-pane -pt fleet-runtime-https:0`
+- inspect `.runtime.pid` and `.runtime.log`
+- check health on `https://localhost:3001/`
 
-- **`packages/server`** — Fastify HTTP/WebSocket API server + Docker orchestration (Node.js, TypeScript, ES modules)
-- **`packages/web`** — React 19 dashboard UI (Vite, React Query, Zustand, Recharts)
+Redeploy pattern:
 
-### Server (`packages/server/src/`)
+- sync refreshed source into `../claw-fleet-manager-deploy`
+- preserve deploy-only files such as `packages/server/server.config.json`, `certs/`, runtime logs, and PID files
+- run `npm install` and `npm run build` in the deploy dir
+- restart `node packages/server/dist/index.js` inside `fleet-runtime-https`
 
-**Services** (`packages/server/src/services/`, instantiated in `index.ts`, decorated onto the Fastify instance):
-- **`DockerService`** — wraps Dockerode; container lifecycle (start/stop/restart), stats, log streaming, disk usage
-- **`FleetConfigService`** — reads/writes `fleet.env` and per-instance `openclaw.json`; masks token values; atomic writes via `.tmp` + rename
-- **`MonitorService`** — polls container stats every 5s, caches aggregated fleet state; populates `tailscaleUrl` from TailscaleService
-- **`ComposeGenerator`** — generates `docker-compose.yml` for scaling; creates per-instance networks, directories, and tokens
-- **`TailscaleService`** — manages per-instance Tailscale serve rules for remote HTTPS access; persists port map to `tailscale-ports.json`; runs preflight check + `syncAll` on startup
+Operational notes:
 
-**Routes** (`packages/server/src/routes/`):
-- `health.ts` → `GET /api/health`
-- `fleet.ts` → `GET /api/fleet`, `POST /api/fleet/scale`
-- `instances.ts` → `POST /api/fleet/:id/{start,stop,restart}`, `POST /api/fleet/:id/token/reveal`, `GET /api/fleet/:id/devices/pending`, `POST /api/fleet/:id/devices/:requestId/approve`
-- `config.ts` → `GET|PUT /api/config/fleet`, `GET|PUT /api/fleet/:id/config`
-- `logs.ts` → `WS /ws/logs/:id`, `WS /ws/logs` (real-time streaming)
-- `proxy.ts` → `* /proxy/*`, `WS /proxy-ws/*` (reverse proxy to instances; injects gateway token + gateway URL into HTML via script; strips upstream CSP/X-Frame-Options; preserves WS text/binary frame type)
+- prefer `.runtime.log` over tmux pane output for runtime debugging
+- do not assume bootstrap auth in `server.config.json` still matches live credentials
+- if profile mode is unavailable locally, fall back to Docker mode
+- a restart may adopt existing profile gateways instead of recreating them
 
-**Auth** (`auth.ts`): Basic Auth for HTTP; `?auth=base64` query param for WebSocket; cookie for proxy. Optional TLS via `tls` config (required for remote Control UI — secure context needed for device identity).
+## Runtime Files
 
-### Web (`packages/web/src/`)
+Common persisted files:
 
-**State**: Zustand store (`store.ts`) tracks selected instance ID and active tab.
+- `fleetDir/users.json`
+- `fleetDir/profiles.json`
+- `fleetDir/tailscale-ports.json`
+- `fleetDir/.env`
+- `fleetDir/config/fleet.env`
+- per-instance `openclaw.json`
 
-**API**: `api/client.ts` provides `apiFetch()` with automatic Basic Auth headers from env vars.
+In profile mode, config/state/workspace directories may also live under the configured profile base directories outside `fleetDir`.
 
-**Data fetching**: React Query hooks — `useFleet()`, `useFleetConfig()`, `useInstanceConfig()`, `useLogs()`.
+## Docs
 
-**Key component**: `InstancePanel` renders per-instance tabs: Overview, Logs (WebSocket), Config (Monaco editor), Metrics (Recharts), ControlUI (gateway URL display, token reveal, device pairing with approve-all, Tailscale-aware launch; routes through `/proxy/:id/` for remote access over HTTPS).
-
-**Vite dev proxy**: `/api/*` → `http://localhost:3001`, `/ws/*` → `ws://localhost:3001`, `/proxy/*` → `http://localhost:3001`.
-
-### Data Flow
-
-```
-Web UI → apiFetch()/WebSocket → Fastify routes → Services → Docker daemon
-                                               ↘ fleet.env / openclaw.json
-                                               ↘ proxy → openclaw instance
-```
-
-The server also serves the built web assets from `web/dist/` in production (single binary deploy).
-
-## Key Types
-
-- **`FleetInstance`**: `{ id, index, status, port, token, uptime, cpu, memory, disk, health, image, tailscaleUrl? }`
-- **`FleetStatus`**: `{ instances: FleetInstance[], totalRunning: number, updatedAt: string }`
-- **`FleetConfig`**: `{ baseUrl, apiKey, modelId, count, cpuLimit, memLimit, portStep, configBase, workspaceBase, tz }`
-- **`ServerConfig`**: `{ port, auth: {username, password}, fleetDir, tailscale?: {hostname}, tls?: {cert, key} }`
-
-## Key Constants
-
-- `BASE_GW_PORT = 18789` — gateway port for instance-0; subsequent instances offset by `portStep`
-- `BASE_TS_PORT = 8800` — Tailscale HTTPS serve port base
+- `README.md`
+- `README_CN.md`
+- `docs/arch/README.md`
+- `docs/arch/README_CN.md`
+- `tests/README.md`
+- `tests/README_CN.md`

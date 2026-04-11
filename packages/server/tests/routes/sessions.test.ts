@@ -11,6 +11,9 @@ vi.mock('../../src/services/openclaw-client.js', () => ({
       startedAt: Date.now() - 120_000,
       model: 'claude-opus-4',
       lastMessagePreview: 'Updated auth.ts.',
+      totalTokens: 5000,
+      estimatedCostUsd: 0.15,
+      updatedAt: Date.now() - 10_000,
     },
   ]),
 }));
@@ -99,6 +102,16 @@ describe('GET /api/fleet/sessions', () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
       expect(res.json<{ instances: unknown[] }>().instances).toEqual([]);
+    });
+
+    it('passes through token and cost fields from fetchInstanceSessions', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ instances: { instanceId: string; sessions: { totalTokens?: number; estimatedCostUsd?: number; updatedAt?: number }[] }[] }>();
+      const session = body.instances[0].sessions[0];
+      expect(session.totalTokens).toBe(5000);
+      expect(session.estimatedCostUsd).toBe(0.15);
+      expect(session.updatedAt).toBeGreaterThan(0);
     });
   });
 

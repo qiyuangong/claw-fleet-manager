@@ -344,6 +344,8 @@ export class ProfileBackend implements DeploymentBackend {
 
       const oldStateDir = entry.stateDir;
       const oldConfigDir = dirname(entry.configPath);
+      const oldLogFile = join(this.fleetDir, 'logs', `${id}.log`);
+      const nextLogFile = join(this.fleetDir, 'logs', `${nextName}.log`);
       const nextStateDir = this.baseDir ? join(this.baseDir, nextName) : join(this.cfg.stateBaseDir, nextName);
       const nextConfigDir = this.baseDir ? nextStateDir : join(this.cfg.configBaseDir, nextName);
       const nextConfigPath = join(nextConfigDir, 'openclaw.json');
@@ -358,6 +360,7 @@ export class ProfileBackend implements DeploymentBackend {
       let movedConfigDir = false;
       let rewroteConfig = false;
       let movedRegistry = false;
+      let movedLogFile = false;
 
       try {
         renameSync(oldStateDir, nextStateDir);
@@ -376,6 +379,11 @@ export class ProfileBackend implements DeploymentBackend {
         movedRegistry = true;
         lockId = nextName;
         this.saveRegistry();
+
+        if (existsSync(oldLogFile)) {
+          renameSync(oldLogFile, nextLogFile);
+          movedLogFile = true;
+        }
       } catch (error) {
         if (movedRegistry) {
           delete this.registry.profiles[nextName];
@@ -385,6 +393,9 @@ export class ProfileBackend implements DeploymentBackend {
         }
 
         try {
+          if (movedLogFile && existsSync(nextLogFile)) {
+            renameSync(nextLogFile, oldLogFile);
+          }
           if (movedConfigDir) {
             renameSync(nextConfigDir, oldConfigDir);
           }

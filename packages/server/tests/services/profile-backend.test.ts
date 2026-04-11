@@ -260,6 +260,7 @@ describe('ProfileBackend — renameInstance', () => {
     vi.clearAllMocks();
     vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
     vi.mocked(fs.renameSync).mockReturnValue(undefined);
+    vi.mocked(fs.existsSync).mockReturnValue(false);
     vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
     vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
       const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
@@ -312,6 +313,7 @@ describe('ProfileBackend — renameInstance', () => {
       }
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
     });
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => String(path).endsWith('/tmp/fleet/logs/rescue.log'));
 
     const backend = makeBaseDirBackend();
     await backend.initialize();
@@ -319,6 +321,7 @@ describe('ProfileBackend — renameInstance', () => {
     const renamed = await backend.renameInstance('rescue', 'team-renamed');
 
     expect(fs.renameSync).toHaveBeenCalledWith('/tmp/managed/rescue', '/tmp/managed/team-renamed');
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/fleet/logs/rescue.log', '/tmp/fleet/logs/team-renamed.log');
     const rewrittenConfigCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) =>
       String(path).endsWith('/tmp/managed/team-renamed/openclaw.json.tmp'));
     expect(rewrittenConfigCall).toBeTruthy();

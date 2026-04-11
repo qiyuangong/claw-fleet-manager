@@ -207,4 +207,17 @@ describe('UserService.renameAssignedProfile', () => {
     const after = await svc.verify('alice', 'password123');
     expect(after?.assignedProfiles).toEqual(['profile-new']);
   });
+
+  it('keeps in-memory assignments unchanged when persistence fails', async () => {
+    await svc.initialize({ username: 'admin', password: 'password123' });
+    await svc.create('alice', 'password123', 'user');
+    await svc.setAssignedProfiles('alice', ['profile-old']);
+
+    (svc as any).persist = () => {
+      throw new Error('disk full');
+    };
+
+    await expect(svc.renameAssignedProfile('profile-old', 'profile-new')).rejects.toThrow(/disk full/);
+    expect(svc.get('alice')?.assignedProfiles).toEqual(['profile-old']);
+  });
 });

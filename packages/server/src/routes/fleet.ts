@@ -210,6 +210,9 @@ export async function fleetRoutes(app: FastifyInstance) {
       if (message.includes('not found')) {
         return reply.status(404).send({ error: safeError(error), code: 'INSTANCE_NOT_FOUND' });
       }
+      if (message.includes('reserved by standalone OpenClaw')) {
+        return reply.status(400).send({ error: safeError(error), code: 'INVALID_NAME' });
+      }
       if (message.includes('same name') || message.includes('already exists') || message.includes('locked')) {
         return reply.status(409).send({ error: safeError(error), code: 'RENAME_CONFLICT' });
       }

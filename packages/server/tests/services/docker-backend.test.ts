@@ -387,6 +387,35 @@ describe('DockerBackend', () => {
     expect(mockDocker.renameContainer).not.toHaveBeenCalled();
   });
 
+  it('renameInstance() prevents concurrent renames into a locked destination name', async () => {
+    let release: (() => void) | undefined;
+    const pendingList = new Promise<{ name: string, id: string, state: string, index: number }[]>((resolve) => {
+      release = () => {
+        resolve([
+          { name: 'team-alpha', id: 'a', state: 'exited', index: 2 },
+        ]);
+      };
+    });
+
+    mockDocker.listFleetContainers.mockResolvedValueOnce(pendingList)
+      .mockResolvedValue([
+        { name: 'team-bravo', id: 'b', state: 'exited', index: 3 },
+      ]);
+    mockDocker.inspectContainer.mockResolvedValue({
+      status: 'exited',
+      health: 'none',
+      image: 'openclaw:local',
+      uptime: 0,
+    });
+
+    const renamePromise = backend.renameInstance('team-alpha', 'team-bravo');
+
+    await expect(backend.renameInstance('team-charlie', 'team-bravo')).rejects.toThrow(/locked/i);
+
+    release?.();
+    await expect(renamePromise).resolves.toMatchObject({ id: 'team-bravo' });
+  });
+
   it('createInstanceFromMigration() creates container with explicit token and workspaceDir', async () => {
     mockDocker.listFleetContainers
       .mockResolvedValueOnce([])

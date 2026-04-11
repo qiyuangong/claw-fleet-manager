@@ -216,6 +216,22 @@ describe('Fleet routes', () => {
       code: 'INSTANCE_NOT_FOUND',
     });
   });
+
+  it('POST /api/fleet/instances/:id/rename maps invalid profile names to invalid-name errors', async () => {
+    mockBackend.renameInstance.mockRejectedValueOnce(new Error('"main" is reserved by standalone OpenClaw and cannot be managed as a fleet profile'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'team-renamed' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: '"main" is reserved by standalone OpenClaw and cannot be managed as a fleet profile',
+      code: 'INVALID_NAME',
+    });
+  });
 });
 
 describe('Fleet routes — hybrid validation', () => {

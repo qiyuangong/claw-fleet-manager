@@ -226,7 +226,7 @@ export class DockerBackend implements DeploymentBackend {
     }
 
     this.locks.set(id, true);
-    let lockId = id;
+    this.locks.set(nextName, true);
 
     try {
       const containers = await this.docker.listFleetContainers();
@@ -266,16 +266,13 @@ export class DockerBackend implements DeploymentBackend {
         throw error;
       }
 
-      this.locks.delete(id);
-      this.locks.set(nextName, true);
-      lockId = nextName;
-
       return await this.resolveRenamedInstance(id, nextName, {
         index: source.index,
         state: inspection.status,
       });
     } finally {
-      this.locks.set(lockId, false);
+      this.locks.set(id, false);
+      this.locks.set(nextName, false);
     }
   }
 

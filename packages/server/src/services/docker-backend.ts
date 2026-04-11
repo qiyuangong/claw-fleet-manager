@@ -263,11 +263,23 @@ export class DockerBackend implements DeploymentBackend {
       throw new Error(`Instance "${id}" must be stopped before it can be renamed`);
     }
 
-    renameSync(
-      this.fleetConfig.getDockerInstanceRoot(id),
-      this.fleetConfig.getDockerInstanceRoot(nextName),
-    );
-    await this.docker.renameContainer(id, nextName);
+    const currentRoot = this.fleetConfig.getDockerInstanceRoot(id);
+    const nextRoot = this.fleetConfig.getDockerInstanceRoot(nextName);
+    const nextConfigDir = this.fleetConfig.getDockerConfigDir(nextName);
+    const nextWorkspaceDir = this.fleetConfig.getDockerWorkspaceDir(nextName);
+    renameSync(currentRoot, nextRoot);
+    try {
+      await this.docker.recreateStoppedManagedContainer({
+        currentName: id,
+        nextName,
+        configDir: nextConfigDir,
+        workspaceDir: nextWorkspaceDir,
+        npmDir: join(nextConfigDir, '.npm'),
+      });
+    } catch (error) {
+      renameSync(nextRoot, currentRoot);
+      throw error;
+    }
 
     const status = await this.refresh();
     const renamed = status.instances.find((instance) => instance.id === nextName);

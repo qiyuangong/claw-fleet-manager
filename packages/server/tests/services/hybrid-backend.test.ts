@@ -238,6 +238,55 @@ describe('HybridBackend', () => {
     expect(userService.renameAssignedProfile).not.toHaveBeenCalled();
   });
 
+  it('renameInstance attempts backend rollback when assignment rewrite fails', async () => {
+    const renamedDockerInstance = {
+      ...dockerInstance,
+      id: 'team-renamed',
+    };
+
+    dockerBackend.renameInstance
+      .mockResolvedValueOnce(renamedDockerInstance)
+      .mockResolvedValueOnce(dockerInstance);
+    userService.renameAssignedProfile.mockRejectedValueOnce(new Error('assignment write failed'));
+    dockerBackend.getCachedStatus.mockReturnValue({
+      instances: [dockerInstance],
+      totalRunning: 1,
+      updatedAt: 1000,
+    });
+    profileBackend.getCachedStatus.mockReturnValue({
+      instances: [profileInstance],
+      totalRunning: 1,
+      updatedAt: 2000,
+    });
+    dockerBackend.refresh
+      .mockResolvedValueOnce({
+        instances: [dockerInstance],
+        totalRunning: 1,
+        updatedAt: 2000,
+      })
+      .mockResolvedValueOnce({
+        instances: [dockerInstance],
+        totalRunning: 1,
+        updatedAt: 3000,
+      });
+    profileBackend.refresh
+      .mockResolvedValueOnce({
+        instances: [profileInstance],
+        totalRunning: 1,
+        updatedAt: 2000,
+      })
+      .mockResolvedValueOnce({
+        instances: [profileInstance],
+        totalRunning: 1,
+        updatedAt: 3000,
+      });
+
+    await expect(backend.renameInstance('openclaw-1', 'team-renamed')).rejects.toThrow(/assignment write failed/i);
+
+    expect(dockerBackend.renameInstance).toHaveBeenNthCalledWith(1, 'openclaw-1', 'team-renamed');
+    expect(dockerBackend.renameInstance).toHaveBeenNthCalledWith(2, 'team-renamed', 'openclaw-1');
+  });
+
   it('initialize tolerates docker backend initialization failure when profiles are still available', async () => {
     dockerBackend.initialize.mockRejectedValueOnce(new Error('docker unavailable'));
 

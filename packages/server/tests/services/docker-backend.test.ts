@@ -18,6 +18,7 @@ const mockDocker = {
   stopContainer: vi.fn().mockResolvedValue(undefined),
   restartContainer: vi.fn().mockResolvedValue(undefined),
   createManagedContainer: vi.fn().mockResolvedValue(undefined),
+  recreateStoppedManagedContainer: vi.fn().mockResolvedValue(undefined),
   removeContainer: vi.fn().mockResolvedValue(undefined),
   renameContainer: vi.fn().mockResolvedValue(undefined),
   listFleetContainers: vi.fn().mockResolvedValue([]),
@@ -256,9 +257,17 @@ describe('DockerBackend', () => {
     const renamed = await backend.renameInstance('team-alpha', 'team-renamed');
 
     expect(renameSync).toHaveBeenCalledWith('/tmp/managed/team-alpha', '/tmp/managed/team-renamed');
-    expect(mockDocker.renameContainer).toHaveBeenCalledWith('team-alpha', 'team-renamed');
+    expect(mockDocker.recreateStoppedManagedContainer).toHaveBeenCalledWith({
+      currentName: 'team-alpha',
+      nextName: 'team-renamed',
+      configDir: '/tmp/managed/team-renamed/config',
+      workspaceDir: '/tmp/managed/team-renamed/workspace',
+      npmDir: '/tmp/managed/team-renamed/config/.npm',
+    });
+    expect(mockDocker.renameContainer).not.toHaveBeenCalled();
     expect(renamed.id).toBe('team-renamed');
     expect(renamed.port).toBe(18809);
+    expect(renamed.status).toBe('stopped');
   });
 
   it('renameInstance() rejects running Docker instances', async () => {

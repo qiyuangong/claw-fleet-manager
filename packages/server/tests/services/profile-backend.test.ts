@@ -366,6 +366,121 @@ describe('ProfileBackend — renameInstance', () => {
     await expect(backend.renameInstance('rescue', 'team-renamed')).rejects.toThrow(/stopped/i);
     expect(fs.renameSync).not.toHaveBeenCalledWith('/tmp/managed/rescue', '/tmp/managed/team-renamed');
   });
+
+  it('renameInstance() rejects when the profile lock is already held', async () => {
+    const backend = makeBaseDirBackend();
+    (backend as any).registry = {
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/managed/rescue/openclaw.json',
+          stateDir: '/tmp/managed/rescue',
+        },
+      },
+      nextPort: 18809,
+    };
+    (backend as any).locks.set('rescue', true);
+
+    await expect(backend.renameInstance('rescue', 'team-renamed')).rejects.toThrow(/locked/i);
+    expect(fs.renameSync).not.toHaveBeenCalledWith('/tmp/managed/rescue', '/tmp/managed/team-renamed');
+  });
+
+  it('renameInstance() renames split state/config roots and rewrites the config path', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/configs/rescue/openclaw.json',
+          stateDir: '/tmp/states/rescue',
+        },
+      },
+      nextPort: 18809,
+    });
+
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      const value = String(path);
+      if (value.endsWith('/tmp/fleet/profiles.json')) {
+        return registry;
+      }
+      if (value.endsWith('/tmp/configs/rescue/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/states/rescue/workspace' } },
+        });
+      }
+      if (value.endsWith('/tmp/configs/team-renamed/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/states/rescue/workspace' } },
+        });
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+
+    const backend = makeBackend();
+    await backend.initialize();
+
+    const renamed = await backend.renameInstance('rescue', 'team-renamed');
+
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/states/rescue', '/tmp/states/team-renamed');
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/configs/rescue', '/tmp/configs/team-renamed');
+    const rewrittenConfigCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) =>
+      String(path).endsWith('/tmp/configs/team-renamed/openclaw.json.tmp'));
+    expect(rewrittenConfigCall).toBeTruthy();
+    const rewrittenConfig = JSON.parse(String(rewrittenConfigCall?.[1]));
+    expect(rewrittenConfig.agents.defaults.workspace).toBe('/tmp/states/team-renamed/workspace');
+    expect(renamed.id).toBe('team-renamed');
+    expect(backend.getInstanceDir('team-renamed')).toEqual({
+      stateDir: '/tmp/states/team-renamed',
+      configPath: '/tmp/configs/team-renamed/openclaw.json',
+    });
+  });
+
+  it('renameInstance() rolls back moved dirs when config rewrite fails', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/configs/rescue/openclaw.json',
+          stateDir: '/tmp/states/rescue',
+        },
+      },
+      nextPort: 18809,
+    });
+
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      const value = String(path);
+      if (value.endsWith('/tmp/fleet/profiles.json')) {
+        return registry;
+      }
+      if (value.endsWith('/tmp/configs/rescue/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/states/rescue/workspace' } },
+        });
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+
+    const backend = makeBackend();
+    await backend.initialize();
+
+    await expect(backend.renameInstance('rescue', 'team-renamed')).rejects.toThrow(/rename/i);
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/states/rescue', '/tmp/states/team-renamed');
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/configs/rescue', '/tmp/configs/team-renamed');
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/configs/team-renamed', '/tmp/configs/rescue');
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/states/team-renamed', '/tmp/states/rescue');
+    expect(backend.getInstanceDir('rescue')).toEqual({
+      stateDir: '/tmp/states/rescue',
+      configPath: '/tmp/configs/rescue/openclaw.json',
+    });
+  });
 });
 
 describe('ProfileBackend — getCachedStatus', () => {

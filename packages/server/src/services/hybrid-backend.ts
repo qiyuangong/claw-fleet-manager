@@ -105,7 +105,20 @@ export class HybridBackend implements DeploymentBackend {
     }
     const backend = await this.backendForId(id);
     await backend.renameInstance(id, nextName);
-    await this.userService.renameAssignedProfile(id, nextName);
+    try {
+      await this.userService.renameAssignedProfile(id, nextName);
+    } catch (error) {
+      try {
+        await backend.renameInstance(nextName, id);
+      } catch (rollbackError) {
+        await this.refresh().catch(() => {});
+        const original = error instanceof Error ? error.message : String(error);
+        const rollback = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+        throw new Error(`Failed to rewrite assignments after rename: ${original}; rollback also failed: ${rollback}`);
+      }
+      await this.refresh().catch(() => {});
+      throw error;
+    }
 
     const status = await this.refresh();
     const renamed = status.instances.find((instance) => instance.id === nextName);

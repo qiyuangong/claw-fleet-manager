@@ -321,51 +321,96 @@ export class ProfileBackend implements DeploymentBackend {
   }
 
   async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
+    if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
+    this.locks.set(id, true);
+
+    let lockId = id;
     const entry = this.registry.profiles[id];
-    if (!entry) throw new Error(`Profile "${id}" not found`);
-    if (id === nextName) {
-      throw new Error('Cannot rename a profile to the same name');
-    }
-    if (!isValidManagedProfileName(nextName)) {
-      throw new Error(getManagedProfileNameError(nextName));
-    }
-    if (this.registry.profiles[nextName]) {
-      throw new Error(`Profile "${nextName}" already exists`);
-    }
+    try {
+      if (!entry) throw new Error(`Profile "${id}" not found`);
+      if (id === nextName) {
+        throw new Error('Cannot rename a profile to the same name');
+      }
+      if (!isValidManagedProfileName(nextName)) {
+        throw new Error(getManagedProfileNameError(nextName));
+      }
+      if (this.registry.profiles[nextName]) {
+        throw new Error(`Profile "${nextName}" already exists`);
+      }
 
-    if (entry.pid !== null) {
-      throw new Error(`Profile "${id}" must be stopped before it can be renamed`);
+      if (entry.pid !== null) {
+        throw new Error(`Profile "${id}" must be stopped before it can be renamed`);
+      }
+
+      const oldStateDir = entry.stateDir;
+      const oldConfigDir = dirname(entry.configPath);
+      const nextStateDir = this.baseDir ? join(this.baseDir, nextName) : join(this.cfg.stateBaseDir, nextName);
+      const nextConfigDir = this.baseDir ? nextStateDir : join(this.cfg.configBaseDir, nextName);
+      const nextConfigPath = join(nextConfigDir, 'openclaw.json');
+      const nextEntry: ProfileEntry = {
+        ...entry,
+        name: nextName,
+        stateDir: nextStateDir,
+        configPath: nextConfigPath,
+      };
+
+      let movedStateDir = false;
+      let movedConfigDir = false;
+      let rewroteConfig = false;
+      let movedRegistry = false;
+
+      try {
+        renameSync(oldStateDir, nextStateDir);
+        movedStateDir = true;
+        if (oldConfigDir !== oldStateDir) {
+          renameSync(oldConfigDir, nextConfigDir);
+          movedConfigDir = true;
+        }
+
+        this.rewriteWorkspacePath(nextConfigPath, join(nextStateDir, 'workspace'));
+        rewroteConfig = true;
+
+        delete this.registry.profiles[id];
+        this.registry.profiles[nextName] = nextEntry;
+        this.renameInstanceState(id, nextName);
+        movedRegistry = true;
+        lockId = nextName;
+        this.saveRegistry();
+      } catch (error) {
+        if (movedRegistry) {
+          delete this.registry.profiles[nextName];
+          this.registry.profiles[id] = entry;
+          this.renameInstanceState(nextName, id);
+          lockId = id;
+        }
+
+        try {
+          if (movedConfigDir) {
+            renameSync(nextConfigDir, oldConfigDir);
+          }
+          if (movedStateDir) {
+            renameSync(nextStateDir, oldStateDir);
+          }
+          if (rewroteConfig || movedConfigDir || movedStateDir) {
+            this.rewriteWorkspacePath(entry.configPath, join(oldStateDir, 'workspace'));
+          }
+        } catch (rollbackError) {
+          this.log?.error({ err: rollbackError, profile: id, nextName }, 'Failed to roll back profile rename');
+        }
+
+        const cause = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to rename profile "${id}" to "${nextName}": ${cause}`);
+      }
+
+      const status = await this.refresh();
+      const renamed = status.instances.find((instance) => instance.id === nextName);
+      if (!renamed) {
+        throw new Error(`Profile "${nextName}" not found after rename`);
+      }
+      return renamed;
+    } finally {
+      this.locks.set(lockId, false);
     }
-
-    const oldStateDir = entry.stateDir;
-    const oldConfigDir = dirname(entry.configPath);
-    const nextStateDir = this.baseDir ? join(this.baseDir, nextName) : join(this.cfg.stateBaseDir, nextName);
-    const nextConfigDir = this.baseDir ? nextStateDir : join(this.cfg.configBaseDir, nextName);
-    const nextConfigPath = join(nextConfigDir, 'openclaw.json');
-
-    renameSync(oldStateDir, nextStateDir);
-    if (oldConfigDir !== oldStateDir) {
-      renameSync(oldConfigDir, nextConfigDir);
-    }
-
-    this.rewriteWorkspacePath(nextConfigPath, join(nextStateDir, 'workspace'));
-
-    delete this.registry.profiles[id];
-    this.registry.profiles[nextName] = {
-      ...entry,
-      name: nextName,
-      stateDir: nextStateDir,
-      configPath: nextConfigPath,
-    };
-    this.renameInstanceState(id, nextName);
-    this.saveRegistry();
-
-    const status = await this.refresh();
-    const renamed = status.instances.find((instance) => instance.id === nextName);
-    if (!renamed) {
-      throw new Error(`Profile "${nextName}" not found after rename`);
-    }
-    return renamed;
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {

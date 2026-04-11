@@ -321,8 +321,18 @@ export class DockerBackend implements DeploymentBackend {
   async revealToken(id: string): Promise<string> {
     const index = await this.resolveInstanceIndex(id);
     const token = this.fleetConfig.readTokens()[index];
-    if (!token) throw new Error(`Token not found for ${id}`);
-    return token;
+    if (token) return token;
+
+    const containerToken = await this.docker.getContainerGatewayToken(id).catch(() => null);
+    if (containerToken) {
+      this.fleetConfig.writeTokens({
+        ...this.fleetConfig.readTokens(),
+        [index]: containerToken,
+      });
+      return containerToken;
+    }
+
+    throw new Error(`Token not found for ${id}`);
   }
 
   async readInstanceConfig(id: string): Promise<object> {

@@ -5,6 +5,7 @@ const mockContainer = {
   start: vi.fn(),
   stop: vi.fn(),
   restart: vi.fn(),
+  rename: vi.fn(),
   remove: vi.fn(),
   stats: vi.fn().mockResolvedValue({
     cpu_stats: { cpu_usage: { total_usage: 100 }, system_cpu_usage: 1000, online_cpus: 4 },
@@ -22,6 +23,11 @@ const mockContainer = {
   logs: vi.fn().mockResolvedValue({ on: vi.fn(), destroy: vi.fn() }),
 };
 
+const mockReplacementContainer = {
+  start: vi.fn(),
+  remove: vi.fn(),
+};
+
 const mockDocker = {
   listContainers: vi.fn().mockResolvedValue([
     { Names: ['/openclaw-1'], Id: 'abc123', State: 'running' },
@@ -36,6 +42,15 @@ describe('DockerService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDocker.createContainer = vi.fn();
+    mockContainer.inspect.mockResolvedValue({
+      State: {
+        Status: 'running',
+        StartedAt: new Date(Date.now() - 86400_000).toISOString(),
+        Health: { Status: 'healthy' },
+      },
+      Config: { Image: 'openclaw:local' },
+    });
     svc = new DockerService(mockDocker as any);
   });
 
@@ -59,6 +74,77 @@ describe('DockerService', () => {
   it('restarts a container', async () => {
     await svc.restartContainer('openclaw-1');
     expect(mockContainer.restart).toHaveBeenCalled();
+  });
+
+  it('renames a container', async () => {
+    await svc.renameContainer('openclaw-1', 'team-renamed');
+    expect(mockDocker.getContainer).toHaveBeenCalledWith('openclaw-1');
+    expect(mockContainer.rename).toHaveBeenCalledWith({ name: 'team-renamed' });
+  });
+
+  it('recreates a stopped managed container with renamed bind mounts and keeps it stopped', async () => {
+    mockContainer.inspect.mockResolvedValue({
+      Config: {
+        Image: 'openclaw:local',
+        Labels: {
+          'dev.claw-fleet.managed': 'true',
+          'dev.claw-fleet.instance-index': '2',
+        },
+        Env: ['HOME=/home/node', 'OPENCLAW_GATEWAY_TOKEN=secret-token', 'TZ=UTC'],
+        Cmd: ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'],
+        ExposedPorts: { '18789/tcp': {} },
+        Healthcheck: { Test: ['CMD', 'true'] },
+      },
+      HostConfig: {
+        AutoRemove: false,
+        Binds: [
+          '/tmp/managed/team-alpha/config:/home/node/.openclaw',
+          '/tmp/managed/team-alpha/workspace:/home/node/.openclaw/workspace',
+          '/tmp/managed/team-alpha/config/.npm:/home/node/.npm',
+        ],
+        PortBindings: {
+          '18789/tcp': [{ HostPort: '18809' }],
+        },
+        Init: true,
+        RestartPolicy: { Name: 'unless-stopped' },
+        CapDrop: ['ALL'],
+        SecurityOpt: ['no-new-privileges:true'],
+        ReadonlyRootfs: true,
+        Tmpfs: { '/tmp': 'rw,nosuid,nodev,noexec' },
+        NanoCpus: 1500000000,
+        Memory: 2147483648,
+      },
+    });
+    mockDocker.createContainer = vi.fn().mockResolvedValue(mockReplacementContainer);
+
+    await svc.recreateStoppedManagedContainer({
+      currentName: 'team-alpha',
+      nextName: 'team-renamed',
+      configDir: '/tmp/managed/team-renamed/config',
+      workspaceDir: '/tmp/managed/team-renamed/workspace',
+      npmDir: '/tmp/managed/team-renamed/config/.npm',
+    });
+
+    expect(mockDocker.createContainer).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'team-renamed',
+      Image: 'openclaw:local',
+      Labels: expect.objectContaining({
+        'dev.claw-fleet.managed': 'true',
+        'dev.claw-fleet.instance-index': '2',
+      }),
+      HostConfig: expect.objectContaining({
+        Binds: [
+          '/tmp/managed/team-renamed/config:/home/node/.openclaw',
+          '/tmp/managed/team-renamed/workspace:/home/node/.openclaw/workspace',
+          '/tmp/managed/team-renamed/config/.npm:/home/node/.npm',
+        ],
+        PortBindings: {
+          '18789/tcp': [{ HostPort: '18809' }],
+        },
+      }),
+    }));
+    expect(mockContainer.remove).toHaveBeenCalledWith({ force: true });
+    expect(mockReplacementContainer.start).not.toHaveBeenCalled();
   });
 
   it('createManagedContainer creates and starts a hardened managed container with npm cache mount', async () => {

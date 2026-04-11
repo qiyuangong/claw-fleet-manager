@@ -28,6 +28,7 @@ export interface DeploymentBackend {
   // Scaling / management
   createInstance(opts: CreateInstanceOpts): Promise<FleetInstance>;
   removeInstance(id: string): Promise<void>;
+  renameInstance(id: string, nextName: string): Promise<FleetInstance>;
 
   // Monitoring
   getCachedStatus(): FleetStatus | null;

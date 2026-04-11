@@ -172,3 +172,52 @@ describe('UserService.setAssignedProfiles', () => {
     expect(svc.get('bob')?.assignedProfiles).toEqual(['profile-b', 'profile-c']);
   });
 });
+
+describe('UserService.renameAssignedProfile', () => {
+  it('replaces matching assigned profile ids across users', async () => {
+    const usersFile = join(tmpDir, 'users.json');
+    writeFileSync(usersFile, JSON.stringify({
+      users: [
+        { username: 'admin', passwordHash: 'scrypt$deadbeef$deadbeef', role: 'admin', assignedProfiles: [] },
+        { username: 'alice', passwordHash: 'scrypt$deadbeef$deadbeef', role: 'user', assignedProfiles: ['profile-old', 'profile-shared'] },
+        { username: 'bob', passwordHash: 'scrypt$deadbeef$deadbeef', role: 'user', assignedProfiles: ['profile-old'] },
+        { username: 'carol', passwordHash: 'scrypt$deadbeef$deadbeef', role: 'user', assignedProfiles: ['profile-other'] },
+      ],
+    }), 'utf-8');
+
+    await svc.initialize({ username: 'admin', password: 'password123' });
+
+    await svc.renameAssignedProfile('profile-old', 'profile-new');
+
+    expect(svc.get('alice')?.assignedProfiles).toEqual(['profile-new', 'profile-shared']);
+    expect(svc.get('bob')?.assignedProfiles).toEqual(['profile-new']);
+    expect(svc.get('carol')?.assignedProfiles).toEqual(['profile-other']);
+  });
+
+  it('evicts cached verify results after renaming assignments', async () => {
+    await svc.initialize({ username: 'admin', password: 'password123' });
+    await svc.create('alice', 'password123', 'user');
+    await svc.setAssignedProfiles('alice', ['profile-old']);
+
+    const before = await svc.verify('alice', 'password123');
+    expect(before?.assignedProfiles).toEqual(['profile-old']);
+
+    await svc.renameAssignedProfile('profile-old', 'profile-new');
+
+    const after = await svc.verify('alice', 'password123');
+    expect(after?.assignedProfiles).toEqual(['profile-new']);
+  });
+
+  it('keeps in-memory assignments unchanged when persistence fails', async () => {
+    await svc.initialize({ username: 'admin', password: 'password123' });
+    await svc.create('alice', 'password123', 'user');
+    await svc.setAssignedProfiles('alice', ['profile-old']);
+
+    (svc as any).persist = () => {
+      throw new Error('disk full');
+    };
+
+    await expect(svc.renameAssignedProfile('profile-old', 'profile-new')).rejects.toThrow(/disk full/);
+    expect(svc.get('alice')?.assignedProfiles).toEqual(['profile-old']);
+  });
+});

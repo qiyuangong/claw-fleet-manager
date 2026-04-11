@@ -18,6 +18,7 @@ const mockBackend = {
   refresh: vi.fn().mockResolvedValue(mockStatus),
   createInstance: vi.fn().mockResolvedValue(mockStatus.instances[0]),
   removeInstance: vi.fn().mockResolvedValue(undefined),
+  renameInstance: vi.fn().mockResolvedValue({ ...mockStatus.instances[0], id: 'team-renamed' }),
 };
 
 describe('Fleet routes', () => {
@@ -138,6 +139,99 @@ describe('Fleet routes', () => {
     expect(res.statusCode).toBe(200);
     expect(mockBackend.removeInstance).toHaveBeenCalledWith('team-alpha');
   });
+
+  it('POST /api/fleet/instances/:id/rename renames an instance', async () => {
+    const renamed = { ...mockStatus.instances[0], id: 'team-renamed' };
+    mockBackend.renameInstance.mockResolvedValueOnce(renamed);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'team-renamed' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(renamed);
+    expect(mockBackend.renameInstance).toHaveBeenCalledWith('openclaw-1', 'team-renamed');
+  });
+
+  it('POST /api/fleet/instances/:id/rename rejects invalid target names', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'Team Renamed' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: 'name must be lowercase alphanumeric with hyphens',
+      code: 'INVALID_NAME',
+    });
+  });
+
+  it('POST /api/fleet/instances/:id/rename maps backend conflicts to rename conflict errors', async () => {
+    mockBackend.renameInstance.mockRejectedValueOnce(new Error('Instance "team-renamed" already exists'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'team-renamed' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'Instance "team-renamed" already exists',
+      code: 'RENAME_CONFLICT',
+    });
+  });
+
+  it('POST /api/fleet/instances/:id/rename maps stopped-instance errors to rename conflict errors', async () => {
+    mockBackend.renameInstance.mockRejectedValueOnce(new Error('Instance "openclaw-1" must be stopped before it can be renamed'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'team-renamed' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'Instance "openclaw-1" must be stopped before it can be renamed',
+      code: 'RENAME_CONFLICT',
+    });
+  });
+
+  it('POST /api/fleet/instances/:id/rename maps missing instances to not found', async () => {
+    mockBackend.renameInstance.mockRejectedValueOnce(new Error('Instance "openclaw-1" not found'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'team-renamed' },
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual({
+      error: 'Instance "openclaw-1" not found',
+      code: 'INSTANCE_NOT_FOUND',
+    });
+  });
+
+  it('POST /api/fleet/instances/:id/rename maps invalid profile names to invalid-name errors', async () => {
+    mockBackend.renameInstance.mockRejectedValueOnce(new Error('"main" is reserved by standalone OpenClaw and cannot be managed as a fleet profile'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'team-renamed' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: '"main" is reserved by standalone OpenClaw and cannot be managed as a fleet profile',
+      code: 'INVALID_NAME',
+    });
+  });
 });
 
 describe('Fleet routes — hybrid validation', () => {
@@ -148,6 +242,7 @@ describe('Fleet routes — hybrid validation', () => {
       getCachedStatus: vi.fn().mockReturnValue(null),
       createInstance: vi.fn().mockResolvedValue({ id: 'rescue' }),
       removeInstance: vi.fn().mockResolvedValue(undefined),
+      renameInstance: vi.fn().mockResolvedValue({ id: 'rescue-renamed' }),
     });
     app.decorate('fleetDir', '/tmp');
     app.addHook('onRequest', async (request) => {

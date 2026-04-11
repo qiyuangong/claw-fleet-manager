@@ -814,6 +814,10 @@ select.text-input {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.session-table-row--error td {
+  color: var(--error-text, #f87171);
+}
+
 .sortable-th {
   cursor: pointer;
   user-select: none;

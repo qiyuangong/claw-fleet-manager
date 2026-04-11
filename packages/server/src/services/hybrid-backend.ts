@@ -92,13 +92,6 @@ export class HybridBackend implements DeploymentBackend {
     await this.refresh();
   }
 
-  async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
-    const backend = await this.backendForId(id);
-    const instance = await backend.renameInstance(id, nextName);
-    await this.refresh();
-    return instance;
-  }
-
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
     const backend = this.backendForIdSync(id);
     return backend.streamLogs(id, onData);

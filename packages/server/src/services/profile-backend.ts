@@ -320,14 +320,6 @@ export class ProfileBackend implements DeploymentBackend {
     await this.refresh();
   }
 
-  async renameInstance(id: string, _nextName: string): Promise<FleetInstance> {
-    const instance = this.cache?.instances.find((item) => item.id === id);
-    if (!instance) {
-      throw new Error(`Profile "${id}" not found`);
-    }
-    throw new Error('Profile renameInstance is not implemented yet');
-  }
-
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
     const logFile = join(this.fleetDir, 'logs', `${id}.log`);
     let stopped = false;

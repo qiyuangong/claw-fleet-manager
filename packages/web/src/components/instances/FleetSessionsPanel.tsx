@@ -106,7 +106,7 @@ function SessionRow({ instanceId, session, onSelectInstance }: {
       <td>{session.kind ? <span className="pill pill--sm">{session.kind}</span> : '—'}</td>
       <td className="muted">{session.model ? truncate(session.model, 20) : '—'}</td>
       <td className="col-numeric">{formatTokens(session.totalTokens)}</td>
-      <td className="col-numeric">{formatCost(session.estimatedCostUsd)}</td>
+      <td className="col-numeric">{session.estimatedCostUsd != null ? formatCost(session.estimatedCostUsd) : '—'}</td>
       <td className="muted col-preview">{session.lastMessagePreview ? truncate(session.lastMessagePreview, 60) : '—'}</td>
       <td className="muted col-numeric">{formatRelative(sessionTimestamp(session))}</td>
     </tr>
@@ -115,8 +115,9 @@ function SessionRow({ instanceId, session, onSelectInstance }: {
 
 // ─── SessionsTable component ──────────────────────────────────────────────────
 
-function SessionsTable({ rows, onSelectInstance, sortCol, sortDir, onSort }: {
+function SessionsTable({ rows, errors, onSelectInstance, sortCol, sortDir, onSort }: {
   rows: FlatRow[];
+  errors: { instanceId: string; error: string }[];
   onSelectInstance: (id: string) => void;
   sortCol: SortCol | null;
   sortDir: SortDir;
@@ -154,6 +155,11 @@ function SessionsTable({ rows, onSelectInstance, sortCol, sortDir, onSort }: {
           </tr>
         </thead>
         <tbody>
+          {errors.map((entry) => (
+            <tr key={`error:${entry.instanceId}`} className="session-table-row session-table-row--error">
+              <td colSpan={9} className="error-text">⚠ {entry.instanceId}: {entry.error}</td>
+            </tr>
+          ))}
           {rows.map((row) => (
             <SessionRow
               key={`${row.instanceId}:${row.session.key}`}
@@ -193,6 +199,10 @@ export function FleetSessionsPanel() {
   const allRows = useMemo(() => buildFlatRows(data?.instances ?? []), [data]);
   const totalTokens = useMemo(
     () => allRows.reduce((sum, r) => sum + (r.session.totalTokens ?? 0), 0),
+    [allRows],
+  );
+  const hasCostData = useMemo(
+    () => allRows.some((r) => r.session.estimatedCostUsd != null),
     [allRows],
   );
   const totalCost = useMemo(
@@ -277,11 +287,11 @@ export function FleetSessionsPanel() {
             </span>
             <span className="sessions-stat">
               <span className="sessions-stat-label">{t('tokens')}</span>
-              <span className="sessions-stat-value">{formatTokens(totalTokens || undefined)}</span>
+              <span className="sessions-stat-value">{formatTokens(totalTokens)}</span>
             </span>
             <span className="sessions-stat">
               <span className="sessions-stat-label">{t('cost')}</span>
-              <span className="sessions-stat-value">{formatCost(totalCost || undefined)}</span>
+              <span className="sessions-stat-value">{hasCostData ? formatCost(totalCost) : '$—'}</span>
             </span>
           </div>
         )}
@@ -323,16 +333,12 @@ export function FleetSessionsPanel() {
           <p className="muted">{t('noActiveSessions')}</p>
         ) : (
           <>
-            {errorEntries.map((entry) => (
-              <p key={entry.instanceId} className="error-text" style={{ fontSize: '0.85rem' }}>
-                ⚠ {entry.instanceId}: {entry.error}
-              </p>
-            ))}
-            {filteredRows.length === 0 ? (
+            {filteredRows.length === 0 && errorEntries.length === 0 ? (
               <p className="muted">{t('noSessionsFilter')}</p>
             ) : (
               <SessionsTable
                 rows={filteredRows}
+                errors={errorEntries.map((e) => ({ instanceId: e.instanceId, error: e.error ?? '' }))}
                 onSelectInstance={selectInstance}
                 sortCol={sortCol}
                 sortDir={sortDir}

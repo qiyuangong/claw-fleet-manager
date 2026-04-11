@@ -152,21 +152,33 @@ describe('HybridBackend', () => {
         totalRunning: 1,
         updatedAt: 3000,
       });
-    dockerBackend.refresh.mockResolvedValue({
-      instances: [renamedDockerInstance],
-      totalRunning: 1,
-      updatedAt: 3000,
-    });
+    dockerBackend.refresh
+      .mockResolvedValueOnce({
+        instances: [dockerInstance],
+        totalRunning: 1,
+        updatedAt: 2000,
+      })
+      .mockResolvedValueOnce({
+        instances: [renamedDockerInstance],
+        totalRunning: 1,
+        updatedAt: 3000,
+      });
     profileBackend.getCachedStatus.mockReturnValue({
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 2000,
     });
-    profileBackend.refresh.mockResolvedValue({
-      instances: [profileInstance],
-      totalRunning: 1,
-      updatedAt: 2000,
-    });
+    profileBackend.refresh
+      .mockResolvedValueOnce({
+        instances: [profileInstance],
+        totalRunning: 1,
+        updatedAt: 2000,
+      })
+      .mockResolvedValueOnce({
+        instances: [profileInstance],
+        totalRunning: 1,
+        updatedAt: 2000,
+      });
 
     const renamed = await backend.renameInstance('openclaw-1', 'team-renamed');
 
@@ -185,6 +197,41 @@ describe('HybridBackend', () => {
 
   it('renameInstance rejects cross-backend name collisions', async () => {
     await expect(backend.renameInstance('openclaw-1', 'team-alpha')).rejects.toThrow(/already exists/i);
+
+    expect(dockerBackend.renameInstance).not.toHaveBeenCalled();
+    expect(profileBackend.renameInstance).not.toHaveBeenCalled();
+    expect(userService.renameAssignedProfile).not.toHaveBeenCalled();
+  });
+
+  it('renameInstance refreshes before checking cross-backend collisions', async () => {
+    const freshProfileCollision = {
+      ...profileInstance,
+      id: 'team-fresh',
+      profile: 'team-fresh',
+    };
+
+    dockerBackend.getCachedStatus.mockReturnValue({
+      instances: [dockerInstance],
+      totalRunning: 1,
+      updatedAt: 1000,
+    });
+    profileBackend.getCachedStatus.mockReturnValue({
+      instances: [],
+      totalRunning: 0,
+      updatedAt: 1000,
+    });
+    dockerBackend.refresh.mockResolvedValue({
+      instances: [dockerInstance],
+      totalRunning: 1,
+      updatedAt: 2000,
+    });
+    profileBackend.refresh.mockResolvedValue({
+      instances: [freshProfileCollision],
+      totalRunning: 1,
+      updatedAt: 2000,
+    });
+
+    await expect(backend.renameInstance('openclaw-1', 'team-fresh')).rejects.toThrow(/already exists/i);
 
     expect(dockerBackend.renameInstance).not.toHaveBeenCalled();
     expect(profileBackend.renameInstance).not.toHaveBeenCalled();

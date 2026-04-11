@@ -99,7 +99,10 @@ export class HybridBackend implements DeploymentBackend {
       throw new Error('Cannot rename an instance to the same name');
     }
 
-    await this.ensureInstanceIdAvailable(nextName);
+    const freshStatus = await this.refresh();
+    if (freshStatus.instances.some((instance) => instance.id === nextName)) {
+      throw new Error(`Instance "${nextName}" already exists`);
+    }
     const backend = await this.backendForId(id);
     await backend.renameInstance(id, nextName);
     await this.userService.renameAssignedProfile(id, nextName);

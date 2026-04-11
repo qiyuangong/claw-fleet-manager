@@ -320,6 +320,54 @@ export class ProfileBackend implements DeploymentBackend {
     await this.refresh();
   }
 
+  async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
+    const entry = this.registry.profiles[id];
+    if (!entry) throw new Error(`Profile "${id}" not found`);
+    if (id === nextName) {
+      throw new Error('Cannot rename a profile to the same name');
+    }
+    if (!isValidManagedProfileName(nextName)) {
+      throw new Error(getManagedProfileNameError(nextName));
+    }
+    if (this.registry.profiles[nextName]) {
+      throw new Error(`Profile "${nextName}" already exists`);
+    }
+
+    if (entry.pid !== null) {
+      throw new Error(`Profile "${id}" must be stopped before it can be renamed`);
+    }
+
+    const oldStateDir = entry.stateDir;
+    const oldConfigDir = dirname(entry.configPath);
+    const nextStateDir = this.baseDir ? join(this.baseDir, nextName) : join(this.cfg.stateBaseDir, nextName);
+    const nextConfigDir = this.baseDir ? nextStateDir : join(this.cfg.configBaseDir, nextName);
+    const nextConfigPath = join(nextConfigDir, 'openclaw.json');
+
+    renameSync(oldStateDir, nextStateDir);
+    if (oldConfigDir !== oldStateDir) {
+      renameSync(oldConfigDir, nextConfigDir);
+    }
+
+    this.rewriteWorkspacePath(nextConfigPath, join(nextStateDir, 'workspace'));
+
+    delete this.registry.profiles[id];
+    this.registry.profiles[nextName] = {
+      ...entry,
+      name: nextName,
+      stateDir: nextStateDir,
+      configPath: nextConfigPath,
+    };
+    this.renameInstanceState(id, nextName);
+    this.saveRegistry();
+
+    const status = await this.refresh();
+    const renamed = status.instances.find((instance) => instance.id === nextName);
+    if (!renamed) {
+      throw new Error(`Profile "${nextName}" not found after rename`);
+    }
+    return renamed;
+  }
+
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
     const logFile = join(this.fleetDir, 'logs', `${id}.log`);
     let stopped = false;
@@ -729,5 +777,21 @@ export class ProfileBackend implements DeploymentBackend {
     writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
     renameSync(tmpPath, configPath);
     return true;
+  }
+
+  private renameInstanceState(oldId: string, nextName: string): void {
+    this.moveMapValue(this.processStartTimes, oldId, nextName);
+    this.moveMapValue(this.instanceStatus, oldId, nextName);
+    this.moveMapValue(this.locks, oldId, nextName);
+    if (this.stopping.delete(oldId)) {
+      this.stopping.add(nextName);
+    }
+  }
+
+  private moveMapValue<T>(map: Map<string, T>, from: string, to: string): void {
+    if (!map.has(from)) return;
+    const value = map.get(from) as T;
+    map.delete(from);
+    map.set(to, value);
   }
 }

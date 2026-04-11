@@ -70,6 +70,10 @@ export class DockerService {
     await this.docker.getContainer(name).restart();
   }
 
+  async renameContainer(currentName: string, nextName: string): Promise<void> {
+    await this.docker.getContainer(currentName).rename({ name: nextName });
+  }
+
   async createManagedContainer(spec: ManagedContainerSpec): Promise<void> {
     const existing = await this.findContainer(spec.name);
     if (existing) {

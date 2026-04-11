@@ -255,6 +255,119 @@ describe('ProfileBackend — revealToken', () => {
   });
 });
 
+describe('ProfileBackend — renameInstance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(fs.writeFileSync).mockReturnValue(undefined);
+    vi.mocked(fs.renameSync).mockReturnValue(undefined);
+    vi.mocked(fsPromises.mkdir).mockResolvedValue(undefined);
+    vi.mocked(childProcess.execFile).mockImplementation((file: any, _args: any, optionsOrCb: any, maybeCb?: any) => {
+      const cb = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+      if (file === 'which') {
+        cb(null, '/usr/local/bin/openclaw\n', '');
+        return {} as any;
+      }
+      cb(null, '', '');
+      return {} as any;
+    });
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('renameInstance() renames a stopped profile in place and rewrites the workspace path', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/managed/rescue/openclaw.json',
+          stateDir: '/tmp/managed/rescue',
+        },
+      },
+      nextPort: 18809,
+    });
+
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      const value = String(path);
+      if (value.endsWith('/tmp/fleet/profiles.json')) {
+        return registry;
+      }
+      if (value.endsWith('/tmp/managed/rescue/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/managed/rescue/workspace' } },
+          custom: { keep: true },
+        });
+      }
+      if (value.endsWith('/tmp/managed/team-renamed/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/managed/rescue/workspace' } },
+          custom: { keep: true },
+        });
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+
+    const backend = makeBaseDirBackend();
+    await backend.initialize();
+
+    const renamed = await backend.renameInstance('rescue', 'team-renamed');
+
+    expect(fs.renameSync).toHaveBeenCalledWith('/tmp/managed/rescue', '/tmp/managed/team-renamed');
+    const rewrittenConfigCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) =>
+      String(path).endsWith('/tmp/managed/team-renamed/openclaw.json.tmp'));
+    expect(rewrittenConfigCall).toBeTruthy();
+    const rewrittenConfig = JSON.parse(String(rewrittenConfigCall?.[1]));
+    expect(rewrittenConfig.agents.defaults.workspace).toBe('/tmp/managed/team-renamed/workspace');
+    expect(rewrittenConfig.custom).toEqual({ keep: true });
+    expect(renamed.id).toBe('team-renamed');
+    expect(backend.getInstanceDir('team-renamed')).toEqual({
+      stateDir: '/tmp/managed/team-renamed',
+      configPath: '/tmp/managed/team-renamed/openclaw.json',
+    });
+  });
+
+  it('renameInstance() rejects running profiles', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: 4321,
+          configPath: '/tmp/managed/rescue/openclaw.json',
+          stateDir: '/tmp/managed/rescue',
+        },
+      },
+      nextPort: 18809,
+    });
+
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      if (String(path).endsWith('/tmp/fleet/profiles.json')) {
+        return registry;
+      }
+      if (String(path).endsWith('/tmp/managed/rescue/openclaw.json')) {
+        return JSON.stringify({
+          agents: { defaults: { workspace: '/tmp/managed/rescue/workspace' } },
+        });
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+
+    const backend = makeBaseDirBackend();
+    await backend.initialize();
+    (backend as any).registry.profiles.rescue.pid = 4321;
+
+    await expect(backend.renameInstance('rescue', 'team-renamed')).rejects.toThrow(/stopped/i);
+    expect(fs.renameSync).not.toHaveBeenCalledWith('/tmp/managed/rescue', '/tmp/managed/team-renamed');
+  });
+});
+
 describe('ProfileBackend — getCachedStatus', () => {
   it('returns non-null status after initialize', async () => {
     vi.mocked(fs.readFileSync).mockImplementation(() => { throw Object.assign(new Error(), { code: 'ENOENT' }); });

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { CreateInstanceOpts, DeploymentBackend, LogHandle } from './backend.js';
 import type { DockerBackend } from './docker-backend.js';
 import type { ProfileBackend } from './profile-backend.js';
+import type { UserService } from './user.js';
 import type { FleetInstance, FleetStatus } from '../types.js';
 
 export interface MigrateOpts {
@@ -16,6 +17,7 @@ export class HybridBackend implements DeploymentBackend {
   constructor(
     private dockerBackend: DockerBackend,
     private profileBackend: ProfileBackend,
+    private userService: UserService,
   ) {}
 
   async initialize(): Promise<void> {
@@ -90,6 +92,24 @@ export class HybridBackend implements DeploymentBackend {
   async removeInstance(id: string): Promise<void> {
     await (await this.backendForId(id)).removeInstance(id);
     await this.refresh();
+  }
+
+  async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
+    if (id === nextName) {
+      throw new Error('Cannot rename an instance to the same name');
+    }
+
+    await this.ensureInstanceIdAvailable(nextName);
+    const backend = await this.backendForId(id);
+    await backend.renameInstance(id, nextName);
+    await this.userService.renameAssignedProfile(id, nextName);
+
+    const status = await this.refresh();
+    const renamed = status.instances.find((instance) => instance.id === nextName);
+    if (!renamed) {
+      throw new Error(`Instance "${nextName}" not found after rename`);
+    }
+    return renamed;
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {

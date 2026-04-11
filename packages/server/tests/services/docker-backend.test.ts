@@ -1,11 +1,12 @@
 // packages/server/tests/services/docker-backend.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 vi.mock('../../src/services/docker-instance-provisioning.js', () => ({
   provisionDockerInstance: vi.fn(),
 }));
 vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
+  renameSync: vi.fn(),
   writeFileSync: vi.fn(),
   existsSync: vi.fn().mockReturnValue(false),
 }));
@@ -18,6 +19,7 @@ const mockDocker = {
   restartContainer: vi.fn().mockResolvedValue(undefined),
   createManagedContainer: vi.fn().mockResolvedValue(undefined),
   removeContainer: vi.fn().mockResolvedValue(undefined),
+  renameContainer: vi.fn().mockResolvedValue(undefined),
   listFleetContainers: vi.fn().mockResolvedValue([]),
   getContainerStats: vi.fn().mockResolvedValue({ cpu: 0, memory: { used: 0, limit: 0 } }),
   inspectContainer: vi.fn().mockResolvedValue({ status: 'running', health: 'healthy', image: 'openclaw:local', uptime: 100 }),
@@ -40,10 +42,13 @@ const mockFleetConfig = {
   writeTokens: vi.fn(),
   writeFleetConfig: vi.fn(),
   readInstanceConfig: vi.fn().mockReturnValue({ gateway: {} }),
+  readInstanceMeta: vi.fn().mockReturnValue({}),
   writeInstanceConfig: vi.fn(),
+  writeInstanceMeta: vi.fn(),
   ensureFleetDirectories: vi.fn(),
   getConfigBase: vi.fn().mockReturnValue('/tmp/managed'),
   getWorkspaceBase: vi.fn().mockReturnValue('/tmp/managed/<instance>/workspace'),
+  getDockerInstanceRoot: vi.fn((id: string) => `/tmp/managed/${id}`),
   getDockerConfigDir: vi.fn((id: string) => `/tmp/managed/${id}/config`),
   getDockerWorkspaceDir: vi.fn((id: string) => `/tmp/managed/${id}/workspace`),
 };
@@ -53,8 +58,10 @@ describe('DockerBackend', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDocker.listFleetContainers.mockResolvedValue([]);
     mockFleetConfig.readFleetEnvRaw.mockReturnValue({});
     mockFleetConfig.readInstanceConfig.mockReturnValue({ gateway: {} });
+    mockFleetConfig.readInstanceMeta.mockReturnValue({});
     backend = new DockerBackend(
       mockDocker as any,
       mockFleetConfig as any,
@@ -162,10 +169,8 @@ describe('DockerBackend', () => {
         API_KEY: 'sk-test',
         MODEL_ID: 'gpt-4',
       }),
-      configOverride: expect.objectContaining({
-        clawFleet: { portStep: 25 },
-      }),
     }));
+    expect(mockFleetConfig.writeInstanceMeta).toHaveBeenCalledWith('team-beta', { portStep: 25 });
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       name: 'team-beta',
       index: 2,
@@ -232,10 +237,51 @@ describe('DockerBackend', () => {
 
     expect(mockDocker.removeContainer).toHaveBeenCalledWith('team-alpha');
   });
+
+  it('renameInstance() renames a stopped Docker instance in place', async () => {
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([
+        { name: 'team-alpha', id: 'a', state: 'exited', index: 2 },
+      ])
+      .mockResolvedValueOnce([
+        { name: 'team-renamed', id: 'a', state: 'exited', index: 2 },
+      ]);
+    mockDocker.inspectContainer.mockResolvedValue({
+      status: 'exited',
+      health: 'none',
+      image: 'openclaw:local',
+      uptime: 0,
+    });
+
+    const renamed = await backend.renameInstance('team-alpha', 'team-renamed');
+
+    expect(renameSync).toHaveBeenCalledWith('/tmp/managed/team-alpha', '/tmp/managed/team-renamed');
+    expect(mockDocker.renameContainer).toHaveBeenCalledWith('team-alpha', 'team-renamed');
+    expect(renamed.id).toBe('team-renamed');
+    expect(renamed.port).toBe(18809);
+  });
+
+  it('renameInstance() rejects running Docker instances', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'team-alpha', id: 'a', state: 'running', index: 2 },
+    ]);
+    mockDocker.inspectContainer.mockResolvedValue({
+      status: 'running',
+      health: 'healthy',
+      image: 'openclaw:local',
+      uptime: 10,
+    });
+
+    await expect(backend.renameInstance('team-alpha', 'team-renamed')).rejects.toThrow(/stopped/i);
+    expect(renameSync).not.toHaveBeenCalled();
+    expect(mockDocker.renameContainer).not.toHaveBeenCalled();
+  });
+
   it('createInstanceFromMigration() creates container with explicit token and workspaceDir', async () => {
     mockDocker.listFleetContainers
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
+      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }])
+      .mockResolvedValue([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
     mockFleetConfig.readFleetEnvRaw.mockReturnValue({ BASE_URL: 'http://api', API_KEY: 'key', MODEL_ID: 'gpt-4' });
 
     await (backend as any).createInstanceFromMigration({
@@ -256,7 +302,8 @@ describe('DockerBackend', () => {
   it('createInstanceFromMigration() writes Docker openclaw.json with container-internal workspace path', async () => {
     mockDocker.listFleetContainers
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
+      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }])
+      .mockResolvedValue([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
     mockFleetConfig.readFleetEnvRaw.mockReturnValue({});
     mockFleetConfig.getDockerConfigDir.mockReturnValue('/tmp/managed/team-alpha/config');
 
@@ -277,7 +324,8 @@ describe('DockerBackend', () => {
   it('createInstanceFromMigration() preserves npm cache mount when enableNpmPackages is enabled', async () => {
     mockDocker.listFleetContainers
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
+      .mockResolvedValueOnce([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }])
+      .mockResolvedValue([{ name: 'team-alpha', id: 'def', state: 'running', index: 1 }]);
     mockFleetConfig.readFleetConfig.mockReturnValue({
       baseDir: '/tmp/managed',
       portStep: 20,

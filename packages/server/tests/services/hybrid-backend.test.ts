@@ -45,6 +45,7 @@ describe('HybridBackend', () => {
     refresh: vi.fn(),
     createInstance: vi.fn(),
     removeInstance: vi.fn(),
+    renameInstance: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
     restart: vi.fn(),
@@ -63,6 +64,7 @@ describe('HybridBackend', () => {
     refresh: vi.fn(),
     createInstance: vi.fn(),
     removeInstance: vi.fn(),
+    renameInstance: vi.fn(),
     start: vi.fn(),
     stop: vi.fn(),
     restart: vi.fn(),
@@ -72,6 +74,10 @@ describe('HybridBackend', () => {
     revealToken: vi.fn(),
     readInstanceConfig: vi.fn(),
     writeInstanceConfig: vi.fn(),
+  };
+
+  const userService = {
+    renameAssignedProfile: vi.fn().mockResolvedValue(undefined),
   };
 
   let backend: HybridBackend;
@@ -92,7 +98,7 @@ describe('HybridBackend', () => {
     profileBackend.refresh.mockResolvedValue(profileBackend.getCachedStatus());
     dockerBackend.createInstance.mockResolvedValue(dockerInstance);
     profileBackend.createInstance.mockResolvedValue(profileInstance);
-    backend = new HybridBackend(dockerBackend as any, profileBackend as any);
+    backend = new HybridBackend(dockerBackend as any, profileBackend as any, userService as any);
   });
 
   it('refresh merges docker and profile instances into one hybrid fleet', async () => {
@@ -122,6 +128,67 @@ describe('HybridBackend', () => {
 
     expect(dockerBackend.start).toHaveBeenCalledWith('openclaw-1');
     expect(profileBackend.stop).toHaveBeenCalledWith('team-alpha');
+  });
+
+  it('renameInstance routes to the owning backend, rewrites assignments, and returns the refreshed instance', async () => {
+    const renamedDockerInstance = {
+      ...dockerInstance,
+      id: 'team-renamed',
+    };
+    dockerBackend.renameInstance.mockResolvedValue(renamedDockerInstance);
+    dockerBackend.getCachedStatus
+      .mockReturnValueOnce({
+        instances: [dockerInstance],
+        totalRunning: 1,
+        updatedAt: 1000,
+      })
+      .mockReturnValueOnce({
+        instances: [dockerInstance],
+        totalRunning: 1,
+        updatedAt: 1000,
+      })
+      .mockReturnValue({
+        instances: [renamedDockerInstance],
+        totalRunning: 1,
+        updatedAt: 3000,
+      });
+    dockerBackend.refresh.mockResolvedValue({
+      instances: [renamedDockerInstance],
+      totalRunning: 1,
+      updatedAt: 3000,
+    });
+    profileBackend.getCachedStatus.mockReturnValue({
+      instances: [profileInstance],
+      totalRunning: 1,
+      updatedAt: 2000,
+    });
+    profileBackend.refresh.mockResolvedValue({
+      instances: [profileInstance],
+      totalRunning: 1,
+      updatedAt: 2000,
+    });
+
+    const renamed = await backend.renameInstance('openclaw-1', 'team-renamed');
+
+    expect(dockerBackend.renameInstance).toHaveBeenCalledWith('openclaw-1', 'team-renamed');
+    expect(profileBackend.renameInstance).not.toHaveBeenCalled();
+    expect(userService.renameAssignedProfile).toHaveBeenCalledWith('openclaw-1', 'team-renamed');
+    expect(renamed.id).toBe('team-renamed');
+  });
+
+  it('renameInstance rejects same-name renames cleanly', async () => {
+    await expect(backend.renameInstance('openclaw-1', 'openclaw-1')).rejects.toThrow(/same name/i);
+
+    expect(dockerBackend.renameInstance).not.toHaveBeenCalled();
+    expect(userService.renameAssignedProfile).not.toHaveBeenCalled();
+  });
+
+  it('renameInstance rejects cross-backend name collisions', async () => {
+    await expect(backend.renameInstance('openclaw-1', 'team-alpha')).rejects.toThrow(/already exists/i);
+
+    expect(dockerBackend.renameInstance).not.toHaveBeenCalled();
+    expect(profileBackend.renameInstance).not.toHaveBeenCalled();
+    expect(userService.renameAssignedProfile).not.toHaveBeenCalled();
   });
 
   it('initialize tolerates docker backend initialization failure when profiles are still available', async () => {
@@ -216,7 +283,7 @@ describe('HybridBackend', () => {
       profileBackend.revealToken.mockResolvedValue('plain-token');
       dockerBackend.removeInstance.mockResolvedValue(undefined);
       profileBackend.removeInstance.mockResolvedValue(undefined);
-      backend = new HybridBackend(dockerBackend as any, profileBackend as any);
+      backend = new HybridBackend(dockerBackend as any, profileBackend as any, userService as any);
     });
 
     it('migrate() docker to profile stops container and calls profileBackend.createInstanceFromMigration', async () => {

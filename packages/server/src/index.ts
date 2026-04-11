@@ -104,7 +104,7 @@ const profileBackend = new ProfileBackend(config.fleetDir, config.profiles ?? {
   autoRestart: true,
   stopTimeoutMs: 10000,
 }, config.baseDir, app.log);
-const backend = new HybridBackend(dockerBackend, profileBackend);
+const backend = new HybridBackend(dockerBackend, profileBackend, userService);
 
 // ── Decorators ───────────────────────────────────────────────────────────────
 app.decorate('backend', backend as DeploymentBackend);

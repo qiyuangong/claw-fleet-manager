@@ -1,7 +1,7 @@
 // packages/server/src/services/docker-backend.ts
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
@@ -234,6 +234,47 @@ export class DockerBackend implements DeploymentBackend {
       // already removed
     }
     await this.refresh();
+  }
+
+  async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
+    if (id === nextName) {
+      throw new Error('Cannot rename an instance to the same name');
+    }
+    if (!MANAGED_INSTANCE_ID_RE.test(nextName)) {
+      throw new Error('name must be lowercase alphanumeric with hyphens');
+    }
+
+    const containers = await this.docker.listFleetContainers();
+    const source = containers.find((container) => container.name === id);
+    if (!source) {
+      throw new Error(`Instance "${id}" not found`);
+    }
+    if (containers.some((container) => container.name === nextName)) {
+      throw new Error(`Instance "${nextName}" already exists`);
+    }
+
+    const inspection = await this.docker.inspectContainer(id).catch(() => ({
+      status: source.state,
+      health: 'none',
+      image: 'unknown',
+      uptime: 0,
+    }));
+    if (this.mapStatus(inspection.status) !== 'stopped') {
+      throw new Error(`Instance "${id}" must be stopped before it can be renamed`);
+    }
+
+    renameSync(
+      this.fleetConfig.getDockerInstanceRoot(id),
+      this.fleetConfig.getDockerInstanceRoot(nextName),
+    );
+    await this.docker.renameContainer(id, nextName);
+
+    const status = await this.refresh();
+    const renamed = status.instances.find((instance) => instance.id === nextName);
+    if (!renamed) {
+      throw new Error(`Instance "${nextName}" not found after rename`);
+    }
+    return renamed;
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {

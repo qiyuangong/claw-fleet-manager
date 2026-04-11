@@ -5,6 +5,7 @@ const mockContainer = {
   start: vi.fn(),
   stop: vi.fn(),
   restart: vi.fn(),
+  rename: vi.fn(),
   remove: vi.fn(),
   stats: vi.fn().mockResolvedValue({
     cpu_stats: { cpu_usage: { total_usage: 100 }, system_cpu_usage: 1000, online_cpus: 4 },
@@ -59,6 +60,12 @@ describe('DockerService', () => {
   it('restarts a container', async () => {
     await svc.restartContainer('openclaw-1');
     expect(mockContainer.restart).toHaveBeenCalled();
+  });
+
+  it('renames a container', async () => {
+    await svc.renameContainer('openclaw-1', 'team-renamed');
+    expect(mockDocker.getContainer).toHaveBeenCalledWith('openclaw-1');
+    expect(mockContainer.rename).toHaveBeenCalledWith({ name: 'team-renamed' });
   });
 
   it('createManagedContainer creates and starts a hardened managed container with npm cache mount', async () => {

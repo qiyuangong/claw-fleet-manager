@@ -14,6 +14,11 @@ export type InstanceSessionRow = {
   model?: string;
   modelProvider?: string;
   kind?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  estimatedCostUsd?: number;
+  updatedAt?: number;
 };
 
 type ResFrame = { type: 'res'; id: string; ok: boolean; payload?: unknown; error?: { code: string; message: string } };
@@ -86,7 +91,7 @@ export async function fetchInstanceSessions(
             // sessions active within the last hour
             const result = await request<{ sessions?: InstanceSessionRow[] }>(
               'sessions.list',
-              { activeMinutes: 60 },
+              { activeMinutes: 60, includeDerivedTitles: true, includeLastMessage: true },
             );
             done(result?.sessions ?? []);
           } catch (err) {

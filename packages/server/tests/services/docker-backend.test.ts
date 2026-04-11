@@ -40,7 +40,9 @@ const mockFleetConfig = {
   writeTokens: vi.fn(),
   writeFleetConfig: vi.fn(),
   readInstanceConfig: vi.fn().mockReturnValue({ gateway: {} }),
+  readInstanceMeta: vi.fn().mockReturnValue({}),
   writeInstanceConfig: vi.fn(),
+  writeInstanceMeta: vi.fn(),
   ensureFleetDirectories: vi.fn(),
   getConfigBase: vi.fn().mockReturnValue('/tmp/managed'),
   getWorkspaceBase: vi.fn().mockReturnValue('/tmp/managed/<instance>/workspace'),
@@ -52,9 +54,34 @@ describe('DockerBackend', () => {
   let backend: DockerBackend;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    mockDocker.startContainer.mockResolvedValue(undefined);
+    mockDocker.stopContainer.mockResolvedValue(undefined);
+    mockDocker.restartContainer.mockResolvedValue(undefined);
+    mockDocker.createManagedContainer.mockResolvedValue(undefined);
+    mockDocker.removeContainer.mockResolvedValue(undefined);
+    mockDocker.listFleetContainers.mockResolvedValue([]);
+    mockDocker.getContainerStats.mockResolvedValue({ cpu: 0, memory: { used: 0, limit: 0 } });
+    mockDocker.inspectContainer.mockResolvedValue({ status: 'running', health: 'healthy', image: 'openclaw:local', uptime: 100 });
+    mockDocker.getDiskUsage.mockResolvedValue({});
+    mockDocker.getContainerLogs.mockReturnValue({ on: vi.fn(), destroy: vi.fn() });
+    mockFleetConfig.readFleetConfig.mockReturnValue({
+      baseDir: '/tmp/managed',
+      portStep: 20,
+      openclawImage: 'openclaw:local',
+      tz: 'Asia/Shanghai',
+      enableNpmPackages: false,
+      cpuLimit: '4',
+      memLimit: '4G',
+    });
     mockFleetConfig.readFleetEnvRaw.mockReturnValue({});
+    mockFleetConfig.readTokens.mockReturnValue({ 1: 'token-abc123' });
     mockFleetConfig.readInstanceConfig.mockReturnValue({ gateway: {} });
+    mockFleetConfig.readInstanceMeta.mockReturnValue({});
+    mockFleetConfig.getConfigBase.mockReturnValue('/tmp/managed');
+    mockFleetConfig.getWorkspaceBase.mockReturnValue('/tmp/managed/<instance>/workspace');
+    mockFleetConfig.getDockerConfigDir.mockImplementation((id: string) => `/tmp/managed/${id}/config`);
+    mockFleetConfig.getDockerWorkspaceDir.mockImplementation((id: string) => `/tmp/managed/${id}/workspace`);
     backend = new DockerBackend(
       mockDocker as any,
       mockFleetConfig as any,
@@ -162,10 +189,9 @@ describe('DockerBackend', () => {
         API_KEY: 'sk-test',
         MODEL_ID: 'gpt-4',
       }),
-      configOverride: expect.objectContaining({
-        clawFleet: { portStep: 25 },
-      }),
+      configOverride: undefined,
     }));
+    expect(mockFleetConfig.writeInstanceMeta).toHaveBeenCalledWith('team-beta', { portStep: 25 });
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       name: 'team-beta',
       index: 2,

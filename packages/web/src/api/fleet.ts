@@ -1,5 +1,5 @@
 import { apiFetch } from './client';
-import type { FleetConfig, FleetInstance, FleetStatus } from '../types';
+import type { FleetConfig, FleetInstance, FleetSessionsResult, FleetStatus } from '../types';
 
 export const getFleet = () => apiFetch<FleetStatus>('/api/fleet');
 
@@ -110,3 +110,5 @@ export const uninstallProfilePlugin = (id: string, pluginId: string) =>
   apiFetch<{ ok: boolean; output: string }>(`/api/fleet/${id}/plugins/${pluginId}`, {
     method: 'DELETE',
   });
+
+export const getFleetSessions = () => apiFetch<FleetSessionsResult>('/api/fleet/sessions');

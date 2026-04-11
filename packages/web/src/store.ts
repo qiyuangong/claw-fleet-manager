@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { PublicUser } from './types';
 
 type Tab = 'overview' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu' | 'plugins';
-type ActiveView = { type: 'instance'; id: string } | { type: 'instances' } | { type: 'config' } | { type: 'users' } | { type: 'account' };
+type ActiveView = { type: 'instance'; id: string } | { type: 'instances' } | { type: 'config' } | { type: 'users' } | { type: 'account' } | { type: 'sessions' };
 
 interface AppState {
   activeView: ActiveView;
@@ -13,6 +13,7 @@ interface AppState {
   selectConfig: () => void;
   selectUsers: () => void;
   selectAccount: () => void;
+  selectSessions: () => void;
   setTab: (tab: Tab) => void;
   setCurrentUser: (user: PublicUser | null) => void;
 }
@@ -26,6 +27,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectConfig: () => set({ activeView: { type: 'config' } }),
   selectUsers: () => set({ activeView: { type: 'users' } }),
   selectAccount: () => set({ activeView: { type: 'account' } }),
+  selectSessions: () => set({ activeView: { type: 'sessions' } }),
   setTab: (tab) => set({ activeTab: tab }),
   setCurrentUser: (user) => set({ currentUser: user }),
 }));

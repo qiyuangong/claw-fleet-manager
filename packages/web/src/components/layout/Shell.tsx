@@ -12,6 +12,7 @@ import { getCurrentUser } from '../../api/users';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { InstanceManagementPanel } from '../instances/InstanceManagementPanel';
+import { FleetSessionsPanel } from '../instances/FleetSessionsPanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
 import { UserHomePanel } from '../users/UserHomePanel';
 import { UserManagementPanel } from '../users/UserManagementPanel';
@@ -207,6 +208,8 @@ export function Shell() {
           <InstanceManagementPanel onOpenInstance={selectInstance} />
         ) : activeView.type === 'users' ? (
           <UserManagementPanel />
+        ) : activeView.type === 'sessions' ? (
+          <FleetSessionsPanel />
         ) : (
           <FleetConfigPanel />
         )}

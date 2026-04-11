@@ -185,6 +185,22 @@ describe('Fleet routes', () => {
     });
   });
 
+  it('POST /api/fleet/instances/:id/rename maps stopped-instance errors to rename conflict errors', async () => {
+    mockBackend.renameInstance.mockRejectedValueOnce(new Error('Instance "openclaw-1" must be stopped before it can be renamed'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/openclaw-1/rename',
+      payload: { name: 'team-renamed' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'Instance "openclaw-1" must be stopped before it can be renamed',
+      code: 'RENAME_CONFLICT',
+    });
+  });
+
   it('POST /api/fleet/instances/:id/rename maps missing instances to not found', async () => {
     mockBackend.renameInstance.mockRejectedValueOnce(new Error('Instance "openclaw-1" not found'));
 

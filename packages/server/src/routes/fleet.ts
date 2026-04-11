@@ -210,10 +210,10 @@ export async function fleetRoutes(app: FastifyInstance) {
       if (message.includes('not found')) {
         return reply.status(404).send({ error: safeError(error), code: 'INSTANCE_NOT_FOUND' });
       }
-      if (message.includes('stopped')) {
-        return reply.status(409).send({ error: safeError(error), code: 'RENAME_REQUIRES_STOP' });
-      }
       if (message.includes('same name') || message.includes('already exists') || message.includes('locked')) {
+        return reply.status(409).send({ error: safeError(error), code: 'RENAME_CONFLICT' });
+      }
+      if (message.includes('stopped')) {
         return reply.status(409).send({ error: safeError(error), code: 'RENAME_CONFLICT' });
       }
       return reply.status(500).send({ error: safeError(error), code: 'RENAME_FAILED' });

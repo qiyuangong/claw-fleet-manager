@@ -43,6 +43,20 @@ function formatRelative(ts: number | undefined): string {
 
 type StatusFilter = 'all' | 'active' | 'done' | 'error';
 type TimeFilter = 'today' | '24h' | '7d' | 'all';
+
+const STATUS_FILTERS: { key: StatusFilter; labelKey: string }[] = [
+  { key: 'all', labelKey: 'statusFilterAll' },
+  { key: 'active', labelKey: 'statusFilterActive' },
+  { key: 'done', labelKey: 'statusFilterDone' },
+  { key: 'error', labelKey: 'statusFilterError' },
+];
+
+const TIME_FILTERS: { key: TimeFilter; labelKey: string }[] = [
+  { key: 'today', labelKey: 'timeFilterToday' },
+  { key: '24h', labelKey: 'timeFilter24h' },
+  { key: '7d', labelKey: 'timeFilter7d' },
+  { key: 'all', labelKey: 'timeFilterAll' },
+];
 type SortCol = 'tokens' | 'cost' | 'updated';
 type SortDir = 'asc' | 'desc';
 
@@ -113,6 +127,27 @@ function SessionRow({ instanceId, session, onSelectInstance }: {
   );
 }
 
+// ─── SortHeader component ─────────────────────────────────────────────────────
+
+function SortHeader({ col, label, sortCol, sortDir, onSort }: {
+  col: SortCol;
+  label: string;
+  sortCol: SortCol | null;
+  sortDir: SortDir;
+  onSort: (col: SortCol) => void;
+}) {
+  const active = sortCol === col;
+  return (
+    <th
+      className={`sortable-th${active ? ' sortable-th--active' : ''}`}
+      onClick={() => onSort(col)}
+      style={{ cursor: 'pointer', userSelect: 'none' }}
+    >
+      {label}{active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+    </th>
+  );
+}
+
 // ─── SessionsTable component ──────────────────────────────────────────────────
 
 function SessionsTable({ rows, errors, onSelectInstance, sortCol, sortDir, onSort }: {
@@ -125,19 +160,6 @@ function SessionsTable({ rows, errors, onSelectInstance, sortCol, sortDir, onSor
 }) {
   const { t } = useTranslation();
 
-  function SortHeader({ col, label }: { col: SortCol; label: string }) {
-    const active = sortCol === col;
-    return (
-      <th
-        className={`sortable-th${active ? ' sortable-th--active' : ''}`}
-        onClick={() => onSort(col)}
-        style={{ cursor: 'pointer', userSelect: 'none' }}
-      >
-        {label}{active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
-      </th>
-    );
-  }
-
   return (
     <div className="sessions-table-wrap">
       <table className="sessions-table">
@@ -148,10 +170,10 @@ function SessionsTable({ rows, errors, onSelectInstance, sortCol, sortDir, onSor
             <th>{t('colSession')}</th>
             <th>{t('colType')}</th>
             <th>{t('colModel')}</th>
-            <SortHeader col="tokens" label={t('colTokens')} />
-            <SortHeader col="cost" label={t('colCost')} />
+            <SortHeader col="tokens" label={t('colTokens')} sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+            <SortHeader col="cost" label={t('colCost')} sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
             <th>{t('colLastMessage')}</th>
-            <SortHeader col="updated" label={t('colUpdated')} />
+            <SortHeader col="updated" label={t('colUpdated')} sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
@@ -247,20 +269,6 @@ export function FleetSessionsPanel() {
     [data],
   );
 
-  const STATUS_FILTERS: { key: StatusFilter; labelKey: string }[] = [
-    { key: 'all', labelKey: 'statusFilterAll' },
-    { key: 'active', labelKey: 'statusFilterActive' },
-    { key: 'done', labelKey: 'statusFilterDone' },
-    { key: 'error', labelKey: 'statusFilterError' },
-  ];
-
-  const TIME_FILTERS: { key: TimeFilter; labelKey: string }[] = [
-    { key: 'today', labelKey: 'timeFilterToday' },
-    { key: '24h', labelKey: 'timeFilter24h' },
-    { key: '7d', labelKey: 'timeFilter7d' },
-    { key: 'all', labelKey: 'timeFilterAll' },
-  ];
-
   return (
     <div className="field-grid">
       <section className="panel-card">
@@ -328,14 +336,15 @@ export function FleetSessionsPanel() {
         {isLoading ? (
           <p className="muted">{t('loadingSessions')}</p>
         ) : error ? (
-          <p className="error-text">{(error as Error).message}</p>
+          <p className="error-text">{error instanceof Error ? error.message : String(error)}</p>
         ) : !data || allRows.length === 0 ? (
           <p className="muted">{t('noActiveSessions')}</p>
         ) : (
           <>
             {filteredRows.length === 0 && errorEntries.length === 0 ? (
               <p className="muted">{t('noSessionsFilter')}</p>
-            ) : (
+            ) : null}
+            {(filteredRows.length > 0 || errorEntries.length > 0) && (
               <SessionsTable
                 rows={filteredRows}
                 errors={errorEntries.map((e) => ({ instanceId: e.instanceId, error: e.error ?? '' }))}

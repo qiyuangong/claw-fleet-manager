@@ -220,6 +220,13 @@ export class DockerService {
     };
   }
 
+  async getContainerGatewayToken(name: string): Promise<string | null> {
+    const info = await this.docker.getContainer(name).inspect() as any;
+    const env = Array.isArray(info.Config?.Env) ? info.Config.Env as string[] : [];
+    const match = env.find((entry) => entry.startsWith('OPENCLAW_GATEWAY_TOKEN='));
+    return match ? match.slice('OPENCLAW_GATEWAY_TOKEN='.length) : null;
+  }
+
   async getDiskUsage(): Promise<Record<string, number>> {
     const df = await this.docker.df() as any;
     const result: Record<string, number> = {};

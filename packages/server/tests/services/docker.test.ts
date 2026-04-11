@@ -339,6 +339,22 @@ describe('DockerService', () => {
     expect(info.health).toBe('none');
   });
 
+  it('getContainerGatewayToken returns the token from container env', async () => {
+    mockContainer.inspect.mockResolvedValue({
+      State: {
+        Status: 'running',
+        StartedAt: new Date(Date.now() - 60_000).toISOString(),
+        Health: { Status: 'healthy' },
+      },
+      Config: {
+        Image: 'openclaw:local',
+        Env: ['OPENCLAW_GATEWAY_TOKEN=secret-token', 'TZ=UTC'],
+      },
+    });
+
+    await expect(svc.getContainerGatewayToken('openclaw-1')).resolves.toBe('secret-token');
+  });
+
   it('listFleetContainers includes containers with managed label regardless of name', async () => {
     mockDocker.listContainers.mockResolvedValue([
       {

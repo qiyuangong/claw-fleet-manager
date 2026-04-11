@@ -55,6 +55,11 @@ export type InstanceSessionRow = {
   model?: string;
   modelProvider?: string;
   kind?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  estimatedCostUsd?: number;
+  updatedAt?: number;
 };
 
 export type InstanceSessionsEntry = {

@@ -45,6 +45,28 @@ const en = {
   refresh: 'Refresh',
   loadingSessions: 'Loading sessions…',
 
+  // Sessions Table
+  sessionsCount: 'Sessions',
+  tokens: 'Tokens',
+  cost: 'Cost',
+  statusFilterAll: 'All',
+  statusFilterActive: 'Active',
+  statusFilterDone: 'Done',
+  statusFilterError: 'Error',
+  timeFilterToday: 'Today',
+  timeFilter24h: '24h',
+  timeFilter7d: '7d',
+  timeFilterAll: 'All',
+  colInstance: 'Instance',
+  colSession: 'Session',
+  colType: 'Type',
+  colModel: 'Model',
+  colTokens: 'Tokens',
+  colCost: 'Cost',
+  colLastMessage: 'Last Message',
+  colUpdated: 'Updated',
+  noSessionsFilter: 'No sessions match the current filters.',
+
   // Instance Panel
   instanceNotFound: 'Instance not found',
   instanceNotFoundDesc: 'The selected instance is not present in the latest fleet snapshot.',

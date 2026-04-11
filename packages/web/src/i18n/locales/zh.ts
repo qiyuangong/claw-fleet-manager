@@ -45,6 +45,28 @@ const zh = {
   refresh: '刷新',
   loadingSessions: '加载会话中…',
 
+  // Sessions Table
+  sessionsCount: '会话',
+  tokens: 'Token 数',
+  cost: '费用',
+  statusFilterAll: '全部',
+  statusFilterActive: '运行中',
+  statusFilterDone: '已完成',
+  statusFilterError: '出错',
+  timeFilterToday: '今天',
+  timeFilter24h: '24小时',
+  timeFilter7d: '7天',
+  timeFilterAll: '全部',
+  colInstance: '实例',
+  colSession: '会话',
+  colType: '类型',
+  colModel: '模型',
+  colTokens: 'Token',
+  colCost: '费用',
+  colLastMessage: '最新消息',
+  colUpdated: '更新时间',
+  noSessionsFilter: '没有符合筛选条件的会话。',
+
   // Instance Panel
   instanceNotFound: '实例未找到',
   instanceNotFoundDesc: '所选实例不在最新的 Fleet 快照中。',

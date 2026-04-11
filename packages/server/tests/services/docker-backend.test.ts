@@ -230,7 +230,10 @@ describe('DockerBackend', () => {
       enableNpmPackages: true,
     });
 
-    expect(provisionDockerInstance).toHaveBeenCalledWith(expect.objectContaining({
+    const provisionArgs = vi.mocked(provisionDockerInstance).mock.calls.at(-1)?.[0];
+
+    expect(provisionArgs).toBeDefined();
+    expect(provisionArgs).toMatchObject({
       instanceId: 'team-beta',
       index: 2,
       portStep: 25,
@@ -239,7 +242,9 @@ describe('DockerBackend', () => {
         API_KEY: 'sk-test',
         MODEL_ID: 'gpt-4',
       }),
-    }));
+    });
+    expect(Object.prototype.hasOwnProperty.call(provisionArgs ?? {}, 'configOverride')).toBe(true);
+    expect(provisionArgs?.configOverride).toBeUndefined();
     expect(mockFleetConfig.writeInstanceMeta).toHaveBeenCalledWith('team-beta', { portStep: 25 });
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       name: 'team-beta',

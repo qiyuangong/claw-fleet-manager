@@ -236,6 +236,15 @@ export class DockerBackend implements DeploymentBackend {
     await this.refresh();
   }
 
+  async renameInstance(id: string, _nextName: string): Promise<FleetInstance> {
+    const status = this.getCachedStatus() ?? await this.refresh();
+    const instance = status.instances.find((item) => item.id === id);
+    if (!instance) {
+      throw new Error(`Instance "${id}" not found`);
+    }
+    throw new Error('Docker renameInstance is not implemented yet');
+  }
+
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
     let logStream: import('node:stream').Readable | undefined;
     (async () => {

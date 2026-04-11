@@ -182,6 +182,24 @@ export class UserService {
     this.persist();
   }
 
+  async renameAssignedProfile(oldId: string, newId: string): Promise<void> {
+    if (oldId === newId) return;
+
+    let changed = false;
+    for (const user of this.users) {
+      const nextProfiles = user.assignedProfiles.map((profile) => {
+        if (profile !== oldId) return profile;
+        changed = true;
+        return newId;
+      });
+      user.assignedProfiles = Array.from(new Set(nextProfiles));
+    }
+
+    if (!changed) return;
+    this.evictCache();
+    this.persist();
+  }
+
   private evictCache(): void {
     this.cache.clear();
   }

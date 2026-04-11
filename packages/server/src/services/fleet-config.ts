@@ -22,7 +22,7 @@ export class FleetConfigService {
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),
       tz: vars.TZ ?? 'Asia/Shanghai',
       openclawImage: vars.OPENCLAW_IMAGE ?? 'openclaw:local',
-      enableNpmPackages: vars.ENABLE_NPM_PACKAGES !== 'false',
+      enableNpmPackages: vars.ENABLE_NPM_PACKAGES === 'true',
     };
   }
 

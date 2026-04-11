@@ -54,7 +54,7 @@ describe('FleetConfigService', () => {
       expect(config.baseUrl).toBe('https://api.example.com/v1');
       expect(config.apiKey).toBe('sk-t***t123');
       expect(config.modelId).toBe('gpt-4');
-      expect(config.cpuLimit).toBe('4');
+      expect(config.cpuLimit).toBe('2');
       expect(config.memLimit).toBe('4G');
       expect(config.portStep).toBe(20);
       expect(config.baseDir).toBe(join(dir, 'managed'));

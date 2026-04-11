@@ -4,8 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { deleteInstance } from '../../api/fleet';
 import { useFleet } from '../../hooks/useFleet';
 import { useAppStore } from '../../store';
+import type { FleetInstance } from '../../types';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { AddInstanceDialog } from './AddInstanceDialog';
+import { RenameInstanceDialog } from './RenameInstanceDialog';
 
 interface Props {
   onOpenInstance: (id: string) => void;
@@ -18,6 +20,7 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
   const queryClient = useQueryClient();
   const [createKind, setCreateKind] = useState<'docker' | 'profile' | null>(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [pendingRename, setPendingRename] = useState<FleetInstance | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const deleteMutation = useMutation({
@@ -121,6 +124,14 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
                         {t('openInstance')}
                       </button>
                       <button
+                        className="secondary-button"
+                        title={instance.status === 'stopped' ? '' : t('renameInstanceRequiresStopped')}
+                        onClick={() => setPendingRename(instance)}
+                        disabled={instance.status !== 'stopped'}
+                      >
+                        {t('renameInstance')}
+                      </button>
+                      <button
                         className="danger-button"
                         onClick={() => setPendingDelete(instance.id)}
                         disabled={deleteMutation.isPending}
@@ -135,6 +146,13 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
           </table>
         </div>
       )}
+
+      {pendingRename ? (
+        <RenameInstanceDialog
+          instance={pendingRename}
+          onClose={() => setPendingRename(null)}
+        />
+      ) : null}
 
       {createKind ? <AddInstanceDialog kind={createKind} onClose={() => setCreateKind(null)} /> : null}
 

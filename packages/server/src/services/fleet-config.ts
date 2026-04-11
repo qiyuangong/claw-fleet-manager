@@ -17,12 +17,12 @@ export class FleetConfigService {
       apiKey: vars.API_KEY ? FleetConfigService.maskToken(vars.API_KEY) : '',
       modelId: vars.MODEL_ID ?? '',
       baseDir: this.baseDir,
-      cpuLimit: vars.CPU_LIMIT ?? '2',
+      cpuLimit: vars.CPU_LIMIT ?? '4',
       memLimit: vars.MEM_LIMIT ?? '4G',
       portStep: parseInt(vars.PORT_STEP ?? '20', 10),
       tz: vars.TZ ?? 'Asia/Shanghai',
       openclawImage: vars.OPENCLAW_IMAGE ?? 'openclaw:local',
-      enableNpmPackages: vars.ENABLE_NPM_PACKAGES !== 'false',
+      enableNpmPackages: vars.ENABLE_NPM_PACKAGES?.toLowerCase() === 'true',
     };
   }
 

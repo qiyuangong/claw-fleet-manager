@@ -320,6 +320,108 @@ export class ProfileBackend implements DeploymentBackend {
     await this.refresh();
   }
 
+  async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
+    if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
+    this.locks.set(id, true);
+
+    let lockId = id;
+    const entry = this.registry.profiles[id];
+    try {
+      if (!entry) throw new Error(`Profile "${id}" not found`);
+      if (id === nextName) {
+        throw new Error('Cannot rename a profile to the same name');
+      }
+      if (!isValidManagedProfileName(nextName)) {
+        throw new Error(getManagedProfileNameError(nextName));
+      }
+      if (this.registry.profiles[nextName]) {
+        throw new Error(`Profile "${nextName}" already exists`);
+      }
+
+      if (entry.pid !== null) {
+        throw new Error(`Profile "${id}" must be stopped before it can be renamed`);
+      }
+
+      const oldStateDir = entry.stateDir;
+      const oldConfigDir = dirname(entry.configPath);
+      const oldLogFile = join(this.fleetDir, 'logs', `${id}.log`);
+      const nextLogFile = join(this.fleetDir, 'logs', `${nextName}.log`);
+      const nextStateDir = this.baseDir ? join(this.baseDir, nextName) : join(this.cfg.stateBaseDir, nextName);
+      const nextConfigDir = this.baseDir ? nextStateDir : join(this.cfg.configBaseDir, nextName);
+      const nextConfigPath = join(nextConfigDir, 'openclaw.json');
+      const nextEntry: ProfileEntry = {
+        ...entry,
+        name: nextName,
+        stateDir: nextStateDir,
+        configPath: nextConfigPath,
+      };
+
+      let movedStateDir = false;
+      let movedConfigDir = false;
+      let rewroteConfig = false;
+      let movedRegistry = false;
+      let movedLogFile = false;
+
+      try {
+        renameSync(oldStateDir, nextStateDir);
+        movedStateDir = true;
+        if (oldConfigDir !== oldStateDir) {
+          renameSync(oldConfigDir, nextConfigDir);
+          movedConfigDir = true;
+        }
+
+        this.rewriteWorkspacePath(nextConfigPath, join(nextStateDir, 'workspace'));
+        rewroteConfig = true;
+
+        delete this.registry.profiles[id];
+        this.registry.profiles[nextName] = nextEntry;
+        this.renameInstanceState(id, nextName);
+        movedRegistry = true;
+        lockId = nextName;
+        this.saveRegistry();
+
+        if (existsSync(oldLogFile)) {
+          renameSync(oldLogFile, nextLogFile);
+          movedLogFile = true;
+        }
+      } catch (error) {
+        if (movedRegistry) {
+          delete this.registry.profiles[nextName];
+          this.registry.profiles[id] = entry;
+          this.renameInstanceState(nextName, id);
+          lockId = id;
+        }
+
+        try {
+          if (movedLogFile && existsSync(nextLogFile)) {
+            renameSync(nextLogFile, oldLogFile);
+          }
+          if (movedConfigDir) {
+            renameSync(nextConfigDir, oldConfigDir);
+          }
+          if (movedStateDir) {
+            renameSync(nextStateDir, oldStateDir);
+          }
+          if (rewroteConfig || movedConfigDir || movedStateDir) {
+            this.rewriteWorkspacePath(entry.configPath, join(oldStateDir, 'workspace'));
+          }
+          if (movedRegistry) {
+            this.saveRegistry();
+          }
+        } catch (rollbackError) {
+          this.log?.error({ err: rollbackError, profile: id, nextName }, 'Failed to roll back profile rename');
+        }
+
+        const cause = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to rename profile "${id}" to "${nextName}": ${cause}`);
+      }
+
+      return await this.resolveRenamedProfile(id, nextEntry);
+    } finally {
+      this.locks.set(lockId, false);
+    }
+  }
+
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
     const logFile = join(this.fleetDir, 'logs', `${id}.log`);
     let stopped = false;
@@ -513,6 +615,23 @@ export class ProfileBackend implements DeploymentBackend {
       health,
       image: this.binaryPath,
     };
+  }
+
+  private async resolveRenamedProfile(previousId: string, entry: ProfileEntry): Promise<FleetInstance> {
+    try {
+      const status = await this.refresh();
+      const renamed = status.instances.find((instance) => instance.id === entry.name);
+      if (renamed) {
+        return renamed;
+      }
+      this.log?.warn({ profile: previousId, renamed: entry.name }, 'Renamed profile missing from refresh; using fallback instance');
+    } catch (error) {
+      this.log?.warn({ err: error, profile: previousId, renamed: entry.name }, 'Failed to refresh renamed profile; using fallback instance');
+    }
+
+    const fallback = await this.buildInstance(entry);
+    this.upsertCachedInstance(previousId, fallback);
+    return fallback;
   }
 
   private profileEnv(entry: Pick<ProfileEntry, 'configPath' | 'stateDir'>): NodeJS.ProcessEnv {
@@ -729,5 +848,35 @@ export class ProfileBackend implements DeploymentBackend {
     writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf-8');
     renameSync(tmpPath, configPath);
     return true;
+  }
+
+  private renameInstanceState(oldId: string, nextName: string): void {
+    this.moveMapValue(this.processStartTimes, oldId, nextName);
+    this.moveMapValue(this.instanceStatus, oldId, nextName);
+    this.moveMapValue(this.locks, oldId, nextName);
+    if (this.stopping.delete(oldId)) {
+      this.stopping.add(nextName);
+    }
+  }
+
+  private moveMapValue<T>(map: Map<string, T>, from: string, to: string): void {
+    if (!map.has(from)) return;
+    const value = map.get(from) as T;
+    map.delete(from);
+    map.set(to, value);
+  }
+
+  private upsertCachedInstance(previousId: string, instance: FleetInstance): void {
+    if (!this.cache) return;
+    const instances = this.cache.instances
+      .filter((item) => item.id !== previousId && item.id !== instance.id)
+      .concat(instance)
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    this.cache = {
+      instances,
+      totalRunning: instances.filter((item) => item.status === 'running').length,
+      updatedAt: Date.now(),
+    };
   }
 }

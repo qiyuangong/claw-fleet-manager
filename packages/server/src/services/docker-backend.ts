@@ -1,7 +1,7 @@
 // packages/server/src/services/docker-backend.ts
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
@@ -11,7 +11,7 @@ import { FleetConfigService } from './fleet-config.js';
 import { provisionDockerInstance } from './docker-instance-provisioning.js';
 import type { TailscaleService } from './tailscale.js';
 import { getDirectorySize } from './dir-utils.js';
-import type { FleetInstance, FleetStatus } from '../types.js';
+import type { FleetConfig, FleetInstance, FleetStatus } from '../types.js';
 import { MANAGED_INSTANCE_ID_RE } from '../validate.js';
 
 const execFileAsync = promisify(execFile);
@@ -20,6 +20,7 @@ export const BASE_GW_PORT = 18789;
 export class DockerBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
   private interval: ReturnType<typeof setInterval> | null = null;
+  private locks = new Map<string, boolean>();
 
   constructor(
     private docker: DockerService,
@@ -65,41 +66,7 @@ export class DockerBackend implements DeploymentBackend {
     const config = this.fleetConfig.readFleetConfig();
 
     const instances: FleetInstance[] = await Promise.all(
-      containers.map(async (container) => {
-        const index = container.index;
-        const portStep = this.resolveInstancePortStep(container.name, config.portStep);
-        const [stats, inspection] = await Promise.all([
-          this.docker.getContainerStats(container.name).catch(() => ({
-            cpu: 0,
-            memory: { used: 0, limit: 0 },
-          })),
-          this.docker.inspectContainer(container.name).catch(() => ({
-            status: container.state,
-            health: 'none',
-            image: 'unknown',
-            uptime: 0,
-          })),
-        ]);
-
-        return {
-          id: container.name,
-          mode: 'docker',
-          index,
-          status: this.mapStatus(inspection.status),
-          port: index !== undefined ? BASE_GW_PORT + (index - 1) * portStep : 0,
-          token: index !== undefined ? FleetConfigService.maskToken(tokens[index] ?? '') : '***',
-          tailscaleUrl: index !== undefined ? this.tailscale?.getUrl(index) ?? undefined : undefined,
-          uptime: inspection.uptime,
-          cpu: stats.cpu,
-          memory: stats.memory,
-          disk: {
-            config: await getDirectorySize(this.fleetConfig.getDockerConfigDir(container.name)),
-            workspace: await getDirectorySize(this.fleetConfig.getDockerWorkspaceDir(container.name)),
-          },
-          health: this.mapHealth(inspection.health),
-          image: inspection.image,
-        };
-      }),
+      containers.map((container) => this.buildInstanceFromContainer(container, config, tokens)),
     );
 
     // Override disk from Docker volume usage (best effort)
@@ -132,15 +99,21 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async start(id: string): Promise<void> {
-    await this.docker.startContainer(id);
+    await this.withInstanceLock(id, async () => {
+      await this.docker.startContainer(id);
+    });
   }
 
   async stop(id: string): Promise<void> {
-    await this.docker.stopContainer(id);
+    await this.withInstanceLock(id, async () => {
+      await this.docker.stopContainer(id);
+    });
   }
 
   async restart(id: string): Promise<void> {
-    await this.docker.restartContainer(id);
+    await this.withInstanceLock(id, async () => {
+      await this.docker.restartContainer(id);
+    });
   }
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
@@ -221,19 +194,86 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async removeInstance(id: string): Promise<void> {
-    const container = await this.findContainer(id);
-    if (!container) return;
+    await this.withInstanceLock(id, async () => {
+      const container = await this.findContainer(id);
+      if (!container) return;
 
-    if (container.index !== undefined) {
-      await this.tailscale?.teardown(container.index);
+      if (container.index !== undefined) {
+        await this.tailscale?.teardown(container.index);
+      }
+
+      try {
+        await this.docker.removeContainer(id);
+      } catch {
+        // already removed
+      }
+      await this.refresh();
+    });
+  }
+
+  async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
+    if (id === nextName) {
+      throw new Error('Cannot rename an instance to the same name');
     }
+    if (!MANAGED_INSTANCE_ID_RE.test(nextName)) {
+      throw new Error('name must be lowercase alphanumeric with hyphens');
+    }
+    if (this.locks.get(id)) {
+      throw new Error(`Instance "${id}" is locked`);
+    }
+    if (this.locks.get(nextName)) {
+      throw new Error(`Instance "${nextName}" is locked`);
+    }
+
+    this.locks.set(id, true);
+    this.locks.set(nextName, true);
 
     try {
-      await this.docker.removeContainer(id);
-    } catch {
-      // already removed
+      const containers = await this.docker.listFleetContainers();
+      const source = containers.find((container) => container.name === id);
+      if (!source) {
+        throw new Error(`Instance "${id}" not found`);
+      }
+      if (containers.some((container) => container.name === nextName)) {
+        throw new Error(`Instance "${nextName}" already exists`);
+      }
+
+      const inspection = await this.docker.inspectContainer(id).catch(() => ({
+        status: source.state,
+        health: 'none',
+        image: 'unknown',
+        uptime: 0,
+      }));
+      if (this.mapStatus(inspection.status) !== 'stopped') {
+        throw new Error(`Instance "${id}" must be stopped before it can be renamed`);
+      }
+
+      const currentRoot = this.fleetConfig.getDockerInstanceRoot(id);
+      const nextRoot = this.fleetConfig.getDockerInstanceRoot(nextName);
+      const nextConfigDir = this.fleetConfig.getDockerConfigDir(nextName);
+      const nextWorkspaceDir = this.fleetConfig.getDockerWorkspaceDir(nextName);
+      renameSync(currentRoot, nextRoot);
+      try {
+        await this.docker.recreateStoppedManagedContainer({
+          currentName: id,
+          nextName,
+          configDir: nextConfigDir,
+          workspaceDir: nextWorkspaceDir,
+          npmDir: join(nextConfigDir, '.npm'),
+        });
+      } catch (error) {
+        renameSync(nextRoot, currentRoot);
+        throw error;
+      }
+
+      return await this.resolveRenamedInstance(id, nextName, {
+        index: source.index,
+        state: inspection.status,
+      });
+    } finally {
+      this.locks.set(id, false);
+      this.locks.set(nextName, false);
     }
-    await this.refresh();
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
@@ -477,6 +517,97 @@ export class DockerBackend implements DeploymentBackend {
   private async findContainer(id: string) {
     const containers = await this.docker.listFleetContainers();
     return containers.find((container) => container.name === id);
+  }
+
+  private async withInstanceLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+    if (this.locks.get(id)) {
+      throw new Error(`Instance "${id}" is locked`);
+    }
+    this.locks.set(id, true);
+    try {
+      return await fn();
+    } finally {
+      this.locks.set(id, false);
+    }
+  }
+
+  private async buildInstanceFromContainer(
+    container: { name: string; state: string; index?: number },
+    config: FleetConfig,
+    tokens: Record<number, string>,
+  ): Promise<FleetInstance> {
+    const index = container.index;
+    const portStep = this.resolveInstancePortStep(container.name, config.portStep);
+    const [stats, inspection] = await Promise.all([
+      this.docker.getContainerStats(container.name).catch(() => ({
+        cpu: 0,
+        memory: { used: 0, limit: 0 },
+      })),
+      this.docker.inspectContainer(container.name).catch(() => ({
+        status: container.state,
+        health: 'none',
+        image: 'unknown',
+        uptime: 0,
+      })),
+    ]);
+
+    return {
+      id: container.name,
+      mode: 'docker',
+      index,
+      status: this.mapStatus(inspection.status),
+      port: index !== undefined ? BASE_GW_PORT + (index - 1) * portStep : 0,
+      token: index !== undefined ? FleetConfigService.maskToken(tokens[index] ?? '') : '***',
+      tailscaleUrl: index !== undefined ? this.tailscale?.getUrl(index) ?? undefined : undefined,
+      uptime: inspection.uptime,
+      cpu: stats.cpu,
+      memory: stats.memory,
+      disk: {
+        config: await getDirectorySize(this.fleetConfig.getDockerConfigDir(container.name)),
+        workspace: await getDirectorySize(this.fleetConfig.getDockerWorkspaceDir(container.name)),
+      },
+      health: this.mapHealth(inspection.health),
+      image: inspection.image,
+    };
+  }
+
+  private async resolveRenamedInstance(
+    previousId: string,
+    nextName: string,
+    fallbackContainer: { index?: number; state: string },
+  ): Promise<FleetInstance> {
+    try {
+      const status = await this.refresh();
+      const renamed = status.instances.find((instance) => instance.id === nextName);
+      if (renamed) {
+        return renamed;
+      }
+      this.log?.warn({ instanceId: previousId, nextName }, 'Renamed Docker instance missing from refresh; using fallback instance');
+    } catch (error) {
+      this.log?.warn({ err: error, instanceId: previousId, nextName }, 'Failed to refresh renamed Docker instance; using fallback instance');
+    }
+
+    const fallback = await this.buildInstanceFromContainer(
+      { name: nextName, state: fallbackContainer.state, index: fallbackContainer.index },
+      this.fleetConfig.readFleetConfig(),
+      this.fleetConfig.readTokens(),
+    );
+    this.upsertCachedInstance(previousId, fallback);
+    return fallback;
+  }
+
+  private upsertCachedInstance(previousId: string, instance: FleetInstance): void {
+    if (!this.cache) return;
+    const instances = this.cache.instances
+      .filter((item) => item.id !== previousId && item.id !== instance.id)
+      .concat(instance)
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    this.cache = {
+      instances,
+      totalRunning: instances.filter((item) => item.status === 'running').length,
+      updatedAt: Date.now(),
+    };
   }
 }
 

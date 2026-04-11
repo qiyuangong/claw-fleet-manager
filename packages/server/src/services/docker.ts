@@ -33,6 +33,14 @@ export interface ManagedContainerSpec {
   memLimit: string;
 }
 
+export interface RecreateManagedContainerSpec {
+  currentName: string;
+  nextName: string;
+  configDir: string;
+  workspaceDir: string;
+  npmDir?: string;
+}
+
 export class DockerService {
   constructor(private docker: Dockerode = new Dockerode()) {}
 
@@ -68,6 +76,44 @@ export class DockerService {
 
   async restartContainer(name: string): Promise<void> {
     await this.docker.getContainer(name).restart();
+  }
+
+  async renameContainer(currentName: string, nextName: string): Promise<void> {
+    await this.docker.getContainer(currentName).rename({ name: nextName });
+  }
+
+  async recreateStoppedManagedContainer(spec: RecreateManagedContainerSpec): Promise<void> {
+    const source = this.docker.getContainer(spec.currentName);
+    const inspection = await source.inspect() as any;
+    const replacement = await this.docker.createContainer({
+      name: spec.nextName,
+      Image: inspection.Config.Image,
+      Labels: inspection.Config.Labels,
+      Env: inspection.Config.Env,
+      Cmd: inspection.Config.Cmd,
+      ExposedPorts: inspection.Config.ExposedPorts,
+      Healthcheck: inspection.Config.Healthcheck,
+      HostConfig: {
+        AutoRemove: inspection.HostConfig.AutoRemove,
+        Binds: rewriteManagedBinds(inspection.HostConfig.Binds ?? [], spec),
+        PortBindings: inspection.HostConfig.PortBindings,
+        Init: inspection.HostConfig.Init,
+        RestartPolicy: inspection.HostConfig.RestartPolicy,
+        CapDrop: inspection.HostConfig.CapDrop,
+        SecurityOpt: inspection.HostConfig.SecurityOpt,
+        ReadonlyRootfs: inspection.HostConfig.ReadonlyRootfs,
+        Tmpfs: inspection.HostConfig.Tmpfs,
+        NanoCpus: inspection.HostConfig.NanoCpus,
+        Memory: inspection.HostConfig.Memory,
+      },
+    });
+
+    try {
+      await source.remove({ force: true });
+    } catch (error) {
+      await replacement.remove({ force: true }).catch(() => {});
+      throw error;
+    }
   }
 
   async createManagedContainer(spec: ManagedContainerSpec): Promise<void> {
@@ -229,6 +275,20 @@ function parseContainerIndex(container: {
 
   const parsed = Number.parseInt(legacyMatch[1], 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function rewriteManagedBinds(binds: string[], spec: RecreateManagedContainerSpec): string[] {
+  return binds.map((bind) => {
+    const [source, target, ...rest] = bind.split(':');
+    const nextSource = target === '/home/node/.openclaw'
+      ? spec.configDir
+      : target === '/home/node/.openclaw/workspace'
+        ? spec.workspaceDir
+        : target === '/home/node/.npm' && spec.npmDir
+          ? spec.npmDir
+          : source;
+    return [nextSource, target, ...rest].join(':');
+  });
 }
 
 function parseCpuLimit(value: string): number {

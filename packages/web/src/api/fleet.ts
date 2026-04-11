@@ -91,6 +91,12 @@ export const createInstance = (opts: CreateInstanceOpts) =>
 export const deleteInstance = (id: string) =>
   apiFetch<{ ok: boolean }>(`/api/fleet/instances/${id}`, { method: 'DELETE' });
 
+export const renameInstance = (id: string, name: string) =>
+  apiFetch<FleetInstance>(`/api/fleet/instances/${id}/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+
 export const migrateInstance = (id: string, body: { targetMode: 'docker' | 'profile'; deleteSource?: boolean }) =>
   apiFetch<FleetInstance>(`/api/fleet/instances/${id}/migrate`, {
     method: 'POST',

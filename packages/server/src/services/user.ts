@@ -182,13 +182,35 @@ export class UserService {
     this.persist();
   }
 
+  async renameAssignedProfile(oldId: string, newId: string): Promise<void> {
+    if (oldId === newId) return;
+
+    let changed = false;
+    const nextUsers = this.users.map((user) => {
+      const nextProfiles = user.assignedProfiles.map((profile) => {
+        if (profile !== oldId) return profile;
+        changed = true;
+        return newId;
+      });
+      return {
+        ...user,
+        assignedProfiles: Array.from(new Set(nextProfiles)),
+      };
+    });
+
+    if (!changed) return;
+    this.persist(nextUsers);
+    this.users = nextUsers;
+    this.evictCache();
+  }
+
   private evictCache(): void {
     this.cache.clear();
   }
 
-  private persist(): void {
+  private persist(users: User[] = this.users): void {
     const tmp = `${this.usersFile}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ users: this.users }, null, 2), 'utf-8');
+    writeFileSync(tmp, JSON.stringify({ users }, null, 2), 'utf-8');
     renameSync(tmp, this.usersFile);
   }
 }

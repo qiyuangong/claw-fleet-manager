@@ -20,6 +20,10 @@ const createInstanceSchema = z.object({
   enableNpmPackages: z.boolean().optional(),
 });
 
+const renameInstanceSchema = z.object({
+  name: z.string(),
+});
+
 export async function fleetRoutes(app: FastifyInstance) {
   app.get('/api/fleet', {
     schema: {
@@ -145,6 +149,74 @@ export async function fleetRoutes(app: FastifyInstance) {
       return { ok: true };
     } catch (error: unknown) {
       return reply.status(500).send({ error: safeError(error), code: 'REMOVE_FAILED' });
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/api/fleet/instances/:id/rename', {
+    preHandler: requireAdmin,
+    attachValidation: true,
+    schema: {
+      tags: ['Fleet'],
+      summary: 'Rename a fleet instance',
+      params: instanceIdParamsSchema,
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+        },
+        required: ['name'],
+      },
+      response: {
+        200: fleetInstanceSchema,
+        400: errorResponseSchema,
+        404: errorResponseSchema,
+        409: errorResponseSchema,
+        500: errorResponseSchema,
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params;
+    if (!validateInstanceId(id)) {
+      return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+    }
+
+    if (request.validationError) {
+      return reply.status(400).send({
+        error: request.validationError.message,
+        code: 'INVALID_BODY',
+      });
+    }
+
+    const parsed = renameInstanceSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: parsed.error.errors[0]?.message ?? 'Invalid body',
+        code: 'INVALID_BODY',
+      });
+    }
+
+    const { name: nextName } = parsed.data;
+    if (!MANAGED_INSTANCE_ID_RE.test(nextName)) {
+      return reply.status(400).send({
+        error: 'name must be lowercase alphanumeric with hyphens',
+        code: 'INVALID_NAME',
+      });
+    }
+
+    try {
+      return await app.backend.renameInstance(id, nextName);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('not found')) {
+        return reply.status(404).send({ error: safeError(error), code: 'INSTANCE_NOT_FOUND' });
+      }
+      if (message.includes('stopped')) {
+        return reply.status(409).send({ error: safeError(error), code: 'RENAME_REQUIRES_STOP' });
+      }
+      if (message.includes('same name') || message.includes('already exists') || message.includes('locked')) {
+        return reply.status(409).send({ error: safeError(error), code: 'RENAME_CONFLICT' });
+      }
+      return reply.status(500).send({ error: safeError(error), code: 'RENAME_FAILED' });
     }
   });
 }

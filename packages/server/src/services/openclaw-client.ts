@@ -63,6 +63,7 @@ export async function fetchInstanceSessions(
     }
 
     ws.on('error', (err) => done(null, err));
+    ws.on('close', () => done(null, new Error(`openclaw on port ${port} closed connection before responding`)));
 
     ws.on('message', (raw) => {
       let frame: ResFrame | EventFrame;

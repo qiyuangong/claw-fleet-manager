@@ -484,6 +484,135 @@ describe('ProfileBackend — renameInstance', () => {
       configPath: '/tmp/configs/rescue/openclaw.json',
     });
   });
+
+  it('renameInstance() persists the restored registry when rollback happens after saveRegistry()', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/managed/rescue/openclaw.json',
+          stateDir: '/tmp/managed/rescue',
+        },
+      },
+      nextPort: 18809,
+    });
+
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      const value = String(path);
+      if (value.endsWith('/tmp/fleet/profiles.json')) {
+        return registry;
+      }
+      if (value.endsWith('/tmp/managed/rescue/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/managed/rescue/workspace' } },
+        });
+      }
+      if (value.endsWith('/tmp/managed/team-renamed/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/managed/rescue/workspace' } },
+        });
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+    vi.mocked(fs.existsSync).mockImplementation((path: any) => String(path).endsWith('/tmp/fleet/logs/rescue.log'));
+    vi.mocked(fs.renameSync).mockImplementation((from: any, to: any) => {
+      if (
+        String(from) === '/tmp/fleet/logs/rescue.log'
+        && String(to) === '/tmp/fleet/logs/team-renamed.log'
+      ) {
+        throw new Error('log rename failed');
+      }
+      return undefined;
+    });
+
+    const backend = makeBaseDirBackend();
+    await backend.initialize();
+
+    await expect(backend.renameInstance('rescue', 'team-renamed')).rejects.toThrow(/log rename failed/i);
+
+    const registryWrites = vi.mocked(fs.writeFileSync).mock.calls
+      .filter(([path]) => String(path).endsWith('/tmp/fleet/profiles.json.tmp'));
+    expect(registryWrites).toHaveLength(3);
+    expect(JSON.parse(String(registryWrites[1]?.[1]))).toEqual({
+      profiles: {
+        'team-renamed': {
+          name: 'team-renamed',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/managed/team-renamed/openclaw.json',
+          stateDir: '/tmp/managed/team-renamed',
+        },
+      },
+      nextPort: 18809,
+    });
+    expect(JSON.parse(String(registryWrites[2]?.[1]))).toEqual({
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/managed/rescue/openclaw.json',
+          stateDir: '/tmp/managed/rescue',
+        },
+      },
+      nextPort: 18809,
+    });
+    expect(backend.getInstanceDir('rescue')).toEqual({
+      stateDir: '/tmp/managed/rescue',
+      configPath: '/tmp/managed/rescue/openclaw.json',
+    });
+  });
+
+  it('renameInstance() falls back to the renamed profile when trailing refresh fails', async () => {
+    const registry = JSON.stringify({
+      profiles: {
+        rescue: {
+          name: 'rescue',
+          port: 18789,
+          pid: null,
+          configPath: '/tmp/managed/rescue/openclaw.json',
+          stateDir: '/tmp/managed/rescue',
+        },
+      },
+      nextPort: 18809,
+    });
+
+    vi.mocked(fs.readFileSync).mockImplementation((path: any) => {
+      const value = String(path);
+      if (value.endsWith('/tmp/fleet/profiles.json')) {
+        return registry;
+      }
+      if (value.endsWith('/tmp/managed/rescue/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/managed/rescue/workspace' } },
+        });
+      }
+      if (value.endsWith('/tmp/managed/team-renamed/openclaw.json')) {
+        return JSON.stringify({
+          gateway: { auth: { token: 'abc' } },
+          agents: { defaults: { workspace: '/tmp/managed/rescue/workspace' } },
+        });
+      }
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+
+    const backend = makeBaseDirBackend();
+    await backend.initialize();
+
+    const refreshSpy = vi.spyOn(backend, 'refresh');
+    refreshSpy.mockRejectedValueOnce(new Error('refresh failed'));
+
+    const renamed = await backend.renameInstance('rescue', 'team-renamed');
+
+    expect(renamed.id).toBe('team-renamed');
+    expect(renamed.mode).toBe('profile');
+    expect(renamed.port).toBe(18789);
+  });
 });
 
 describe('ProfileBackend — getCachedStatus', () => {

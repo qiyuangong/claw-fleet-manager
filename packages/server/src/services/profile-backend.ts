@@ -405,6 +405,9 @@ export class ProfileBackend implements DeploymentBackend {
           if (rewroteConfig || movedConfigDir || movedStateDir) {
             this.rewriteWorkspacePath(entry.configPath, join(oldStateDir, 'workspace'));
           }
+          if (movedRegistry) {
+            this.saveRegistry();
+          }
         } catch (rollbackError) {
           this.log?.error({ err: rollbackError, profile: id, nextName }, 'Failed to roll back profile rename');
         }
@@ -413,12 +416,7 @@ export class ProfileBackend implements DeploymentBackend {
         throw new Error(`Failed to rename profile "${id}" to "${nextName}": ${cause}`);
       }
 
-      const status = await this.refresh();
-      const renamed = status.instances.find((instance) => instance.id === nextName);
-      if (!renamed) {
-        throw new Error(`Profile "${nextName}" not found after rename`);
-      }
-      return renamed;
+      return await this.resolveRenamedProfile(id, nextEntry);
     } finally {
       this.locks.set(lockId, false);
     }
@@ -617,6 +615,23 @@ export class ProfileBackend implements DeploymentBackend {
       health,
       image: this.binaryPath,
     };
+  }
+
+  private async resolveRenamedProfile(previousId: string, entry: ProfileEntry): Promise<FleetInstance> {
+    try {
+      const status = await this.refresh();
+      const renamed = status.instances.find((instance) => instance.id === entry.name);
+      if (renamed) {
+        return renamed;
+      }
+      this.log?.warn({ profile: previousId, renamed: entry.name }, 'Renamed profile missing from refresh; using fallback instance');
+    } catch (error) {
+      this.log?.warn({ err: error, profile: previousId, renamed: entry.name }, 'Failed to refresh renamed profile; using fallback instance');
+    }
+
+    const fallback = await this.buildInstance(entry);
+    this.upsertCachedInstance(previousId, fallback);
+    return fallback;
   }
 
   private profileEnv(entry: Pick<ProfileEntry, 'configPath' | 'stateDir'>): NodeJS.ProcessEnv {
@@ -849,5 +864,19 @@ export class ProfileBackend implements DeploymentBackend {
     const value = map.get(from) as T;
     map.delete(from);
     map.set(to, value);
+  }
+
+  private upsertCachedInstance(previousId: string, instance: FleetInstance): void {
+    if (!this.cache) return;
+    const instances = this.cache.instances
+      .filter((item) => item.id !== previousId && item.id !== instance.id)
+      .concat(instance)
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    this.cache = {
+      instances,
+      totalRunning: instances.filter((item) => item.status === 'running').length,
+      updatedAt: Date.now(),
+    };
   }
 }

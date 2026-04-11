@@ -59,6 +59,48 @@ describe('DockerBackend', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockDocker.startContainer.mockReset().mockResolvedValue(undefined);
+    mockDocker.stopContainer.mockReset().mockResolvedValue(undefined);
+    mockDocker.restartContainer.mockReset().mockResolvedValue(undefined);
+    mockDocker.createManagedContainer.mockReset().mockResolvedValue(undefined);
+    mockDocker.recreateStoppedManagedContainer.mockReset().mockResolvedValue(undefined);
+    mockDocker.removeContainer.mockReset().mockResolvedValue(undefined);
+    mockDocker.renameContainer.mockReset().mockResolvedValue(undefined);
+    mockDocker.listFleetContainers.mockReset().mockResolvedValue([]);
+    mockDocker.getContainerStats.mockReset().mockResolvedValue({ cpu: 0, memory: { used: 0, limit: 0 } });
+    mockDocker.inspectContainer.mockReset().mockResolvedValue({
+      status: 'running',
+      health: 'healthy',
+      image: 'openclaw:local',
+      uptime: 100,
+    });
+    mockDocker.getDiskUsage.mockReset().mockResolvedValue({});
+    mockDocker.getContainerLogs.mockReset().mockReturnValue({ on: vi.fn(), destroy: vi.fn() });
+
+    mockFleetConfig.readFleetConfig.mockReset().mockReturnValue({
+      baseDir: '/tmp/managed',
+      portStep: 20,
+      openclawImage: 'openclaw:local',
+      tz: 'Asia/Shanghai',
+      enableNpmPackages: false,
+      cpuLimit: '4',
+      memLimit: '4G',
+    });
+    mockFleetConfig.readFleetEnvRaw.mockReset().mockReturnValue({});
+    mockFleetConfig.readTokens.mockReset().mockReturnValue({ 1: 'token-abc123' });
+    mockFleetConfig.writeTokens.mockReset();
+    mockFleetConfig.writeFleetConfig.mockReset();
+    mockFleetConfig.readInstanceConfig.mockReset().mockReturnValue({ gateway: {} });
+    mockFleetConfig.readInstanceMeta.mockReset().mockReturnValue({});
+    mockFleetConfig.writeInstanceConfig.mockReset();
+    mockFleetConfig.writeInstanceMeta.mockReset();
+    mockFleetConfig.ensureFleetDirectories.mockReset();
+    mockFleetConfig.getConfigBase.mockReset().mockReturnValue('/tmp/managed');
+    mockFleetConfig.getWorkspaceBase.mockReset().mockReturnValue('/tmp/managed/<instance>/workspace');
+    mockFleetConfig.getDockerInstanceRoot.mockReset().mockImplementation((id: string) => `/tmp/managed/${id}`);
+    mockFleetConfig.getDockerConfigDir.mockReset().mockImplementation((id: string) => `/tmp/managed/${id}/config`);
+    mockFleetConfig.getDockerWorkspaceDir.mockReset().mockImplementation((id: string) => `/tmp/managed/${id}/workspace`);
+
     mockDocker.listFleetContainers.mockResolvedValue([]);
     mockFleetConfig.readFleetEnvRaw.mockReturnValue({});
     mockFleetConfig.readInstanceConfig.mockReturnValue({ gateway: {} });
@@ -79,6 +121,33 @@ describe('DockerBackend', () => {
   it('start() delegates to DockerService', async () => {
     await backend.start('openclaw-1');
     expect(mockDocker.startContainer).toHaveBeenCalledWith('openclaw-1');
+  });
+
+  it('renameInstance() rejects while the same instance is locked by a lifecycle operation', async () => {
+    let releaseStart: (() => void) | undefined;
+    mockDocker.startContainer.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      releaseStart = resolve;
+    }));
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([
+        { name: 'team-alpha', id: 'a', state: 'exited', index: 2 },
+      ])
+      .mockResolvedValueOnce([
+        { name: 'team-renamed', id: 'a', state: 'exited', index: 2 },
+      ]);
+    mockDocker.inspectContainer.mockResolvedValue({
+      status: 'exited',
+      health: 'none',
+      image: 'openclaw:local',
+      uptime: 0,
+    });
+
+    const startPromise = backend.start('team-alpha');
+
+    await expect(backend.renameInstance('team-alpha', 'team-renamed')).rejects.toThrow(/locked/i);
+
+    releaseStart?.();
+    await startPromise;
   });
 
   it('stop() delegates to DockerService', async () => {
@@ -268,6 +337,38 @@ describe('DockerBackend', () => {
     expect(renamed.id).toBe('team-renamed');
     expect(renamed.port).toBe(18809);
     expect(renamed.status).toBe('stopped');
+  });
+
+  it('renameInstance() falls back to direct inspection when trailing refresh misses the renamed instance', async () => {
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([
+        { name: 'team-alpha', id: 'a', state: 'exited', index: 2 },
+      ])
+      .mockResolvedValueOnce([]);
+    mockDocker.inspectContainer.mockResolvedValue({
+      status: 'exited',
+      health: 'none',
+      image: 'openclaw:local',
+      uptime: 0,
+    });
+
+    const renamed = await backend.renameInstance('team-alpha', 'team-renamed');
+
+    expect(mockDocker.recreateStoppedManagedContainer).toHaveBeenCalledWith({
+      currentName: 'team-alpha',
+      nextName: 'team-renamed',
+      configDir: '/tmp/managed/team-renamed/config',
+      workspaceDir: '/tmp/managed/team-renamed/workspace',
+      npmDir: '/tmp/managed/team-renamed/config/.npm',
+    });
+    expect(renamed).toEqual(expect.objectContaining({
+      id: 'team-renamed',
+      mode: 'docker',
+      index: 2,
+      status: 'stopped',
+      port: 18809,
+      image: 'openclaw:local',
+    }));
   });
 
   it('renameInstance() rejects running Docker instances', async () => {

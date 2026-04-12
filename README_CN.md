@@ -112,10 +112,12 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 - 若启用了 `seedTestUser`，服务启动后以管理员身份删除 `testuser`：
 
 ```bash
-curl -k -u admin:新管理员密码 -X DELETE https://localhost:3001/api/users/testuser
+curl -k -u AUTH_USERNAME:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
 ```
 
 - 或直接删除 `${fleetDir}/users.json` 中的 `testuser` 后重启服务
+
+其中 `AUTH_USERNAME` 应与你的 `auth.username` 一致。
 
 可选的 Profile 配置：
 

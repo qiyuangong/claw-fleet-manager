@@ -112,10 +112,12 @@ Production hardening checklist:
 - if you enabled `seedTestUser`, remove that account once the server is running:
 
 ```bash
-curl -k -u admin:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
+curl -k -u AUTH_USERNAME:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
 ```
 
 - or delete `testuser` from `${fleetDir}/users.json` and restart
+
+Where `AUTH_USERNAME` is the same value as `auth.username`.
 
 Optional profile settings:
 

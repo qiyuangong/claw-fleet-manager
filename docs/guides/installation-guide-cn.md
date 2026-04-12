@@ -150,9 +150,11 @@
    > 1. 设置强密码并更新 `auth.password`
    > 2. 如果已启用 `seedTestUser`，管理员登录后删除 `testuser`：
    >    ```bash
-   >    curl -k -u admin:新管理员密码 -X DELETE https://localhost:3001/api/users/testuser
+   >    curl -k -u AUTH_USERNAME:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
    >    ```
    > 3. 或者直接从 `${fleetDir}/users.json` 删除 `testuser` 记录并重启服务
+
+   其中 `AUTH_USERNAME` 请使用 `auth.username` 的值。
 
 5. 如果本次本地配置不打算使用 Tailscale，请从示例配置中删除 `tailscale` 块。
 

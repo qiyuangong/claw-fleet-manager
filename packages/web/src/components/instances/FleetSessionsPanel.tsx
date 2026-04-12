@@ -2,47 +2,32 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store';
 import { useFleetSessions } from '../../hooks/useFleetSessions';
-import type { InstanceSessionRow, InstanceSessionsEntry } from '../../types';
-
-// ─── helpers ────────────────────────────────────────────────────────────────
+import type { InstanceSessionRow } from '../../types';
+import { ActivityBoard } from './ActivityBoard';
+import {
+  buildBoardColumns,
+  buildFlatRows,
+  filterRows,
+  formatCost,
+  formatRelative,
+  formatTokens,
+  sessionTimestamp,
+  sessionTitle,
+  sortRows,
+  summarizeRows,
+  type ActivityViewMode,
+  type FlatRow,
+  type SortCol,
+  type SortDir,
+  type StatusFilter,
+  type TimeFilter,
+} from './activityViewModel';
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : `${s.slice(0, n)}…`;
 }
 
-function sessionTitle(session: InstanceSessionRow): string {
-  return session.derivedTitle ?? session.label ?? session.key;
-}
-
-function formatTokens(n: number | undefined): string {
-  if (n == null) return '—';
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
-  return String(n);
-}
-
-function formatCost(n: number | undefined): string {
-  if (n == null) return '$—';
-  return `$${n.toFixed(2)}`;
-}
-
-function sessionTimestamp(session: InstanceSessionRow): number | undefined {
-  return session.updatedAt ?? session.endedAt ?? session.startedAt;
-}
-
-function formatRelative(ts: number | undefined): string {
-  if (ts == null) return '—';
-  const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
 // ─── filter types ────────────────────────────────────────────────────────────
-
-type StatusFilter = 'all' | 'active' | 'done' | 'error';
-type TimeFilter = 'today' | '24h' | '7d' | 'all';
 
 const STATUS_FILTERS: { key: StatusFilter; labelKey: string }[] = [
   { key: 'all', labelKey: 'statusFilterAll' },
@@ -57,41 +42,6 @@ const TIME_FILTERS: { key: TimeFilter; labelKey: string }[] = [
   { key: '7d', labelKey: 'timeFilter7d' },
   { key: 'all', labelKey: 'timeFilterAll' },
 ];
-type SortCol = 'tokens' | 'cost' | 'updated';
-type SortDir = 'asc' | 'desc';
-
-function statusMatches(session: InstanceSessionRow, filter: StatusFilter): boolean {
-  if (filter === 'all') return true;
-  if (filter === 'active') return session.status === 'running';
-  if (filter === 'done') return session.status === 'done';
-  if (filter === 'error') return session.status === 'failed' || session.status === 'killed' || session.status === 'timeout';
-  return true;
-}
-
-function timeMatches(session: InstanceSessionRow, filter: TimeFilter): boolean {
-  if (filter === 'all') return true;
-  const ts = sessionTimestamp(session);
-  if (ts == null) return false;
-  const now = Date.now();
-  if (filter === 'today') {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    return ts >= startOfDay.getTime();
-  }
-  if (filter === '24h') return ts >= now - 86_400_000;
-  if (filter === '7d') return ts >= now - 7 * 86_400_000;
-  return true;
-}
-
-// ─── flat row type ────────────────────────────────────────────────────────────
-
-type FlatRow = { instanceId: string; session: InstanceSessionRow };
-
-function buildFlatRows(instances: InstanceSessionsEntry[]): FlatRow[] {
-  return instances.flatMap((entry) =>
-    entry.sessions.map((session) => ({ instanceId: entry.instanceId, session }))
-  );
-}
 
 // ─── SessionRow component ────────────────────────────────────────────────────
 
@@ -137,13 +87,22 @@ function SortHeader({ col, label, sortCol, sortDir, onSort }: {
   onSort: (col: SortCol) => void;
 }) {
   const active = sortCol === col;
+  const ariaSort = active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none';
+
   return (
     <th
       className={`sortable-th${active ? ' sortable-th--active' : ''}`}
-      onClick={() => onSort(col)}
-      style={{ cursor: 'pointer', userSelect: 'none' }}
+      aria-sort={ariaSort}
+      scope="col"
     >
-      {label}{active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+      <button
+        type="button"
+        className="sortable-th-button"
+        onClick={() => onSort(col)}
+      >
+        <span>{label}</span>
+        <span aria-hidden="true">{active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}</span>
+      </button>
     </th>
   );
 }
@@ -203,6 +162,7 @@ export function FleetSessionsPanel() {
   const { data, isLoading, error, refetch, isFetching } = useFleetSessions();
   const selectInstance = useAppStore((state) => state.selectInstance);
 
+  const [viewMode, setViewMode] = useState<ActivityViewMode>('board');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
@@ -219,48 +179,11 @@ export function FleetSessionsPanel() {
 
   // Stats
   const allRows = useMemo(() => buildFlatRows(data?.instances ?? []), [data]);
-  const totalTokens = useMemo(
-    () => allRows.reduce((sum, r) => sum + (r.session.totalTokens ?? 0), 0),
-    [allRows],
-  );
-  const hasCostData = useMemo(
-    () => allRows.some((r) => r.session.estimatedCostUsd != null),
-    [allRows],
-  );
-  const totalCost = useMemo(
-    () => allRows.reduce((sum, r) => sum + (r.session.estimatedCostUsd ?? 0), 0),
-    [allRows],
-  );
+  const summary = useMemo(() => summarizeRows(allRows), [allRows]);
 
   // Filtered + sorted rows
   const filteredRows = useMemo(() => {
-    let rows = allRows.filter(
-      (r) => statusMatches(r.session, statusFilter) && timeMatches(r.session, timeFilter),
-    );
-
-    if (sortCol === 'tokens') {
-      rows = [...rows].sort((a, b) => {
-        const diff = (a.session.totalTokens ?? -1) - (b.session.totalTokens ?? -1);
-        return sortDir === 'asc' ? diff : -diff;
-      });
-    } else if (sortCol === 'cost') {
-      rows = [...rows].sort((a, b) => {
-        const diff = (a.session.estimatedCostUsd ?? -1) - (b.session.estimatedCostUsd ?? -1);
-        return sortDir === 'asc' ? diff : -diff;
-      });
-    } else if (sortCol === 'updated') {
-      rows = [...rows].sort((a, b) => {
-        const diff = (sessionTimestamp(a.session) ?? 0) - (sessionTimestamp(b.session) ?? 0);
-        return sortDir === 'asc' ? diff : -diff;
-      });
-    } else {
-      // Default: newest-updated first
-      rows = [...rows].sort(
-        (a, b) => (sessionTimestamp(b.session) ?? 0) - (sessionTimestamp(a.session) ?? 0),
-      );
-    }
-
-    return rows;
+    return sortRows(filterRows(allRows, statusFilter, timeFilter), sortCol, sortDir);
   }, [allRows, statusFilter, timeFilter, sortCol, sortDir]);
 
   // Error rows from instances that failed to fetch
@@ -268,6 +191,7 @@ export function FleetSessionsPanel() {
     () => (data?.instances ?? []).filter((e) => !!e.error),
     [data],
   );
+  const boardColumns = useMemo(() => buildBoardColumns(filteredRows), [filteredRows]);
 
   return (
     <div className="field-grid">
@@ -291,15 +215,15 @@ export function FleetSessionsPanel() {
           <div className="sessions-stats-bar">
             <span className="sessions-stat">
               <span className="sessions-stat-label">{t('sessionsCount')}</span>
-              <span className="sessions-stat-value">{allRows.length}</span>
+              <span className="sessions-stat-value">{summary.totalSessions}</span>
             </span>
             <span className="sessions-stat">
               <span className="sessions-stat-label">{t('tokens')}</span>
-              <span className="sessions-stat-value">{formatTokens(totalTokens)}</span>
+              <span className="sessions-stat-value">{formatTokens(summary.totalTokens)}</span>
             </span>
             <span className="sessions-stat">
               <span className="sessions-stat-label">{t('cost')}</span>
-              <span className="sessions-stat-value">{hasCostData ? formatCost(totalCost) : '$—'}</span>
+              <span className="sessions-stat-value">{summary.hasCostData ? formatCost(summary.totalCost) : '$—'}</span>
             </span>
           </div>
         )}
@@ -307,10 +231,29 @@ export function FleetSessionsPanel() {
         {/* Filter row */}
         {data && (
           <div className="sessions-filter-row">
+            <div className="filter-tabs filter-tabs--segmented" role="group" aria-label={t('activityViewMode')}>
+              <button
+                type="button"
+                className={`filter-tab${viewMode === 'board' ? ' filter-tab--active' : ''}`}
+                aria-pressed={viewMode === 'board'}
+                onClick={() => setViewMode('board')}
+              >
+                {t('activityViewBoard')}
+              </button>
+              <button
+                type="button"
+                className={`filter-tab${viewMode === 'table' ? ' filter-tab--active' : ''}`}
+                aria-pressed={viewMode === 'table'}
+                onClick={() => setViewMode('table')}
+              >
+                {t('activityViewTable')}
+              </button>
+            </div>
             <div className="filter-tabs">
               {STATUS_FILTERS.map(({ key, labelKey }) => (
                 <button
                   key={key}
+                  type="button"
                   className={`filter-tab${statusFilter === key ? ' filter-tab--active' : ''}`}
                   onClick={() => setStatusFilter(key)}
                 >
@@ -322,6 +265,7 @@ export function FleetSessionsPanel() {
               {TIME_FILTERS.map(({ key, labelKey }) => (
                 <button
                   key={key}
+                  type="button"
                   className={`filter-tab${timeFilter === key ? ' filter-tab--active' : ''}`}
                   onClick={() => setTimeFilter(key)}
                 >
@@ -337,7 +281,7 @@ export function FleetSessionsPanel() {
           <p className="muted">{t('loadingSessions')}</p>
         ) : error ? (
           <p className="error-text">{error instanceof Error ? error.message : String(error)}</p>
-        ) : !data || allRows.length === 0 ? (
+        ) : !data || (allRows.length === 0 && errorEntries.length === 0) ? (
           <p className="muted">{t('noActiveSessions')}</p>
         ) : (
           <>
@@ -345,14 +289,22 @@ export function FleetSessionsPanel() {
               <p className="muted">{t('noSessionsFilter')}</p>
             ) : null}
             {(filteredRows.length > 0 || errorEntries.length > 0) && (
-              <SessionsTable
-                rows={filteredRows}
-                errors={errorEntries.map((e) => ({ instanceId: e.instanceId, error: e.error ?? '' }))}
-                onSelectInstance={selectInstance}
-                sortCol={sortCol}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
+              viewMode === 'board' ? (
+                <ActivityBoard
+                  columns={boardColumns}
+                  errors={errorEntries.map((e) => ({ instanceId: e.instanceId, error: e.error ?? '' }))}
+                  onSelectInstance={selectInstance}
+                />
+              ) : (
+                <SessionsTable
+                  rows={filteredRows}
+                  errors={errorEntries.map((e) => ({ instanceId: e.instanceId, error: e.error ?? '' }))}
+                  onSelectInstance={selectInstance}
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              )
             )}
           </>
         )}

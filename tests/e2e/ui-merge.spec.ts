@@ -20,11 +20,38 @@ interface FleetInstance {
   pid?: number;
 }
 
+interface FleetSession {
+  key: string;
+  label?: string;
+  displayName?: string;
+  derivedTitle?: string;
+  lastMessagePreview?: string;
+  status?: 'running' | 'done' | 'failed' | 'killed' | 'timeout';
+  startedAt?: number;
+  endedAt?: number;
+  runtimeMs?: number;
+  model?: string;
+  modelProvider?: string;
+  kind?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  estimatedCostUsd?: number;
+  updatedAt?: number;
+}
+
+interface FleetSessionsEntry {
+  instanceId: string;
+  sessions: FleetSession[];
+  error?: string;
+}
+
 interface MountOptions {
   role?: Role;
   assignedProfiles?: string[];
   fleetMode: Mode;
   instances: FleetInstance[];
+  sessionsData?: FleetSessionsEntry[];
 }
 
 interface MountHandles {
@@ -70,6 +97,7 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
     assignedProfiles = [],
     fleetMode,
     instances,
+    sessionsData = [],
   } = opts;
   const createInstancePayloads: unknown[] = [];
   await page.setViewportSize({ width: 1440, height: 1600 });
@@ -173,6 +201,17 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
         mode: fleetMode,
         instances,
         totalRunning: instances.filter((instance) => instance.status === 'running').length,
+        updatedAt: Date.now(),
+      }),
+    });
+  });
+
+  await page.route('**/api/fleet/sessions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        instances: sessionsData,
         updatedAt: Date.now(),
       }),
     });
@@ -494,6 +533,194 @@ test('hybrid fleet keeps one shell and shows both instance kinds together', asyn
   await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();
   await expect(page.getByText('PID')).toBeVisible();
   await expect(page.getByText('4242')).toBeVisible();
+});
+
+test('activity page defaults to board mode and can toggle to table mode', async ({ page }) => {
+  await mountDashboard(page, {
+    fleetMode: 'hybrid',
+    instances: [
+      {
+        id: 'openclaw-1',
+        mode: 'docker',
+        status: 'running',
+        port: 3101,
+        token: 'masked-token',
+        uptime: 3600,
+        cpu: 14,
+        memory: { used: 1024 * 1024 * 512, limit: 1024 * 1024 * 1024 },
+        disk: { config: 100, workspace: 200 },
+        health: 'healthy',
+        image: 'openclaw:local',
+      },
+      {
+        id: 'team-alpha',
+        mode: 'profile',
+        status: 'running',
+        port: 18789,
+        token: 'masked-token-2',
+        uptime: 7200,
+        cpu: 7,
+        memory: { used: 1024 * 1024 * 256, limit: 1024 * 1024 * 1024 },
+        disk: { config: 100, workspace: 200 },
+        health: 'healthy',
+        image: 'openclaw:local',
+        profile: 'team-alpha',
+        pid: 4242,
+      },
+    ],
+    sessionsData: [
+      {
+        instanceId: 'openclaw-1',
+        sessions: [
+          {
+            key: 'run-1',
+            derivedTitle: 'Running task',
+            status: 'running',
+            kind: 'chat',
+            totalTokens: 1234,
+            estimatedCostUsd: 0.45,
+            lastMessagePreview: 'Still working',
+            updatedAt: Date.now() - 5_000,
+          },
+        ],
+      },
+      {
+        instanceId: 'team-alpha',
+        sessions: [
+          {
+            key: 'done-1',
+            derivedTitle: 'Finished task',
+            status: 'done',
+            kind: 'job',
+            totalTokens: 4321,
+            estimatedCostUsd: 0.67,
+            lastMessagePreview: 'All complete',
+            updatedAt: Date.now() - 15_000,
+          },
+        ],
+      },
+    ],
+  });
+
+  await page.getByRole('button', { name: 'Activity' }).click();
+  await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Board view' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('heading', { name: 'Running' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Done' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'openclaw-1 Running task run-1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'team-alpha Finished task done-1' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Table view' }).click();
+  await expect(page.getByRole('button', { name: 'Table view' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Instance' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Running task' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Finished task' })).toBeVisible();
+});
+
+test('activity page shows per-instance session fetch errors in the board strip', async ({ page }) => {
+  await mountDashboard(page, {
+    fleetMode: 'hybrid',
+    instances: [
+      {
+        id: 'openclaw-1',
+        mode: 'docker',
+        status: 'running',
+        port: 3101,
+        token: 'masked-token',
+        uptime: 3600,
+        cpu: 14,
+        memory: { used: 1024 * 1024 * 512, limit: 1024 * 1024 * 1024 },
+        disk: { config: 100, workspace: 200 },
+        health: 'healthy',
+        image: 'openclaw:local',
+      },
+      {
+        id: 'team-beta',
+        mode: 'profile',
+        status: 'running',
+        port: 18790,
+        token: 'masked-token-2',
+        uptime: 1200,
+        cpu: 4,
+        memory: { used: 1024 * 1024 * 128, limit: 1024 * 1024 * 1024 },
+        disk: { config: 100, workspace: 200 },
+        health: 'healthy',
+        image: 'openclaw:local',
+        profile: 'team-beta',
+        pid: 5252,
+      },
+    ],
+    sessionsData: [
+      {
+        instanceId: 'openclaw-1',
+        sessions: [
+          {
+            key: 'run-1',
+            derivedTitle: 'Healthy session',
+            status: 'running',
+            kind: 'chat',
+            totalTokens: 250,
+            estimatedCostUsd: 0.12,
+            lastMessagePreview: 'Working normally',
+            updatedAt: Date.now() - 10_000,
+          },
+        ],
+      },
+      {
+        instanceId: 'team-beta',
+        error: 'Instance request failed',
+        sessions: [],
+      },
+    ],
+  });
+
+  await page.getByRole('button', { name: 'Activity' }).click();
+  await expect(page.getByText('team-beta: Instance request failed')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'openclaw-1 Healthy session run-1' })).toBeVisible();
+});
+
+test('sidebar instance list scrolls when many instances are available', async ({ page }) => {
+  const manyInstances = Array.from({ length: 20 }, (_, index) => ({
+    id: `team-${String(index + 1).padStart(2, '0')}`,
+    mode: index % 2 === 0 ? 'docker' : ('profile' as const),
+    status: index % 3 === 0 ? 'running' : 'stopped',
+    port: 18789 + index,
+    token: `masked-token-${index}`,
+    uptime: 0,
+    cpu: index % 3 === 0 ? 1 : 0,
+    memory: { used: 0, limit: 1024 * 1024 * 1024 },
+    disk: { config: 100, workspace: 200 },
+    health: 'healthy' as const,
+    image: 'openclaw:local',
+  }));
+
+  await mountDashboard(page, {
+    fleetMode: 'hybrid',
+    instances: manyInstances,
+  });
+  await page.setViewportSize({ width: 1440, height: 700 });
+
+  const sidebarNav = page.locator('.sidebar-nav');
+  const { scrollHeight, clientHeight } = await sidebarNav.evaluate((element) => ({
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }));
+
+  expect(scrollHeight).toBeGreaterThan(clientHeight);
+
+  const firstItem = page.locator('.sidebar-nav .sidebar-item').first();
+  const lastItem = page.locator('.sidebar-nav .sidebar-item').last();
+
+  await sidebarNav.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(lastItem).toBeVisible();
+
+  await sidebarNav.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect(firstItem).toBeVisible();
 });
 
 test('non-admin can access the account page and assigned instance only', async ({ page }) => {

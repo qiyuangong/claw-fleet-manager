@@ -7,5 +7,6 @@ certs/
 .superpowers/
 .env.local
 .worktrees/
+.docker-data/
 playwright-report/
 test-results/

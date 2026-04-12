@@ -1,0 +1,16 @@
+.git
+.turbo
+.worktrees
+.superpowers
+node_modules
+packages/server/node_modules
+packages/web/node_modules
+packages/server/dist
+packages/web/dist
+playwright-report
+test-results
+docs
+tests
+certs
+packages/server/server.config.json
+packages/web/.env.local

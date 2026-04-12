@@ -1,5 +1,6 @@
 {
   "_comment": "Docker instances work when Docker is available. Add a 'profiles' block to also manage profile instances.",
+  "_comment_security": "In production, set a strong auth.password and remove the seeded testuser user account if enabled in this environment.",
   "port": 3001,
   "auth": { "username": "admin", "password": "changeme" },
   "fleetDir": "/path/to/your/openclaw-fleet",

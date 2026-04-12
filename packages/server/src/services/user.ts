@@ -70,8 +70,18 @@ export class UserService {
         .filter((user: User | null): user is User => user !== null);
       this.persist();
     } else {
-      const passwordHash = await hashPassword(bootstrap.password);
-      this.users = [{ username: bootstrap.username, passwordHash, role: 'admin', assignedProfiles: [] }];
+      const bootstrapPasswordHash = await hashPassword(bootstrap.password);
+      const users: User[] = [
+        { username: bootstrap.username, passwordHash: bootstrapPasswordHash, role: 'admin', assignedProfiles: [] },
+      ];
+
+      // Seed a default non-admin user for quick user-role smoke paths.
+      if (bootstrap.username !== 'testuser') {
+        const testUserPasswordHash = await hashPassword('testuser');
+        users.push({ username: 'testuser', passwordHash: testUserPasswordHash, role: 'user', assignedProfiles: [] });
+      }
+
+      this.users = users;
       this.persist();
     }
     // Always pre-compute sentinel for timing-safe unknown-user verify

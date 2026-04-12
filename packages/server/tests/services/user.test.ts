@@ -17,19 +17,19 @@ afterEach(() => {
 });
 
 describe('UserService.initialize', () => {
-  it('seeds users.json with admin from bootstrap credentials', async () => {
+  it('seeds users.json with bootstrap admin and default test user', async () => {
     await svc.initialize({ username: 'admin', password: 'password123' });
     const users = svc.list();
-    expect(users).toHaveLength(1);
-    expect(users[0].username).toBe('admin');
-    expect(users[0].role).toBe('admin');
+    expect(users).toHaveLength(2);
+    expect(users.find(u => u.username === 'admin')?.role).toBe('admin');
+    expect(users.find(u => u.username === 'testuser')?.role).toBe('user');
   });
 
   it('does not overwrite existing users.json on second call', async () => {
     await svc.initialize({ username: 'admin', password: 'password123' });
     await svc.create('alice', 'password123', 'user');
     await svc.initialize({ username: 'admin', password: 'newpassword' });
-    expect(svc.list()).toHaveLength(2);
+    expect(svc.list()).toHaveLength(3);
   });
 
   it('normalizes legacy users without assignedProfiles', async () => {

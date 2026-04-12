@@ -143,7 +143,16 @@ Use this section to create the minimum local server configuration.
 
    - `fleetDir`: the folder where your OpenClaw fleet data lives, for example `/Users/your-name/openclaw-fleet`
    - `auth.username` and `auth.password`: the local admin account you will use to sign in
+   - `testuser` is seeded as a normal user account with password `testuser` for local testing only; for real-world deployment, change the admin password and remove `testuser`.
    - `tls.cert` and `tls.key`: the certificate paths you will create in the next section
+
+   > Production hardening checklist:
+   > 1. Set `auth.password` to a strong value.
+   > 2. Start the server and delete seeded `testuser` as admin:
+   >    ```bash
+   >    curl -k -u admin:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
+   >    ```
+   > 3. Alternatively, delete `testuser` from `${fleetDir}/users.json` and restart.
 
 5. If you do not plan to use Tailscale for this local setup, remove the `tailscale` block from the example config.
 

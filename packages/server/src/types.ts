@@ -7,6 +7,7 @@ export interface TailscaleConfig {
 export interface ServerConfig {
   port: number;
   auth: { username: string; password: string };
+  seedTestUser?: boolean;
   fleetDir: string;
   baseDir?: string;
   tailscale?: { hostname: string };

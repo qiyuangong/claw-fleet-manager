@@ -22,6 +22,7 @@ const schema = z.object({
     username: z.string().min(1),
     password: z.string().min(1),
   }),
+  seedTestUser: z.boolean().default(false),
   fleetDir: z.string().min(1),
   baseDir: z.string().default(join(homedir(), 'openclaw-instances')),
   tailscale: z.object({ hostname: z.string().min(1) }).optional(),

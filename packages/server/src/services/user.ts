@@ -61,7 +61,11 @@ export class UserService {
     this.usersFile = join(fleetDir, 'users.json');
   }
 
-  async initialize(bootstrap: { username: string; password: string }): Promise<void> {
+  async initialize(
+    bootstrap: { username: string; password: string },
+    options: { seedTestUser?: boolean } = {},
+  ): Promise<void> {
+    const { seedTestUser = false } = options;
     if (existsSync(this.usersFile)) {
       const data = JSON.parse(readFileSync(this.usersFile, 'utf-8'));
       const loadedUsers = Array.isArray(data.users) ? data.users : [];
@@ -70,8 +74,18 @@ export class UserService {
         .filter((user: User | null): user is User => user !== null);
       this.persist();
     } else {
-      const passwordHash = await hashPassword(bootstrap.password);
-      this.users = [{ username: bootstrap.username, passwordHash, role: 'admin', assignedProfiles: [] }];
+      const bootstrapPasswordHash = await hashPassword(bootstrap.password);
+      const users: User[] = [
+        { username: bootstrap.username, passwordHash: bootstrapPasswordHash, role: 'admin', assignedProfiles: [] },
+      ];
+
+      // Seed an optional default non-admin user for local testing.
+      if (seedTestUser && bootstrap.username !== 'testuser') {
+        const testUserPasswordHash = await hashPassword('testuser');
+        users.push({ username: 'testuser', passwordHash: testUserPasswordHash, role: 'user', assignedProfiles: [] });
+      }
+
+      this.users = users;
       this.persist();
     }
     // Always pre-compute sentinel for timing-safe unknown-user verify

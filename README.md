@@ -103,7 +103,21 @@ Minimum setup:
 
 - create the `fleetDir` directory first, then point `fleetDir` to it
 - set `auth.username` and `auth.password` to seed the first admin account
+- optional: set `seedTestUser: true` to also seed `testuser` with password `testuser` for local use
 - remove the `tailscale` block unless you want Tailscale integration and have the CLI installed
+
+Production hardening checklist:
+
+- set `auth.password` to a strong value before deployment
+- if you enabled `seedTestUser`, remove that account once the server is running:
+
+```bash
+curl -k -u AUTH_USERNAME:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
+```
+
+- or delete `testuser` from `${fleetDir}/users.json` and restart
+
+Where `AUTH_USERNAME` is the same value as `auth.username`.
 
 Optional profile settings:
 

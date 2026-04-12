@@ -84,7 +84,7 @@ await app.register(fastifySwaggerUi, {
 // ── Shared services ──────────────────────────────────────────────────────────
 const fleetConfig = new FleetConfigService(config.fleetDir, config.baseDir, resolveConfigPath());
 const userService = new UserService(config.fleetDir);
-await userService.initialize(config.auth);
+await userService.initialize(config.auth, { seedTestUser: config.seedTestUser });
 
 // ── Backend factory ──────────────────────────────────────────────────────────
 const dockerBackend = new DockerBackend(

@@ -17,12 +17,19 @@ afterEach(() => {
 });
 
 describe('UserService.initialize', () => {
-  it('seeds users.json with admin from bootstrap credentials', async () => {
+  it('seeds users.json with bootstrap admin only by default', async () => {
     await svc.initialize({ username: 'admin', password: 'password123' });
     const users = svc.list();
     expect(users).toHaveLength(1);
-    expect(users[0].username).toBe('admin');
-    expect(users[0].role).toBe('admin');
+    expect(users.find(u => u.username === 'admin')?.role).toBe('admin');
+    expect(users.find(u => u.username === 'testuser')).toBeUndefined();
+  });
+
+  it('seeds testuser when seedTestUser is enabled', async () => {
+    await svc.initialize({ username: 'admin', password: 'password123' }, { seedTestUser: true });
+    const users = svc.list();
+    expect(users).toHaveLength(2);
+    expect(users.find(u => u.username === 'testuser')?.role).toBe('user');
   });
 
   it('does not overwrite existing users.json on second call', async () => {

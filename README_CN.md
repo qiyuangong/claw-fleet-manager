@@ -103,7 +103,21 @@ cp packages/server/server.config.example.json packages/server/server.config.json
 
 - 先创建 `fleetDir` 对应目录，再把 `fleetDir` 指向该目录
 - 设置 `auth.username` 和 `auth.password`，用于首次启动时初始化管理员账号
+- 如需本地测试，可将 `seedTestUser` 设为 `true` 来预置普通用户 `testuser`（密码 `testuser`）
 - 如果不打算使用 Tailscale，删除 `tailscale` 配置块
+
+生产环境加固建议：
+
+- 将 `auth.password` 改为强密码
+- 若启用了 `seedTestUser`，服务启动后以管理员身份删除 `testuser`：
+
+```bash
+curl -k -u AUTH_USERNAME:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
+```
+
+- 或直接删除 `${fleetDir}/users.json` 中的 `testuser` 后重启服务
+
+其中 `AUTH_USERNAME` 应与你的 `auth.username` 一致。
 
 可选的 Profile 配置：
 

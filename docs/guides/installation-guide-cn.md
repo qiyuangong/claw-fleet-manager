@@ -143,7 +143,18 @@
 
    - `fleetDir`：存放 OpenClaw 舰队数据的目录，例如 `/Users/your-name/openclaw-fleet`
    - `auth.username` 和 `auth.password`：用于登录的本地管理员账号
+   - 仅在本地调试场景将 `seedTestUser` 设为 `true`，以预置普通用户账号 `testuser`（密码 `testuser`）
    - `tls.cert` 和 `tls.key`：下一节将创建的证书路径
+
+   > 生产环境加固建议：
+   > 1. 设置强密码并更新 `auth.password`
+   > 2. 如果已启用 `seedTestUser`，管理员登录后删除 `testuser`：
+   >    ```bash
+   >    curl -k -u AUTH_USERNAME:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
+   >    ```
+   > 3. 或者直接从 `${fleetDir}/users.json` 删除 `testuser` 记录并重启服务
+
+   其中 `AUTH_USERNAME` 请使用 `auth.username` 的值。
 
 5. 如果本次本地配置不打算使用 Tailscale，请从示例配置中删除 `tailscale` 块。
 

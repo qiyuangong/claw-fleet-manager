@@ -93,6 +93,12 @@ export async function fleetRoutes(app: FastifyInstance) {
     }
 
     const { runtime, kind, name, port, config, apiKey, image, cpuLimit, memoryLimit, portStep, enableNpmPackages } = parsed.data;
+    if (runtime !== 'openclaw') {
+      return reply.status(400).send({
+        error: `runtime "${runtime}" is not supported yet`,
+        code: 'UNSUPPORTED_RUNTIME',
+      });
+    }
     if (kind === 'profile') {
       if (!isValidManagedProfileName(name)) {
         return reply.status(400).send({

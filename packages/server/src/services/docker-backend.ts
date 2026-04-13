@@ -9,6 +9,7 @@ import type { DeploymentBackend, LogHandle, CreateInstanceOpts } from './backend
 import type { DockerService } from './docker.js';
 import { FleetConfigService } from './fleet-config.js';
 import { provisionDockerInstance } from './docker-instance-provisioning.js';
+import { OPENCLAW_RUNTIME_CAPABILITIES } from './runtime-capabilities.js';
 import type { TailscaleService } from './tailscale.js';
 import { getDirectorySize } from './dir-utils.js';
 import type { FleetConfig, FleetInstance, FleetStatus } from '../types.js';
@@ -16,16 +17,6 @@ import { MANAGED_INSTANCE_ID_RE } from '../validate.js';
 
 const execFileAsync = promisify(execFile);
 export const BASE_GW_PORT = 18789;
-const OPENCLAW_RUNTIME_CAPABILITIES = {
-  configEditor: true,
-  logs: true,
-  rename: true,
-  delete: true,
-  proxyAccess: true,
-  sessions: true,
-  plugins: true,
-  runtimeAdmin: true,
-} as const;
 
 export class DockerBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;

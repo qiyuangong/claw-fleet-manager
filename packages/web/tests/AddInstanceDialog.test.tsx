@@ -80,6 +80,7 @@ describe('AddInstanceDialog', () => {
 
     await waitFor(() => {
       expect(createInstanceMock).toHaveBeenCalledWith({
+        runtime: 'openclaw',
         kind: 'docker',
         name: 'team-alpha',
         image: 'ghcr.io/acme/openclaw:latest',
@@ -103,6 +104,7 @@ describe('AddInstanceDialog', () => {
 
     await waitFor(() => {
       expect(createInstanceMock).toHaveBeenCalledWith({
+        runtime: 'openclaw',
         kind: 'profile',
         name: 'rescue-team',
         port: 987,

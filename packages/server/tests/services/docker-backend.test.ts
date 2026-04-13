@@ -209,7 +209,7 @@ describe('DockerBackend', () => {
       { name: 'team-alpha', id: 'def', state: 'running', index: 2 },
     ]);
 
-    const instance = await backend.createInstance({ name: 'team-alpha' });
+    const instance = await backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'team-alpha' });
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       name: 'team-alpha',
       index: 2,
@@ -281,6 +281,8 @@ describe('DockerBackend', () => {
     expect(status.instances).toHaveLength(1);
     expect(status.instances[0].id).toBe('openclaw-1');
     expect(status.instances[0].index).toBe(1);
+    expect(status.instances[0].runtime).toBe('openclaw');
+    expect(status.instances[0].runtimeCapabilities.delete).toBe(true);
   });
 
   it('refresh() prefers per-instance portStep metadata when available', async () => {
@@ -311,7 +313,7 @@ describe('DockerBackend', () => {
         { name: 'team-alpha', id: 'c', state: 'running', index: 2 },
       ]);
 
-    await backend.createInstance({ name: 'team-alpha' });
+    await backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'team-alpha' });
 
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({ index: 2 }));
   });

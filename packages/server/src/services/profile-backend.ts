@@ -11,17 +11,7 @@ import { getDirectorySize } from './dir-utils.js';
 import { FleetConfigService } from './fleet-config.js';
 import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
 import type { FleetInstance, FleetStatus, ProfilesConfig } from '../types.js';
-
-const OPENCLAW_RUNTIME_CAPABILITIES = {
-  configEditor: true,
-  logs: true,
-  rename: true,
-  delete: true,
-  proxyAccess: true,
-  sessions: true,
-  plugins: true,
-  runtimeAdmin: true,
-} as const;
+import { OPENCLAW_RUNTIME_CAPABILITIES } from './runtime-capabilities.js';
 
 const execFileAsync = promisify(execFile);
 const WORKSPACE_GITIGNORE = `node_modules/

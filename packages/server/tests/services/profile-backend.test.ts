@@ -58,7 +58,7 @@ describe('ProfileBackend — registry', () => {
 
     const backend = makeBackend();
     await backend.initialize();
-    await expect(backend.createInstance({ name: 'INVALID NAME!' }))
+    await expect(backend.createInstance({ runtime: 'openclaw', kind: 'profile', name: 'INVALID NAME!' }))
       .rejects.toThrow('lowercase alphanumeric with hyphens');
   });
 
@@ -70,7 +70,7 @@ describe('ProfileBackend — registry', () => {
 
     const backend = makeBackend();
     await backend.initialize();
-    await expect(backend.createInstance({ name: 'main' }))
+    await expect(backend.createInstance({ runtime: 'openclaw', kind: 'profile', name: 'main' }))
       .rejects.toThrow('reserved');
   });
 
@@ -83,7 +83,7 @@ describe('ProfileBackend — registry', () => {
 
     const backend = makeBackend();
     await backend.initialize();
-    await expect(backend.createInstance({ name: 'rescue' }))
+    await expect(backend.createInstance({ runtime: 'openclaw', kind: 'profile', name: 'rescue' }))
       .rejects.toThrow('Profile "rescue" already exists');
   });
 
@@ -121,12 +121,14 @@ describe('ProfileBackend — registry', () => {
 
     const backend = makeBackend();
     await backend.initialize();
-    await backend.createInstance({ name: 'rescue' });
+    const instance = await backend.createInstance({ runtime: 'openclaw', kind: 'profile', name: 'rescue' });
 
     const writeCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) => String(path).endsWith('/tmp/configs/rescue/openclaw.json.tmp'));
     expect(writeCall).toBeTruthy();
     const written = JSON.parse(String(writeCall?.[1]));
     expect(written.agents.defaults.workspace).toBe('/tmp/states/rescue/workspace');
+    expect(instance.runtime).toBe('openclaw');
+    expect(instance.runtimeCapabilities.logs).toBe(true);
 
     expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/MEMORY.md', expect.any(String), 'utf-8');
     expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/states/rescue/workspace/CLAUDE.md', expect.any(String), 'utf-8');
@@ -167,12 +169,14 @@ describe('ProfileBackend — registry', () => {
 
     const backend = makeBaseDirBackend();
     await backend.initialize();
-    await backend.createInstance({ name: 'rescue' });
+    const instance = await backend.createInstance({ runtime: 'openclaw', kind: 'profile', name: 'rescue' });
 
     const writeCall = vi.mocked(fs.writeFileSync).mock.calls.find(([path]) => String(path).endsWith('/tmp/managed/rescue/openclaw.json.tmp'));
     expect(writeCall).toBeTruthy();
     const written = JSON.parse(String(writeCall?.[1]));
     expect(written.agents.defaults.workspace).toBe('/tmp/managed/rescue/workspace');
+    expect(instance.runtime).toBe('openclaw');
+    expect(instance.runtimeCapabilities.rename).toBe(true);
     expect(fs.writeFileSync).toHaveBeenCalledWith('/tmp/managed/rescue/workspace/MEMORY.md', expect.any(String), 'utf-8');
   });
 

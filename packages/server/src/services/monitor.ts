@@ -2,20 +2,11 @@ import { stat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FleetInstance, FleetStatus } from '../types.js';
 import { FleetConfigService } from './fleet-config.js';
+import { OPENCLAW_RUNTIME_CAPABILITIES } from './runtime-capabilities.js';
 import type { DockerService } from './docker.js';
 import type { TailscaleService } from './tailscale.js';
 
 export const BASE_GW_PORT = 18789;
-const OPENCLAW_RUNTIME_CAPABILITIES = {
-  configEditor: true,
-  logs: true,
-  rename: true,
-  delete: true,
-  proxyAccess: true,
-  sessions: true,
-  plugins: true,
-  runtimeAdmin: true,
-} as const;
 
 export class MonitorService {
   private cache: FleetStatus | null = null;

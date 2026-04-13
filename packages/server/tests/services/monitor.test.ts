@@ -45,6 +45,8 @@ describe('MonitorService', () => {
     expect(status.instances[0].status).toBe('running');
     expect(status.instances[0].token).toBe('abc1***f456');
     expect(status.instances[0].port).toBe(18789);
+    expect(status.instances[0].runtime).toBe('openclaw');
+    expect(status.instances[0].runtimeCapabilities.logs).toBe(true);
     expect(status.totalRunning).toBe(1);
   });
 

@@ -14,6 +14,7 @@ export function Sidebar() {
   const selectInstances = useAppStore((state) => state.selectInstances);
   const selectConfig = useAppStore((state) => state.selectConfig);
   const selectUsers = useAppStore((state) => state.selectUsers);
+  const selectDashboard = useAppStore((state) => state.selectDashboard);
   const selectSessions = useAppStore((state) => state.selectSessions);
   const selectAccount = useAppStore((state) => state.selectAccount);
 
@@ -27,6 +28,7 @@ export function Sidebar() {
     : isLoading
       ? t('loadingFleet')
       : t('awaitingServer');
+  const showInstanceList = currentUser?.role !== 'admin';
 
   return (
     <aside className="sidebar">
@@ -61,19 +63,29 @@ export function Sidebar() {
           </>
         ) : null}
 
-        <p className="sidebar-section">{t('instances')}</p>
-        {visibleInstances.map((instance) => (
-          <SidebarItem
-            key={instance.id}
-            instance={instance}
-            selected={instance.id === selectedInstanceId}
-            onClick={() => selectInstance(instance.id)}
-          />
-        ))}
+        {showInstanceList ? (
+          <>
+            <p className="sidebar-section">{t('instances')}</p>
+            {visibleInstances.map((instance) => (
+              <SidebarItem
+                key={instance.id}
+                instance={instance}
+                selected={instance.id === selectedInstanceId}
+                onClick={() => selectInstance(instance.id)}
+              />
+            ))}
+          </>
+        ) : null}
 
         {currentUser?.role === 'admin' ? (
           <>
             <p className="sidebar-section">{t('admin')}</p>
+            <button
+              className={`sidebar-nav-item${activeView.type === 'dashboard' ? ' selected' : ''}`}
+              onClick={selectDashboard}
+            >
+              {t('dashboard')}
+            </button>
             <button
               className={`sidebar-nav-item${activeView.type === 'instances' ? ' selected' : ''}`}
               onClick={selectInstances}

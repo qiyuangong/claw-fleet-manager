@@ -228,6 +228,434 @@ button {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.dashboard {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.activity-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.activity-metric-card,
+.dashboard-panel {
+  background: linear-gradient(180deg, rgba(17, 27, 43, 0.94), rgba(10, 16, 28, 0.92));
+  border: 1px solid rgba(132, 160, 204, 0.16);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.activity-metric-card {
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.activity-metric-card--button,
+.activity-status-meter-segment,
+.activity-status-legend-item,
+.activity-rank-button {
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.activity-metric-card--button,
+.activity-status-legend-item,
+.activity-rank-button {
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.activity-metric-card--running {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: linear-gradient(180deg, rgba(10, 28, 20, 0.92), rgba(8, 18, 14, 0.92));
+}
+
+.activity-metric-card--active {
+  box-shadow:
+    inset 0 0 0 1px rgba(88, 176, 255, 0.32),
+    0 0 0 1px rgba(88, 176, 255, 0.12);
+}
+
+.activity-metric-card--button:hover,
+.activity-status-legend-item:hover,
+.activity-rank-button:hover {
+  transform: translateY(-1px);
+}
+
+.activity-metric-label,
+.dashboard-panel-subtitle,
+.activity-rank-meta,
+.activity-histogram-label,
+.activity-status-legend-label {
+  color: #8fa4c8;
+}
+
+.activity-metric-value {
+  font-size: 1.7rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-panel {
+  grid-column: span 6;
+  padding: 1rem 1.1rem 1.1rem;
+  min-width: 0;
+}
+
+.dashboard-panel--wide {
+  grid-column: span 6;
+}
+
+.dashboard-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.95rem;
+}
+
+.dashboard-panel-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.dashboard-panel-actions,
+.dashboard-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dashboard-toggle {
+  padding: 0.18rem;
+  border-radius: 999px;
+  background: rgba(143, 164, 200, 0.1);
+}
+
+.dashboard-toggle-button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8fa4c8;
+  padding: 0.28rem 0.72rem;
+}
+
+.dashboard-toggle-button--active {
+  background: rgba(88, 176, 255, 0.18);
+  color: #edf3ff;
+  box-shadow: inset 0 0 0 1px rgba(88, 176, 255, 0.26);
+}
+
+.activity-status-meter {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  height: 12px;
+  margin-bottom: 1rem;
+}
+
+.activity-status-meter-segment {
+  min-width: 0;
+  border-radius: 999px;
+  padding: 0;
+  appearance: none;
+}
+
+.activity-status-meter-segment--active {
+  box-shadow: 0 0 0 2px rgba(237, 243, 255, 0.28);
+}
+
+.activity-status-meter-segment--running,
+.activity-status-legend-dot--running {
+  background: #22c55e;
+}
+
+.activity-status-meter-segment--done,
+.activity-status-legend-dot--done {
+  background: #94a3b8;
+}
+
+.activity-status-meter-segment--failed,
+.activity-status-legend-dot--failed {
+  background: #ef4444;
+}
+
+.activity-status-meter-segment--killedTimeout,
+.activity-status-legend-dot--killedTimeout {
+  background: #f59e0b;
+}
+
+.activity-status-meter-segment--other,
+.activity-status-legend-dot--other {
+  background: #38bdf8;
+}
+
+.activity-status-legend {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.activity-status-legend-item {
+  display: grid;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.7rem;
+  border-radius: 16px;
+}
+
+.activity-status-legend-item--active {
+  background: rgba(88, 176, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(88, 176, 255, 0.24);
+}
+
+.activity-status-legend-dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  margin-bottom: 0.05rem;
+}
+
+.activity-status-legend-value {
+  font-size: 1.15rem;
+}
+
+.activity-histogram {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.55rem;
+  min-height: 190px;
+}
+
+.activity-histogram-column {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.activity-histogram-value {
+  min-height: 1rem;
+  color: #dbe7ff;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.activity-histogram-track {
+  display: flex;
+  align-items: flex-end;
+  min-height: 132px;
+  padding: 0.3rem 0;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    repeating-linear-gradient(
+      to top,
+      rgba(143, 164, 200, 0.06) 0,
+      rgba(143, 164, 200, 0.06) 1px,
+      transparent 1px,
+      transparent 28px
+    );
+}
+
+.activity-histogram-bar {
+  width: 100%;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #58b0ff 0%, #2f7fd5 100%);
+  box-shadow: 0 10px 24px rgba(47, 127, 213, 0.3);
+}
+
+.activity-rank-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.activity-runtime-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.activity-runtime-band {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.activity-runtime-band-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.activity-runtime-band-label {
+  color: #dbe7ff;
+}
+
+.activity-runtime-band-value {
+  color: #dbe7ff;
+}
+
+.activity-runtime-band-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(143, 164, 200, 0.12);
+  overflow: hidden;
+}
+
+.activity-runtime-band-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.activity-runtime-band-fill--live {
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+}
+
+.activity-runtime-band-fill--short {
+  background: linear-gradient(90deg, #7dd3fc 0%, #38bdf8 100%);
+}
+
+.activity-runtime-band-fill--medium {
+  background: linear-gradient(90deg, #60a5fa 0%, #3b82f6 100%);
+}
+
+.activity-runtime-band-fill--long {
+  background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.activity-runtime-band-fill--extended {
+  background: linear-gradient(90deg, #fb7185 0%, #ef4444 100%);
+}
+
+.activity-runtime-band-fill--cpu {
+  background: linear-gradient(90deg, #38bdf8 0%, #2563eb 100%);
+}
+
+.activity-runtime-band-fill--memory {
+  background: linear-gradient(90deg, #34d399 0%, #16a34a 100%);
+}
+
+.activity-rank-item {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.activity-rank-button {
+  display: grid;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.8rem;
+  border-radius: 16px;
+}
+
+.activity-rank-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.activity-rank-label,
+.activity-rank-value {
+  min-width: 0;
+}
+
+.activity-rank-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-rank-value {
+  color: #dbe7ff;
+  font-weight: 700;
+}
+
+.activity-rank-bar {
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(143, 164, 200, 0.12);
+  overflow: hidden;
+}
+
+.activity-rank-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #73d4ff 0%, #2f7fd5 100%);
+}
+
+.dashboard-empty {
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  color: #8fa4c8;
+}
+
+@media (max-width: 1280px) {
+  .activity-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-panel,
+  .dashboard-panel--wide {
+    grid-column: span 12;
+  }
+
+  .activity-status-legend {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .activity-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-status-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .activity-histogram {
+    gap: 0.35rem;
+  }
+
+  .activity-histogram-label {
+    font-size: 0.72rem;
+  }
+
+  .dashboard-panel-header,
+  .dashboard-panel-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .activity-metric-grid,
+  .activity-status-legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .panel-card,
 .metric-card,
 .dialog-card {
@@ -585,6 +1013,65 @@ select.text-input {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.instance-usage-cell {
+  min-width: 16rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.instance-usage-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.instance-usage-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.instance-usage-label {
+  color: #94a5c6;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.instance-usage-value {
+  color: #dbe7ff;
+  white-space: nowrap;
+}
+
+.instance-usage-track {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.instance-usage-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.instance-usage-fill--cpu {
+  background: linear-gradient(90deg, #38bdf8 0%, #2563eb 100%);
+}
+
+.instance-usage-fill--memory {
+  background: linear-gradient(90deg, #34d399 0%, #16a34a 100%);
+}
+
+.instance-management-actions {
+  flex-wrap: wrap;
+}
+
+.instance-management-actions > * {
+  flex: 0 0 auto;
 }
 
 .form-row {

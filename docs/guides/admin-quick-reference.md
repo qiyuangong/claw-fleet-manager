@@ -19,6 +19,6 @@
 | Install plugin | Sidebar → instance → Plugins tab | Enter package/path → click **Install** |
 | Remove plugin | Sidebar → instance → Plugins tab | Click **Remove** → confirm |
 | Edit config | Sidebar → instance → Config tab | Edit JSON → Save → restart instance |
-| Monitor active sessions | Sidebar → Running Sessions | Click **Start Monitoring** |
-| Review session history | Sidebar → Manage Sessions | Filter/sort/search sessions fleet-wide |
+| Monitor active sessions | Sidebar → Running | Click **Start** |
+| Review session history | Sidebar → Activity | Filter/sort/search sessions fleet-wide |
 | Fleet activity dashboard | Sidebar → Dashboard | Click status buckets to focus; adjust filters |

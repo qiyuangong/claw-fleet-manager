@@ -19,6 +19,6 @@
 | 安装插件 | 侧边栏 → 实例 → Plugins 标签页 | 点击 **Install Plugin** → 输入标识符 |
 | 卸载插件 | 侧边栏 → 实例 → Plugins 标签页 | 点击 **Remove** → 确认 |
 | 编辑配置 | 侧边栏 → 实例 → Config 标签页 | 编辑 JSON → Save → 重启实例 |
-| 实时监控会话 | 侧边栏 → Running Sessions | 点击 **Start Monitoring** |
-| 查看历史会话 | 侧边栏 → Manage Sessions | 全舰队筛选/排序/搜索会话 |
+| 实时监控会话 | 侧边栏 → 运行中 | 点击 **启动** |
+| 查看历史会话 | 侧边栏 → 活动 | 全舰队筛选/排序/搜索会话 |
 | 舰队活动仪表盘 | 侧边栏 → Dashboard | 点击状态分类聚焦；调整筛选器 |

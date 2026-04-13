@@ -39,8 +39,8 @@ When you open Claw Fleet Manager in your browser you see three areas.
 | Instance list | One button per instance — click to open it (non-admin users only) |
 | Dashboard | Fleet-wide session overview: status breakdowns, activity board, filters (admin only) |
 | Manage Instances | Create, rename, or delete instances (admin only) |
-| Running Sessions | Live monitor of all currently active sessions across the fleet (admin only) |
-| Manage Sessions | Historical session table with filtering, sorting, and search (admin only) |
+| Running | Live monitor of all currently active sessions across the fleet (admin only) |
+| Activity | Historical session table with filtering, sorting, and search (admin only) |
 | Users | Create and manage user accounts (admin only) |
 | Fleet Config | Global fleet settings (admin only) |
 
@@ -373,9 +373,9 @@ Use this to watch what is happening across all instances in real time.
 
 **Steps:**
 
-1. In the sidebar, click **Running Sessions** (under the Admin section).
+1. In the sidebar, click **Running** (under the Admin section).
 
-2. Click **Start Monitoring** to begin live polling. The panel refreshes every 300 ms.
+2. Click **Start** to begin live polling. The panel refreshes every 300 ms.
 
 3. The panel shows a card per active session, including:
    - instance ID
@@ -388,9 +388,9 @@ Use this to watch what is happening across all instances in real time.
 
 5. Click an instance ID link to jump directly to that instance's panel.
 
-6. Click **Stop Monitoring** to pause live polling.
+6. Click **Stop** to pause live polling.
 
-> **Note:** The monitoring state (started/stopped) is persisted in browser local storage across page reloads.
+> **Note:** The monitoring state is persisted in browser local storage across page reloads.
 
 ---
 
@@ -400,7 +400,7 @@ Use this to look up completed, failed, or killed sessions across the entire flee
 
 **Steps:**
 
-1. In the sidebar, click **Manage Sessions** (under the Admin section).
+1. In the sidebar, click **Activity** (under the Admin section).
 
 2. The panel shows a filterable, sortable table of sessions from all instances.
 

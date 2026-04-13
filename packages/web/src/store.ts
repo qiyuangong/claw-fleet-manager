@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { PublicUser } from './types';
 
-type Tab = 'overview' | 'activity' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu' | 'plugins';
-type ActiveView =
+export type Tab = 'overview' | 'activity' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu' | 'plugins';
+export type ActiveView =
   | { type: 'instance'; id: string }
   | { type: 'instances' }
   | { type: 'config' }

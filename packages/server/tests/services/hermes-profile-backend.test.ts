@@ -19,10 +19,12 @@ describe('HermesProfileBackend', () => {
   let rootDir: string;
   let backend: HermesProfileBackend;
   let livePids: Set<number>;
+  let profileHome: string;
   let killSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     rootDir = mkdtempSync(join(tmpdir(), 'hermes-profile-backend-'));
+    profileHome = join(rootDir, '.hermes', 'profiles', 'research-bot');
     livePids = new Set();
     mockSpawn.mockReset().mockImplementation((_cmd, _args, options) => {
       const child = {
@@ -37,12 +39,16 @@ describe('HermesProfileBackend', () => {
     mockExecFile.mockReset().mockImplementation((cmd, args, optionsOrCb, maybeCb) => {
       const callback = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
       if (cmd === 'ps') {
-        const pid = String(args?.[1] ?? '');
+        const pid = String(args?.[2] ?? args?.[1] ?? '');
         let stdout = '';
         if (pid === '4321') {
-          stdout = '/usr/bin/env hermes gateway run';
+          stdout = `HERMES_HOME=${profileHome} /usr/bin/env hermes gateway run`;
         } else if (pid === '9999') {
-          stdout = '/usr/bin/node other-process';
+          stdout = `HERMES_HOME=${profileHome} /usr/bin/env hermes gateway run`;
+        } else if (pid === '8888') {
+          stdout = 'HERMES_HOME=/tmp/other-profile /usr/bin/env hermes gateway run';
+        } else if (pid === '7777') {
+          stdout = `HERMES_HOME=${profileHome} /usr/bin/node other-process`;
         }
         callback?.(null, { stdout, stderr: '' });
         return {} as any;
@@ -79,16 +85,16 @@ describe('HermesProfileBackend', () => {
   });
 
   function createProfileHome(name: string, state: string, pid?: number): string {
-    const profileHome = join(rootDir, '.hermes', 'profiles', name);
-    mkdirSync(join(profileHome, 'logs'), { recursive: true });
-    writeFileSync(join(profileHome, 'config.yaml'), yaml.stringify({ agent: { name } }));
-    writeFileSync(join(profileHome, 'logs', 'gateway.log'), 'booted\n');
-    writeFileSync(join(profileHome, 'gateway_state.json'), JSON.stringify({ status: state }, null, 2));
+    const home = join(rootDir, '.hermes', 'profiles', name);
+    mkdirSync(join(home, 'logs'), { recursive: true });
+    writeFileSync(join(home, 'config.yaml'), yaml.stringify({ agent: { name } }));
+    writeFileSync(join(home, 'logs', 'gateway.log'), 'booted\n');
+    writeFileSync(join(home, 'gateway_state.json'), JSON.stringify({ status: state }, null, 2));
     if (pid !== undefined) {
-      writeFileSync(join(profileHome, 'gateway.pid'), `${pid}\n`);
+      writeFileSync(join(home, 'gateway.pid'), `${pid}\n`);
       livePids.add(pid);
     }
-    return profileHome;
+    return home;
   }
 
   it('createInstance adopts an existing Hermes profile home', async () => {
@@ -135,13 +141,26 @@ describe('HermesProfileBackend', () => {
   });
 
   it('stale reused pid is not treated as a valid Hermes gateway', async () => {
-    createProfileHome('research-bot', 'running', 9999);
+    createProfileHome('research-bot', 'running', 7777);
 
     const status = await backend.refresh();
     const instance = status.instances.find((item) => item.id === 'research-bot');
 
     expect(instance?.status).toBe('stopped');
     expect(instance?.health).toBe('none');
+  });
+
+  it('live Hermes gateway for a different HERMES_HOME is not treated as owned by this profile', async () => {
+    createProfileHome('research-bot', 'running', 8888);
+
+    const status = await backend.refresh();
+    const instance = status.instances.find((item) => item.id === 'research-bot');
+
+    expect(instance?.status).toBe('stopped');
+    expect(instance?.health).toBe('none');
+
+    await backend.removeInstance('research-bot');
+    expect(livePids.has(8888)).toBe(true);
   });
 
   it('renameInstance rejects while the Hermes profile is running', async () => {

@@ -307,11 +307,11 @@ Use this to review the session history for a specific instance — what sessions
    - token usage and estimated cost
    - relative timestamp
 
-3. Use the status and time filters to narrow the list. Use the search box to find sessions by title, key, model, or last message preview.
+3. Use the status filter (All · Active · Done · Error) and time filter (Today · 24 h · 7 d · All) to narrow the list.
 
 4. Switch between **Board** and **Table** view using the view toggle in the toolbar.
 
-> **Tip:** The board view groups sessions into status columns (running, done, failed, killed/timeout). The table view is better for sorting by cost or token count.
+> **Tip:** The board view groups sessions into status columns (running, done, failed, killed/timeout). The table view supports sorting by token count, cost, or last-updated time.
 
 ---
 
@@ -426,14 +426,20 @@ Use this for a fleet-wide overview of session health and activity trends.
 
 1. In the sidebar, click **Dashboard** (under the Admin section).
 
-2. The dashboard shows:
-   - a status summary card with counts for running, done, failed, and killed/timeout sessions
-   - an activity board with the filtered session list
-   - clickable status buckets in the summary card — clicking a bucket focuses the board on that status
+2. The dashboard shows several panels:
 
-3. Adjust the **status filter** (All · Active · Done · Error) and **time window** (Today · Last 24 h · Last 7 d · All) to narrow the view.
+   | Panel | What it shows |
+   |---|---|
+   | Metrics grid | Total sessions, active instances, running now (clickable), avg CPU, total memory |
+   | Status Mix | Stacked bar of running / done / failed / killed/timeout proportions — click a segment to filter |
+   | Throughput | Histogram of sessions completed per time bucket; toggle between Last 24 h and Last 7 d |
+   | Runtime Bands | Distribution of session durations (live, < 5 m, 5–30 m, 30 m–2 h, 2 h+) |
+   | Hot Instances | Top instances by session count |
+   | Model Load | Top models by token usage |
 
-4. Use the search box to find sessions across all instances.
+3. Use the **search box** and **status / time filters** above the dashboard to narrow which sessions are counted in the panels.
+
+4. Click a segment in the **Status Mix** bar or the **Running now** metric card to focus all panels on that status.
 
 5. Click **Reset filters** to return to the default view.
 

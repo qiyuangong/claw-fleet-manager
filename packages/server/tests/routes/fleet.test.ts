@@ -101,19 +101,19 @@ describe('Fleet routes', () => {
     });
   });
 
-  it('POST /api/fleet/instances rejects unsupported runtimes', async () => {
+  it('POST /api/fleet/instances passes runtime and kind through to backend.createInstance', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
       payload: { runtime: 'hermes', kind: 'profile', name: 'research-bot' },
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.json()).toEqual({
-      error: 'runtime "hermes" is not supported yet',
-      code: 'UNSUPPORTED_RUNTIME',
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'hermes',
+      kind: 'profile',
+      name: 'research-bot',
     });
-    expect(mockBackend.createInstance).not.toHaveBeenCalled();
   });
 
   it('POST /api/fleet/instances passes docker overrides through to backend.createInstance', async () => {

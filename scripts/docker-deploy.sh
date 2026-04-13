@@ -23,6 +23,12 @@ json_escape() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+path_is_within() {
+  local candidate="$1"
+  local base="$2"
+  [[ "$candidate" == "$base" || "$candidate" == "$base"/* ]]
+}
+
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf 'Missing required command: %s\n' "$1" >&2
@@ -142,7 +148,7 @@ DOCKER_RUN_ARGS=(
 )
 
 for mount_dir in "${TLS_MOUNT_DIRS[@]}"; do
-  if [[ "$mount_dir" == "$DATA_ROOT"* ]]; then
+  if path_is_within "$mount_dir" "$DATA_ROOT"; then
     continue
   fi
   DOCKER_RUN_ARGS+=(-v "$mount_dir:$mount_dir:ro")

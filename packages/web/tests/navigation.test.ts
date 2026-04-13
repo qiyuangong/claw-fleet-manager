@@ -37,6 +37,15 @@ describe('navigation codec', () => {
     });
   });
 
+  it('rejects account view for admin fallback state', () => {
+    const url = new URL('https://example.test/?view=account');
+
+    expect(parseNavigationFromUrl(url, defaultNavigationState(true))).toEqual({
+      activeView: { type: 'dashboard' },
+      activeTab: 'overview',
+    });
+  });
+
   it('serializes overview instance URLs without a tab query param', () => {
     expect(
       serializeNavigationToUrl({

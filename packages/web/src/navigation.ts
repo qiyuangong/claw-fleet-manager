@@ -42,6 +42,10 @@ export function parseNavigationFromUrl(url: URL, fallback: NavigationState): Nav
   }
 
   if (isTopLevelView(view)) {
+    if (view === 'account' && fallback.activeView.type !== 'account') {
+      return fallback;
+    }
+
     return {
       activeView: { type: view },
       activeTab: 'overview',

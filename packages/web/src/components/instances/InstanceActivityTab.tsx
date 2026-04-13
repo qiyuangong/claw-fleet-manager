@@ -251,7 +251,9 @@ export function InstanceActivityTab({ instanceId }: { instanceId: string }) {
         </div>
 
         {instanceEntry?.error ? <p className="error-text">{instanceEntry.error}</p> : null}
-        {!instanceEntry || allRows.length === 0 ? (
+        {!instanceEntry ? (
+          <p className="muted">{t('instanceActivityEmpty')}</p>
+        ) : instanceEntry.error ? null : allRows.length === 0 ? (
           <p className="muted">{t('instanceActivityEmpty')}</p>
         ) : filteredRows.length === 0 ? (
           <p className="muted">{t('noSessionsFilter')}</p>

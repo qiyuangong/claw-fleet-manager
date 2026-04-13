@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { NavigationState } from './navigation';
 import type { PublicUser } from './types';
 
 export const NAVIGATION_TABS = ['overview', 'activity', 'logs', 'config', 'metrics', 'controlui', 'feishu', 'plugins'] as const;
@@ -21,6 +22,7 @@ interface AppState {
   selectDashboard: () => void;
   setTab: (tab: Tab) => void;
   setCurrentUser: (user: PublicUser | null) => void;
+  applyNavigationState: (navigationState: NavigationState) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -37,6 +39,10 @@ export const useAppStore = create<AppState>((set) => ({
   selectDashboard: () => set({ activeView: { type: 'dashboard' }, activeTab: 'overview' }),
   setTab: (tab) => set({ activeTab: tab }),
   setCurrentUser: (user) => set({ currentUser: user }),
+  applyNavigationState: (navigationState) => set({
+    activeView: navigationState.activeView,
+    activeTab: navigationState.activeView.type === 'instance' ? navigationState.activeTab : 'overview',
+  }),
 }));
 
 export const selectedInstanceIdSelector = (state: AppState) =>

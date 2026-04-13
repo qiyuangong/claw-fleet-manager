@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -22,13 +22,20 @@ import { useFleet } from '../../hooks/useFleet';
 import { Sidebar } from './Sidebar';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useAppStore } from '../../store';
+import {
+  defaultNavigationState,
+  parseNavigationFromUrl,
+  serializeNavigationToUrl,
+} from '../../navigation';
 
 export function Shell() {
   const { t } = useTranslation();
   const activeView = useAppStore((state) => state.activeView);
+  const activeTab = useAppStore((state) => state.activeTab);
   const selectInstance = useAppStore((state) => state.selectInstance);
   const selectAccount = useAppStore((state) => state.selectAccount);
   const setCurrentUser = useAppStore((state) => state.setCurrentUser);
+  const applyNavigationState = useAppStore((state) => state.applyNavigationState);
   const { data: currentUser, error: currentUserError, isLoading: currentUserLoading } = useCurrentUser();
   const { data: fleet } = useFleet();
   const queryClient = useQueryClient();
@@ -38,6 +45,9 @@ export function Shell() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const hasHydratedNavigationRef = useRef(false);
+  const isApplyingPopstateRef = useRef(false);
+  const skipNextHistorySyncRef = useRef(false);
   const nonAdminAllowedInstances = useMemo(
     () => (currentUser && currentUser.role !== 'admin' && fleet
       ? fleet.instances.filter((instance) => (currentUser.assignedProfiles ?? []).includes(instance.id))
@@ -48,6 +58,58 @@ export function Shell() {
   useEffect(() => {
     setCurrentUser(currentUser ?? null);
   }, [currentUser, setCurrentUser]);
+
+  useEffect(() => {
+    if (!currentUser || hasHydratedNavigationRef.current) return;
+
+    const fallback = defaultNavigationState(currentUser.role === 'admin');
+    const navigationState = parseNavigationFromUrl(new URL(window.location.href), fallback);
+    const nextUrl = serializeNavigationToUrl(navigationState);
+
+    skipNextHistorySyncRef.current = true;
+    applyNavigationState(navigationState);
+    window.history.replaceState({}, '', nextUrl);
+    hasHydratedNavigationRef.current = true;
+  }, [applyNavigationState, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !hasHydratedNavigationRef.current) return;
+
+    const handlePopstate = () => {
+      const fallback = defaultNavigationState(currentUser.role === 'admin');
+      const navigationState = parseNavigationFromUrl(new URL(window.location.href), fallback);
+      isApplyingPopstateRef.current = true;
+      skipNextHistorySyncRef.current = true;
+      applyNavigationState(navigationState);
+    };
+
+    window.addEventListener('popstate', handlePopstate);
+    return () => window.removeEventListener('popstate', handlePopstate);
+  }, [applyNavigationState, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !hasHydratedNavigationRef.current) return;
+
+    if (skipNextHistorySyncRef.current) {
+      skipNextHistorySyncRef.current = false;
+      return;
+    }
+
+    const nextUrl = serializeNavigationToUrl({ activeView, activeTab });
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (currentUrl === nextUrl) {
+      isApplyingPopstateRef.current = false;
+      return;
+    }
+
+    if (isApplyingPopstateRef.current) {
+      isApplyingPopstateRef.current = false;
+      return;
+    }
+
+    window.history.pushState({}, '', nextUrl);
+  }, [activeTab, activeView, currentUser]);
 
   useEffect(() => {
     if (!currentUser || currentUser.role === 'admin' || !fleet) return;

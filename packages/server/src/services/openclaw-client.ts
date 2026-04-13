@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { randomUUID } from 'node:crypto';
+import { getOpenClawHttpOrigin, getOpenClawWsUrl } from './openclaw-upstream.js';
 
 export type InstanceSessionRow = {
   key: string;
@@ -31,8 +32,8 @@ export async function fetchInstanceSessions(
 ): Promise<InstanceSessionRow[]> {
   return new Promise((resolve, reject) => {
     // Origin must match gateway.controlUi.allowedOrigins for control-ui client auth
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`, {
-      headers: { Origin: `http://127.0.0.1:${port}` },
+    const ws = new WebSocket(getOpenClawWsUrl(port), {
+      headers: { Origin: getOpenClawHttpOrigin(port) },
     });
     const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
     let settled = false;

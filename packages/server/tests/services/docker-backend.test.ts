@@ -26,6 +26,7 @@ const mockDocker = {
   inspectContainer: vi.fn().mockResolvedValue({ status: 'running', health: 'healthy', image: 'openclaw:local', uptime: 100 }),
   getDiskUsage: vi.fn().mockResolvedValue({}),
   getContainerLogs: vi.fn().mockReturnValue({ on: vi.fn(), destroy: vi.fn() }),
+  getContainerGatewayToken: vi.fn().mockResolvedValue(null),
 };
 
 const mockFleetConfig = {
@@ -76,6 +77,7 @@ describe('DockerBackend', () => {
     });
     mockDocker.getDiskUsage.mockReset().mockResolvedValue({});
     mockDocker.getContainerLogs.mockReset().mockReturnValue({ on: vi.fn(), destroy: vi.fn() });
+    mockDocker.getContainerGatewayToken.mockReset().mockResolvedValue(null);
 
     mockFleetConfig.readFleetConfig.mockReset().mockReturnValue({
       baseDir: '/tmp/managed',
@@ -169,6 +171,18 @@ describe('DockerBackend', () => {
   it('revealToken() throws for unknown instance', async () => {
     mockFleetConfig.readTokens.mockReturnValue({});
     await expect(backend.revealToken('openclaw-99')).rejects.toThrow();
+  });
+
+  it('revealToken() falls back to the container env token and persists it', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([{ name: 'openclaw-1', id: 'abc', state: 'running', index: 1 }]);
+    mockFleetConfig.readTokens.mockReturnValue({});
+    mockDocker.getContainerGatewayToken.mockResolvedValue('secret-token');
+
+    const token = await backend.revealToken('openclaw-1');
+
+    expect(token).toBe('secret-token');
+    expect(mockDocker.getContainerGatewayToken).toHaveBeenCalledWith('openclaw-1');
+    expect(mockFleetConfig.writeTokens).toHaveBeenCalledWith({ 1: 'secret-token' });
   });
 
   it('readInstanceConfig() delegates to fleetConfig', async () => {

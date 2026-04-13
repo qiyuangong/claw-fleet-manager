@@ -4,6 +4,12 @@ import { request as undiciRequest } from 'undici';
 import WebSocket from 'ws';
 import { generateProxyToken } from '../auth.js';
 import { hasProfileAccess } from '../authorize.js';
+import {
+  getOpenClawHttpOrigin,
+  getOpenClawHttpUrl,
+  getOpenClawUpstreamHost,
+  getOpenClawWsUrl,
+} from '../services/openclaw-upstream.js';
 
 const HOP_BY_HOP = new Set([
   'connection',
@@ -49,7 +55,8 @@ function findInstance(app: FastifyInstance, id: string) {
 
 async function getProxyBootstrapToken(app: FastifyInstance, id: string, index?: number): Promise<string> {
   if (index !== undefined) {
-    return app.fleetConfig.readTokens()[index] ?? '';
+    const token = app.fleetConfig.readTokens()[index];
+    if (token) return token;
   }
 
   try {
@@ -173,13 +180,13 @@ export async function proxyRoutes(app: FastifyInstance) {
 
     let response: Awaited<ReturnType<typeof undiciRequest>>;
     try {
-      response = await undiciRequest(`http://127.0.0.1:${instance.port}${toProxyPath(request)}`, {
+      response = await undiciRequest(getOpenClawHttpUrl(instance.port, toProxyPath(request)), {
         method: request.method as any,
         headers: {
           ...Object.fromEntries(
             Object.entries(request.headers).filter(([key]) => !HOP_BY_HOP.has(key.toLowerCase())),
           ),
-          host: `127.0.0.1:${instance.port}`,
+          host: `${getOpenClawUpstreamHost()}:${instance.port}`,
           ...(body != null
             ? { 'content-length': Buffer.byteLength(body).toString() }
             : {}),
@@ -270,10 +277,10 @@ export async function proxyRoutes(app: FastifyInstance) {
       });
 
       const upstream = new WebSocket(
-        `ws://127.0.0.1:${instance.port}${parsed.path}`,
+        getOpenClawWsUrl(instance.port, parsed.path),
         {
           headers: {
-            origin: `http://localhost:${instance.port}`,
+            origin: getOpenClawHttpOrigin(instance.port),
           },
         },
       );

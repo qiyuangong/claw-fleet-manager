@@ -130,7 +130,7 @@ Use this to give an instance a new name. Renaming is only available for **stoppe
 
 4. In the dialog that opens, enter the new name.
 
-   > **Name rules:** Profile instances use lowercase letters, numbers, and hyphens. Docker instances follow `openclaw-N` numbering and cannot be freely renamed to arbitrary strings.
+   > **Name rules:** lowercase letters, numbers, and hyphens only (e.g. `team-a`, `worker-2`). Applies to both profile and Docker instances.
 
 5. Click **Rename**. The instance reappears under the new name.
 
@@ -298,7 +298,7 @@ Use this to review the session history for a specific instance — what sessions
 
 **Steps:**
 
-1. Click the instance name in the sidebar → **Activity** tab.
+1. Open an instance panel — in the sidebar click **Manage Instances**, then click **Open Instance** in the row for the instance you want. Once the instance panel is open, click the **Activity** tab.
 
 2. The tab shows a list of sessions with:
    - session title and key

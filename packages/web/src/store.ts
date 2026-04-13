@@ -2,7 +2,15 @@ import { create } from 'zustand';
 import type { PublicUser } from './types';
 
 type Tab = 'overview' | 'activity' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu' | 'plugins';
-type ActiveView = { type: 'instance'; id: string } | { type: 'instances' } | { type: 'config' } | { type: 'users' } | { type: 'account' } | { type: 'sessions' } | { type: 'dashboard' };
+type ActiveView =
+  | { type: 'instance'; id: string }
+  | { type: 'instances' }
+  | { type: 'config' }
+  | { type: 'users' }
+  | { type: 'account' }
+  | { type: 'sessions' }
+  | { type: 'runningSessions' }
+  | { type: 'dashboard' };
 
 interface AppState {
   activeView: ActiveView;
@@ -14,6 +22,7 @@ interface AppState {
   selectUsers: () => void;
   selectAccount: () => void;
   selectSessions: () => void;
+  selectRunningSessions: () => void;
   selectDashboard: () => void;
   setTab: (tab: Tab) => void;
   setCurrentUser: (user: PublicUser | null) => void;
@@ -29,6 +38,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectUsers: () => set({ activeView: { type: 'users' } }),
   selectAccount: () => set({ activeView: { type: 'account' } }),
   selectSessions: () => set({ activeView: { type: 'sessions' } }),
+  selectRunningSessions: () => set({ activeView: { type: 'runningSessions' } }),
   selectDashboard: () => set({ activeView: { type: 'dashboard' } }),
   setTab: (tab) => set({ activeTab: tab }),
   setCurrentUser: (user) => set({ currentUser: user }),

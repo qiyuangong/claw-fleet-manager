@@ -13,6 +13,7 @@ import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { FleetDashboardPanel } from '../instances/FleetDashboardPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { InstanceManagementPanel } from '../instances/InstanceManagementPanel';
+import { FleetRunningSessionsPanel } from '../instances/FleetRunningSessionsPanel';
 import { FleetSessionsPanel } from '../instances/FleetSessionsPanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
 import { UserHomePanel } from '../users/UserHomePanel';
@@ -211,6 +212,8 @@ export function Shell() {
           <UserManagementPanel />
         ) : activeView.type === 'dashboard' ? (
           <FleetDashboardPanel />
+        ) : activeView.type === 'runningSessions' ? (
+          <FleetRunningSessionsPanel />
         ) : activeView.type === 'sessions' ? (
           <FleetSessionsPanel />
         ) : (

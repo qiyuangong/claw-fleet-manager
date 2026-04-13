@@ -12,6 +12,17 @@ import { FleetConfigService } from './fleet-config.js';
 import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
 import type { FleetInstance, FleetStatus, ProfilesConfig } from '../types.js';
 
+const OPENCLAW_RUNTIME_CAPABILITIES = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: true,
+  sessions: true,
+  plugins: true,
+  runtimeAdmin: true,
+} as const;
+
 const execFileAsync = promisify(execFile);
 const WORKSPACE_GITIGNORE = `node_modules/
 dist/
@@ -602,7 +613,9 @@ export class ProfileBackend implements DeploymentBackend {
 
     return {
       id: entry.name,
+      runtime: 'openclaw',
       mode: 'profile',
+      runtimeCapabilities: OPENCLAW_RUNTIME_CAPABILITIES,
       profile: entry.name,
       pid: entry.pid ?? undefined,
       status,

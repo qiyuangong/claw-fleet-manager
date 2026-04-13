@@ -8,6 +8,7 @@ import { errorResponseSchema, fleetInstanceSchema, fleetStatusSchema, instanceId
 import { MANAGED_INSTANCE_ID_RE, validateInstanceId } from '../validate.js';
 
 const createInstanceSchema = z.object({
+  runtime: z.enum(['openclaw', 'hermes']),
   kind: z.enum(['docker', 'profile']),
   name: z.string().min(1),
   port: z.number().int().positive().optional(),
@@ -55,6 +56,7 @@ export async function fleetRoutes(app: FastifyInstance) {
       body: {
         type: 'object',
         properties: {
+          runtime: { type: 'string', enum: ['openclaw', 'hermes'] },
           kind: { type: 'string', enum: ['docker', 'profile'] },
           name: { type: 'string', minLength: 1 },
           port: { type: 'integer', minimum: 1 },
@@ -66,7 +68,7 @@ export async function fleetRoutes(app: FastifyInstance) {
           portStep: { type: 'integer', minimum: 1 },
           enableNpmPackages: { type: 'boolean' },
         },
-        required: ['kind', 'name'],
+        required: ['runtime', 'kind', 'name'],
       },
       response: {
         200: fleetInstanceSchema,
@@ -90,7 +92,7 @@ export async function fleetRoutes(app: FastifyInstance) {
       });
     }
 
-    const { kind, name, port, config, apiKey, image, cpuLimit, memoryLimit, portStep, enableNpmPackages } = parsed.data;
+    const { runtime, kind, name, port, config, apiKey, image, cpuLimit, memoryLimit, portStep, enableNpmPackages } = parsed.data;
     if (kind === 'profile') {
       if (!isValidManagedProfileName(name)) {
         return reply.status(400).send({
@@ -107,16 +109,17 @@ export async function fleetRoutes(app: FastifyInstance) {
 
     try {
       const instance = await app.backend.createInstance({
+        runtime,
         kind,
         name,
-        port,
-        config: config as object | undefined,
-        apiKey,
-        image,
-        cpuLimit,
-        memoryLimit,
-        portStep,
-        enableNpmPackages,
+        ...(port !== undefined ? { port } : {}),
+        ...(config !== undefined ? { config: config as object } : {}),
+        ...(apiKey !== undefined ? { apiKey } : {}),
+        ...(image !== undefined ? { image } : {}),
+        ...(cpuLimit !== undefined ? { cpuLimit } : {}),
+        ...(memoryLimit !== undefined ? { memoryLimit } : {}),
+        ...(portStep !== undefined ? { portStep } : {}),
+        ...(enableNpmPackages !== undefined ? { enableNpmPackages } : {}),
       });
       return instance;
     } catch (error: unknown) {

@@ -53,6 +53,7 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
 
   const create = useMutation({
     mutationFn: () => createInstance({
+      runtime: 'openclaw',
       kind,
       name,
       port: kind === 'profile' && port ? parseInt(port, 10) : undefined,

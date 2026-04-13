@@ -1,7 +1,23 @@
 // packages/web/src/types.ts
+export type InstanceRuntime = 'openclaw' | 'hermes';
+export type InstanceMode = 'docker' | 'profile';
+
+export interface RuntimeCapabilities {
+  configEditor: boolean;
+  logs: boolean;
+  rename: boolean;
+  delete: boolean;
+  proxyAccess: boolean;
+  sessions: boolean;
+  plugins: boolean;
+  runtimeAdmin: boolean;
+}
+
 export interface FleetInstance {
   id: string;
-  mode: 'docker' | 'profile';
+  runtime: InstanceRuntime;
+  mode: InstanceMode;
+  runtimeCapabilities: RuntimeCapabilities;
   index?: number;
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;

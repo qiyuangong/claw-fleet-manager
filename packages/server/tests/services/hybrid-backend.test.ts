@@ -110,15 +110,23 @@ describe('HybridBackend', () => {
   });
 
   it('createInstance dispatches by requested kind', async () => {
-    await backend.createInstance({ kind: 'docker', name: 'openclaw-2' });
-    await backend.createInstance({ kind: 'profile', name: 'team-beta' });
+    await backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'openclaw-2' });
+    await backend.createInstance({ runtime: 'openclaw', kind: 'profile', name: 'team-beta' });
 
-    expect(dockerBackend.createInstance).toHaveBeenCalledWith({ kind: 'docker', name: 'openclaw-2' });
-    expect(profileBackend.createInstance).toHaveBeenCalledWith({ kind: 'profile', name: 'team-beta' });
+    expect(dockerBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'openclaw',
+      kind: 'docker',
+      name: 'openclaw-2',
+    });
+    expect(profileBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'openclaw',
+      kind: 'profile',
+      name: 'team-beta',
+    });
   });
 
   it('rejects createInstance when the requested id already exists in the other backend', async () => {
-    await expect(backend.createInstance({ kind: 'docker', name: 'team-alpha' })).rejects.toThrow(/already exists/i);
+    await expect(backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'team-alpha' })).rejects.toThrow(/already exists/i);
     expect(dockerBackend.createInstance).not.toHaveBeenCalled();
   });
 

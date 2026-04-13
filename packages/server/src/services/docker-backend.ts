@@ -16,6 +16,16 @@ import { MANAGED_INSTANCE_ID_RE } from '../validate.js';
 
 const execFileAsync = promisify(execFile);
 export const BASE_GW_PORT = 18789;
+const OPENCLAW_RUNTIME_CAPABILITIES = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: true,
+  sessions: true,
+  plugins: true,
+  runtimeAdmin: true,
+} as const;
 
 export class DockerBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
@@ -563,7 +573,9 @@ export class DockerBackend implements DeploymentBackend {
 
     return {
       id: container.name,
+      runtime: 'openclaw',
       mode: 'docker',
+      runtimeCapabilities: OPENCLAW_RUNTIME_CAPABILITIES,
       index,
       status: this.mapStatus(inspection.status),
       port: index !== undefined ? BASE_GW_PORT + (index - 1) * portStep : 0,

@@ -19,6 +19,7 @@ export const fleetInstanceSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
+    runtime: { type: 'string', enum: ['openclaw', 'hermes'] },
     mode: { type: 'string', enum: ['docker', 'profile'] },
     index: { type: 'number' },
     status: { type: 'string', enum: ['running', 'stopped', 'restarting', 'unhealthy', 'unknown'] },
@@ -43,12 +44,26 @@ export const fleetInstanceSchema = {
       },
       required: ['config', 'workspace'],
     },
+    runtimeCapabilities: {
+      type: 'object',
+      properties: {
+        configEditor: { type: 'boolean' },
+        logs: { type: 'boolean' },
+        rename: { type: 'boolean' },
+        delete: { type: 'boolean' },
+        proxyAccess: { type: 'boolean' },
+        sessions: { type: 'boolean' },
+        plugins: { type: 'boolean' },
+        runtimeAdmin: { type: 'boolean' },
+      },
+      required: ['configEditor', 'logs', 'rename', 'delete', 'proxyAccess', 'sessions', 'plugins', 'runtimeAdmin'],
+    },
     health: { type: 'string', enum: ['healthy', 'unhealthy', 'starting', 'none'] },
     image: { type: 'string' },
     profile: { type: 'string' },
     pid: { type: 'number' },
   },
-  required: ['id', 'mode', 'status', 'port', 'token', 'uptime', 'cpu', 'memory', 'disk', 'health', 'image'],
+  required: ['id', 'runtime', 'mode', 'runtimeCapabilities', 'status', 'port', 'token', 'uptime', 'cpu', 'memory', 'disk', 'health', 'image'],
 } as const;
 
 export const fleetStatusSchema = {

@@ -15,7 +15,19 @@ export interface ServerConfig {
   profiles?: ProfilesConfig;
 }
 
+export type InstanceRuntime = 'openclaw' | 'hermes';
 export type InstanceMode = 'docker' | 'profile';
+
+export interface RuntimeCapabilities {
+  configEditor: boolean;
+  logs: boolean;
+  rename: boolean;
+  delete: boolean;
+  proxyAccess: boolean;
+  sessions: boolean;
+  plugins: boolean;
+  runtimeAdmin: boolean;
+}
 
 export interface ProfilesConfig {
   openclawBinary: string;
@@ -29,7 +41,9 @@ export interface ProfilesConfig {
 
 export interface FleetInstance {
   id: string;
+  runtime: InstanceRuntime;
   mode: InstanceMode;
+  runtimeCapabilities: RuntimeCapabilities;
   index?: number;          // present in docker mode (1-based), absent in profile mode
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;

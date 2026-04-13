@@ -6,6 +6,16 @@ import type { DockerService } from './docker.js';
 import type { TailscaleService } from './tailscale.js';
 
 export const BASE_GW_PORT = 18789;
+const OPENCLAW_RUNTIME_CAPABILITIES = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: true,
+  sessions: true,
+  plugins: true,
+  runtimeAdmin: true,
+} as const;
 
 export class MonitorService {
   private cache: FleetStatus | null = null;
@@ -59,7 +69,9 @@ export class MonitorService {
 
         return {
           id: container.name,
+          runtime: 'openclaw',
           mode: 'docker',
+          runtimeCapabilities: OPENCLAW_RUNTIME_CAPABILITIES,
           index,
           status: this.mapStatus(inspection.status),
           port: BASE_GW_PORT + (index - 1) * config.portStep,

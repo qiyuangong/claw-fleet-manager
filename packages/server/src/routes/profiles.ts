@@ -38,7 +38,13 @@ export async function profileRoutes(app: FastifyInstance) {
     }
     try {
       const { name, port, config } = parsed.data;
-      const instance = await app.backend.createInstance({ kind: 'profile', name, port, config: config as object | undefined });
+      const instance = await app.backend.createInstance({
+        runtime: 'openclaw',
+        kind: 'profile',
+        name,
+        ...(port !== undefined ? { port } : {}),
+        ...(config !== undefined ? { config: config as object } : {}),
+      });
       return instance;
     } catch (error: any) {
       const code = error.message?.includes('already exists') ? 409

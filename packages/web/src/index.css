@@ -1979,7 +1979,7 @@ select.text-input {
 .running-session-card {
   display: grid;
   gap: 0.75rem;
-  min-height: 15.5rem;
+  min-height: 18rem;
   padding: 1rem;
   border: 1px solid rgba(34, 197, 94, 0.22);
   border-radius: 1.15rem;
@@ -2037,6 +2037,61 @@ select.text-input {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.running-session-card-transcript {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.running-session-card-transcript-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55rem;
+  align-items: start;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.running-session-card-transcript-role {
+  min-width: 3.5rem;
+  color: #d8f3e3;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.running-session-card-transcript-text {
+  min-width: 0;
+  color: #c8dfd2;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.running-session-card-transcript-item--assistant {
+  border-color: rgba(110, 231, 183, 0.18);
+  background: rgba(21, 128, 61, 0.12);
+}
+
+.running-session-card-transcript-item--assistant .running-session-card-transcript-role {
+  color: #86efac;
+}
+
+.running-session-card-transcript-item--tool {
+  border-color: rgba(125, 211, 252, 0.16);
+  background: rgba(14, 116, 144, 0.12);
+}
+
+.running-session-card-transcript-item--tool .running-session-card-transcript-role {
+  color: #7dd3fc;
 }
 
 .running-session-card-pills {

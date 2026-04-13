@@ -14,6 +14,9 @@ const translations: Record<string, string> = {
   runningSessionsMonitorStarted: 'Live polling on',
   runningSessionsMonitorStopped: 'Live polling off',
   runningSessionsStoppedHelp: 'Live polling is stopped. Press Start to begin updating the running session boxes.',
+  runningSessionsRoleUser: 'User',
+  runningSessionsRoleAssistant: 'Agent',
+  runningSessionsRoleTool: 'Tool',
   runningSessionsPrevious: 'Previous',
   runningSessionsNext: 'Next',
   runningSessionsPagerLabel: 'Running sessions pages',
@@ -66,6 +69,10 @@ function buildRunningSession(index: number) {
     updatedAt: Date.now() - index * 1_000,
     model: index % 2 === 0 ? 'gpt-5.4' : 'claude-opus',
     lastMessagePreview: `Preview ${index}`,
+    previewItems: [
+      { role: 'user', text: `Question ${index}` },
+      { role: 'assistant', text: `Answer ${index}` },
+    ],
   };
 }
 
@@ -110,12 +117,22 @@ describe('FleetRunningSessionsPanel', () => {
     expect(screen.getByRole('heading', { name: 'Running sessions' })).not.toBeNull();
     expect(screen.getByText('Live polling off')).not.toBeNull();
     expect(screen.getByText('Live polling is stopped. Press Start to begin updating the running session boxes.')).not.toBeNull();
-    expect(mockUseFleetSessions).toHaveBeenLastCalledWith({ enabled: false, refetchIntervalMs: 300 });
+    expect(mockUseFleetSessions).toHaveBeenLastCalledWith({
+      enabled: false,
+      refetchIntervalMs: 300,
+      status: 'running',
+      previewLimit: 4,
+    });
 
     await user.click(screen.getByRole('button', { name: 'Start' }));
 
     expect(screen.getByText('Live polling on')).not.toBeNull();
-    expect(mockUseFleetSessions).toHaveBeenLastCalledWith({ enabled: true, refetchIntervalMs: 300 });
+    expect(mockUseFleetSessions).toHaveBeenLastCalledWith({
+      enabled: true,
+      refetchIntervalMs: 300,
+      status: 'running',
+      previewLimit: 4,
+    });
   });
 
   it('remembers the monitoring state across remounts', async () => {
@@ -130,7 +147,12 @@ describe('FleetRunningSessionsPanel', () => {
     renderPanel();
 
     expect(screen.getByText('Live polling on')).not.toBeNull();
-    expect(mockUseFleetSessions).toHaveBeenLastCalledWith({ enabled: true, refetchIntervalMs: 300 });
+    expect(mockUseFleetSessions).toHaveBeenLastCalledWith({
+      enabled: true,
+      refetchIntervalMs: 300,
+      status: 'running',
+      previewLimit: 4,
+    });
   });
 
   it('shows only running sessions as cards after start', async () => {
@@ -142,6 +164,8 @@ describe('FleetRunningSessionsPanel', () => {
     expect(screen.getByRole('button', { name: 'alpha Running task 1 run-1' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'beta Running task 2 run-2' })).not.toBeNull();
     expect(screen.queryByText('Done task')).toBeNull();
+    expect(screen.getByText('Question 1')).not.toBeNull();
+    expect(screen.getByText('Answer 1')).not.toBeNull();
   });
 
   it('filters cards in real time from the search input', async () => {

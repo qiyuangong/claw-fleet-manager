@@ -8,6 +8,7 @@ export type InstanceSessionRow = {
   displayName?: string;
   derivedTitle?: string;
   lastMessagePreview?: string;
+  previewItems?: InstanceSessionPreviewItem[];
   status?: 'running' | 'done' | 'failed' | 'killed' | 'timeout';
   startedAt?: number;
   endedAt?: number;
@@ -22,13 +23,37 @@ export type InstanceSessionRow = {
   updatedAt?: number;
 };
 
+export type InstanceSessionPreviewItem = {
+  role: string;
+  text: string;
+};
+
+type SessionPreviewResponse = {
+  key: string;
+  status?: string;
+  items?: InstanceSessionPreviewItem[];
+};
+
+type FetchInstanceSessionsOptions = {
+  status?: InstanceSessionRow['status'];
+  previewLimit?: number;
+};
+
 type ResFrame = { type: 'res'; id: string; ok: boolean; payload?: unknown; error?: { code: string; message: string } };
 type EventFrame = { type: 'event'; event: string; payload?: unknown };
+
+function normalizePreviewItems(items: InstanceSessionPreviewItem[] | undefined, previewLimit: number): InstanceSessionPreviewItem[] {
+  if (!items?.length || previewLimit <= 0) return [];
+  return items
+    .filter((item) => item?.text?.trim())
+    .slice(-previewLimit);
+}
 
 export async function fetchInstanceSessions(
   port: number,
   token: string,
   timeoutMs = 5_000,
+  options?: FetchInstanceSessionsOptions,
 ): Promise<InstanceSessionRow[]> {
   return new Promise((resolve, reject) => {
     // Origin must match gateway.controlUi.allowedOrigins for control-ui client auth
@@ -77,6 +102,7 @@ export async function fetchInstanceSessions(
       if (frame.type === 'event' && frame.event === 'connect.challenge') {
         void (async () => {
           try {
+            const previewLimit = Math.max(0, Math.min(Math.trunc(options?.previewLimit ?? 0), 8));
             await request('connect', {
               minProtocol: 3,
               maxProtocol: 3,
@@ -87,7 +113,7 @@ export async function fetchInstanceSessions(
                 mode: 'ui',
               },
               role: 'operator',
-              scopes: ['operator.read'],
+              scopes: previewLimit > 0 ? ['operator.read', 'operator.admin'] : ['operator.read'],
               auth: { token },
             });
             // sessions active within the last hour
@@ -95,7 +121,33 @@ export async function fetchInstanceSessions(
               'sessions.list',
               { activeMinutes: 60, includeDerivedTitles: true, includeLastMessage: true },
             );
-            done(result?.sessions ?? []);
+            let sessions = result?.sessions ?? [];
+
+            if (options?.status) {
+              sessions = sessions.filter((session) => session.status === options.status);
+            }
+
+            if (previewLimit > 0 && sessions.length > 0) {
+              try {
+                const previewResult = await request<{ previews?: SessionPreviewResponse[] }>(
+                  'sessions.preview',
+                  { keys: sessions.map((session) => session.key) },
+                );
+                const previewsByKey = new Map(
+                  (previewResult?.previews ?? [])
+                    .map((preview) => [preview.key, normalizePreviewItems(preview.items, previewLimit)] as const)
+                    .filter((entry) => entry[1].length > 0),
+                );
+                sessions = sessions.map((session) => {
+                  const previewItems = previewsByKey.get(session.key);
+                  return previewItems ? { ...session, previewItems } : session;
+                });
+              } catch {
+                // Older gateways may not support sessions.preview. Fall back to lastMessagePreview only.
+              }
+            }
+
+            done(sessions);
           } catch (err) {
             done(null, err instanceof Error ? err : new Error(String(err)));
           }

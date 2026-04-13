@@ -14,6 +14,19 @@ const FIXTURE_SESSIONS: InstanceSessionRow[] = [
   },
 ];
 
+const FIXTURE_PREVIEWS = [
+  {
+    key: 'main',
+    status: 'ok',
+    items: [
+      { role: 'user', text: 'Please fix the flaky test.' },
+      { role: 'assistant', text: 'Checking the failure now.' },
+      { role: 'tool', text: 'call npm test' },
+      { role: 'assistant', text: 'The test now passes.' },
+    ],
+  },
+];
+
 const PORT = 19_999;
 let wss: WebSocketServer | undefined;
 
@@ -43,6 +56,9 @@ function makeServer(opts: { rejectConnect?: boolean; silentAfterChallenge?: bool
       if (frame.method === 'sessions.list') {
         ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { sessions: FIXTURE_SESSIONS } }));
       }
+      if (frame.method === 'sessions.preview') {
+        ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { previews: FIXTURE_PREVIEWS } }));
+      }
     });
   });
   return server;
@@ -65,10 +81,21 @@ describe('fetchInstanceSessions', () => {
         const frame = JSON.parse(String(raw)) as { method: string; id: string };
         if (frame.method === 'connect') ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: {} }));
         if (frame.method === 'sessions.list') ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: {} }));
+        if (frame.method === 'sessions.preview') ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { previews: [] } }));
       });
     });
     const sessions = await fetchInstanceSessions(PORT, 'valid-token');
     expect(sessions).toEqual([]);
+  });
+
+  it('filters by status and merges bounded preview items when requested', async () => {
+    wss = makeServer();
+    const sessions = await fetchInstanceSessions(PORT, 'valid-token', 5_000, { status: 'running', previewLimit: 2 });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].previewItems).toEqual([
+      { role: 'tool', text: 'call npm test' },
+      { role: 'assistant', text: 'The test now passes.' },
+    ]);
   });
 
   it('rejects when connect is refused', async () => {

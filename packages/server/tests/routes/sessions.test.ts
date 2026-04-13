@@ -11,9 +11,19 @@ vi.mock('../../src/services/openclaw-client.js', () => ({
       startedAt: Date.now() - 120_000,
       model: 'claude-opus-4',
       lastMessagePreview: 'Updated auth.ts.',
+      previewItems: [
+        { role: 'user', text: 'Please refactor auth.ts.' },
+        { role: 'assistant', text: 'Working on auth.ts now.' },
+      ],
       totalTokens: 5000,
       estimatedCostUsd: 0.15,
       updatedAt: Date.now() - 10_000,
+    },
+    {
+      key: 'done-1',
+      derivedTitle: 'Done task',
+      status: 'done',
+      updatedAt: Date.now() - 40_000,
     },
   ]),
 }));
@@ -59,7 +69,7 @@ describe('GET /api/fleet/sessions', () => {
       // Only the running instance (openclaw-1) is fetched; stopped one is skipped
       expect(body.instances).toHaveLength(1);
       expect(body.instances[0].instanceId).toBe('openclaw-1');
-      expect(body.instances[0].sessions).toHaveLength(1);
+      expect(body.instances[0].sessions).toHaveLength(2);
     });
 
     it('revealToken is called only for the running instance', async () => {
@@ -107,11 +117,32 @@ describe('GET /api/fleet/sessions', () => {
     it('passes through token and cost fields from fetchInstanceSessions', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ instances: { instanceId: string; sessions: { totalTokens?: number; estimatedCostUsd?: number; updatedAt?: number }[] }[] }>();
+      const body = res.json<{ instances: { instanceId: string; sessions: { totalTokens?: number; estimatedCostUsd?: number; updatedAt?: number; previewItems?: { role: string; text: string }[] }[] }[] }>();
       const session = body.instances[0].sessions[0];
       expect(session.totalTokens).toBe(5000);
       expect(session.estimatedCostUsd).toBe(0.15);
       expect(session.updatedAt).toBeGreaterThan(0);
+      expect(session.previewItems).toHaveLength(2);
+    });
+
+    it('passes status and previewLimit through to fetchInstanceSessions', async () => {
+      const { fetchInstanceSessions } = await import('../../src/services/openclaw-client.js');
+      (fetchInstanceSessions as ReturnType<typeof vi.fn>).mockClear();
+
+      const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions?status=running&previewLimit=4' });
+      expect(res.statusCode).toBe(200);
+
+      expect(fetchInstanceSessions).toHaveBeenCalledWith(18789, 'full-gateway-token', 5000, {
+        status: 'running',
+        previewLimit: 4,
+      });
+    });
+
+    it('filters response sessions by status query', async () => {
+      const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions?status=running' });
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ instances: { sessions: { key: string }[] }[] }>();
+      expect(body.instances[0].sessions.map((session) => session.key)).toEqual(['main']);
     });
   });
 

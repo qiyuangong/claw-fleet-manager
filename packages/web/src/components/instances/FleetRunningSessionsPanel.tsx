@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFleetSessions } from '../../hooks/useFleetSessions';
 import { useAppStore } from '../../store';
+import type { InstanceSessionPreviewItem, InstanceSessionRow } from '../../types';
 import {
   buildFlatRows,
   filterRows,
@@ -17,11 +18,27 @@ import {
 const PAGE_SIZE = 9;
 const LIVE_REFRESH_MS = 300;
 const MONITORING_STATE_KEY = 'fleet_running_sessions_monitoring_state';
+const PREVIEW_LIMIT = 4;
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
 
 function loadMonitoringState(): 'stopped' | 'started' {
   if (typeof window === 'undefined') return 'stopped';
   const persisted = window.localStorage.getItem(MONITORING_STATE_KEY);
   return persisted === 'started' ? 'started' : 'stopped';
+}
+
+function previewRoleLabel(t: (key: string) => string, role: string): string {
+  if (role === 'user') return t('runningSessionsRoleUser');
+  if (role === 'assistant') return t('runningSessionsRoleAssistant');
+  if (role === 'tool') return t('runningSessionsRoleTool');
+  return truncate(role, 12);
+}
+
+function previewItemsForSession(session: InstanceSessionRow): InstanceSessionPreviewItem[] {
+  return (session.previewItems ?? []).filter((item) => item.text.trim());
 }
 
 export function FleetRunningSessionsPanel() {
@@ -31,6 +48,8 @@ export function FleetRunningSessionsPanel() {
   const { data, isLoading, error } = useFleetSessions({
     enabled: monitoringEnabled,
     refetchIntervalMs: LIVE_REFRESH_MS,
+    status: 'running',
+    previewLimit: PREVIEW_LIMIT,
   });
   const selectInstance = useAppStore((state) => state.selectInstance);
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +70,7 @@ export function FleetRunningSessionsPanel() {
         row.session.kind,
         row.session.model,
         row.session.lastMessagePreview,
+        ...previewItemsForSession(row.session).map((item) => item.text),
       ];
 
       return haystacks.some((value) => value?.toLowerCase().includes(normalizedQuery));
@@ -203,9 +223,30 @@ export function FleetRunningSessionsPanel() {
                           </span>
                         </div>
                         <div className="running-session-card-title">{title}</div>
-                        <div className="running-session-card-preview">
-                          {row.session.lastMessagePreview ?? '—'}
-                        </div>
+                        {previewItemsForSession(row.session).length > 0 ? (
+                          <div className="running-session-card-transcript">
+                            {previewItemsForSession(row.session).map((item, index) => (
+                              <div
+                                key={`${item.role}:${index}:${item.text.slice(0, 24)}`}
+                                className={`running-session-card-transcript-item running-session-card-transcript-item--${item.role}`}
+                              >
+                                <span className="running-session-card-transcript-role">
+                                  {previewRoleLabel(t, item.role)}
+                                </span>
+                                <span
+                                  className="running-session-card-transcript-text"
+                                  title={item.text}
+                                >
+                                  {truncate(item.text, 220)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="running-session-card-preview">
+                            {row.session.lastMessagePreview ?? '—'}
+                          </div>
+                        )}
                         <div className="running-session-card-pills">
                           {row.session.kind ? <span className="session-meta-pill">{row.session.kind}</span> : null}
                           {row.session.model ? (

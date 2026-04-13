@@ -6,6 +6,8 @@ import { useAppStore } from '../src/store';
 
 const mockUseCurrentUser = vi.fn();
 const mockUseFleet = vi.fn();
+let currentUserResult: { data: unknown; error: Error | null; isLoading: boolean };
+let fleetResult: { data: unknown; error: Error | null; isLoading: boolean };
 
 vi.mock('../src/hooks/useCurrentUser', () => ({
   useCurrentUser: () => mockUseCurrentUser(),
@@ -76,16 +78,18 @@ describe('Shell navigation history sync', () => {
     mockUseCurrentUser.mockReset();
     mockUseFleet.mockReset();
 
-    mockUseCurrentUser.mockReturnValue({
+    currentUserResult = {
       data: { username: 'admin', role: 'admin', assignedProfiles: [] },
       error: null,
       isLoading: false,
-    });
-    mockUseFleet.mockReturnValue({
+    };
+    fleetResult = {
       data: { instances: [], totalRunning: 0 },
       error: null,
       isLoading: false,
-    });
+    };
+    mockUseCurrentUser.mockImplementation(() => currentUserResult);
+    mockUseFleet.mockImplementation(() => fleetResult);
 
     window.history.replaceState({}, '', '/');
     useAppStore.setState({
@@ -110,6 +114,62 @@ describe('Shell navigation history sync', () => {
     expect(useAppStore.getState().activeTab).toBe('logs');
     expect(window.location.search).toBe('?view=instance&id=openclaw-1&tab=logs');
     expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/?view=instance&id=openclaw-1&tab=logs');
+    expect(pushStateSpy).not.toHaveBeenCalled();
+  });
+
+  it('re-hydrates from the URL after logout and login while Shell stays mounted', async () => {
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+
+    const view = renderShell();
+
+    await waitFor(() => {
+      expect(useAppStore.getState().activeView).toEqual({ type: 'dashboard' });
+    });
+
+    act(() => {
+      currentUserResult = {
+        data: null,
+        error: new Error('signed out'),
+        isLoading: false,
+      };
+      view.rerender(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <Shell />
+        </QueryClientProvider>,
+      );
+    });
+
+    await waitFor(() => {
+      expect(useAppStore.getState().currentUser).toBeNull();
+    });
+
+    pushStateSpy.mockClear();
+    replaceStateSpy.mockClear();
+
+    act(() => {
+      window.history.replaceState({}, '', '/?view=users');
+      currentUserResult = {
+        data: { username: 'member', role: 'user', assignedProfiles: [] },
+        error: null,
+        isLoading: false,
+      };
+      view.rerender(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <Shell />
+        </QueryClientProvider>,
+      );
+    });
+
+    await waitFor(() => {
+      expect(useAppStore.getState().activeView).toEqual({ type: 'account' });
+    });
+
+    await waitFor(() => {
+      expect(window.location.search).toBe('?view=account');
+    });
+
+    expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/?view=account');
     expect(pushStateSpy).not.toHaveBeenCalled();
   });
 

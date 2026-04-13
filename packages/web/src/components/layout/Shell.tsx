@@ -48,7 +48,7 @@ export function Shell() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
-  const hasHydratedNavigationRef = useRef(false);
+  const hydratedAuthKeyRef = useRef<string | null>(null);
   const navigationSyncSourceRef = useRef<NavigationSyncSource>(null);
   const navigationSyncExpectedUrlRef = useRef<string | null>(null);
   const navigationSyncAppliedRef = useRef(false);
@@ -64,7 +64,23 @@ export function Shell() {
     setCurrentUser(currentUser ?? null);
   }, [currentUser, setCurrentUser]);
 
-  const beginNavigationSync = (source: Exclude<NavigationSyncSource, null>, navigationState: NavigationState) => {
+  useEffect(() => {
+    if (clearNavigationSyncTimeoutRef.current !== null) {
+      window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+      clearNavigationSyncTimeoutRef.current = null;
+    }
+    if (!currentUser) {
+      hydratedAuthKeyRef.current = null;
+      navigationSyncSourceRef.current = null;
+      navigationSyncExpectedUrlRef.current = null;
+      navigationSyncAppliedRef.current = false;
+    }
+  }, [currentUser]);
+
+  const beginNavigationSync = (
+    source: Exclude<NavigationSyncSource, null>,
+    navigationState: NavigationState,
+  ) => {
     if (clearNavigationSyncTimeoutRef.current !== null) {
       window.clearTimeout(clearNavigationSyncTimeoutRef.current);
       clearNavigationSyncTimeoutRef.current = null;
@@ -76,7 +92,10 @@ export function Shell() {
   };
 
   useEffect(() => {
-    if (!currentUser || hasHydratedNavigationRef.current) return;
+    if (!currentUser) return;
+
+    const authKey = `${currentUser.username}:${currentUser.role}`;
+    if (hydratedAuthKeyRef.current === authKey) return;
 
     const fallback = defaultNavigationState(currentUser.role === 'admin');
     const navigationState = parseNavigationFromUrl(new URL(window.location.href), fallback);
@@ -84,11 +103,11 @@ export function Shell() {
     beginNavigationSync('hydrate', navigationState);
     applyNavigationState(navigationState);
     window.history.replaceState({}, '', serializeNavigationToUrl(navigationState));
-    hasHydratedNavigationRef.current = true;
+    hydratedAuthKeyRef.current = authKey;
   }, [applyNavigationState, currentUser]);
 
   useEffect(() => {
-    if (!currentUser || !hasHydratedNavigationRef.current) return;
+    if (!currentUser) return;
 
     const handlePopstate = () => {
       const fallback = defaultNavigationState(currentUser.role === 'admin');
@@ -109,7 +128,7 @@ export function Shell() {
   }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectAccount]);
 
   useEffect(() => {
-    if (!currentUser || !hasHydratedNavigationRef.current) return;
+    if (!currentUser) return;
 
     const nextUrl = serializeNavigationToUrl({ activeView, activeTab });
     const currentUrl = `${window.location.pathname}${window.location.search}`;
@@ -118,6 +137,18 @@ export function Shell() {
     if (navigationSyncSourceRef.current !== null) {
       if (!navigationSyncAppliedRef.current) {
         if (expectedUrl !== null && nextUrl !== expectedUrl) {
+          if (currentUser.role !== 'admin' && activeView.type === 'account') {
+            if (currentUrl !== nextUrl) {
+              window.history.replaceState({}, '', nextUrl);
+            }
+            navigationSyncSourceRef.current = null;
+            navigationSyncExpectedUrlRef.current = null;
+            navigationSyncAppliedRef.current = false;
+            if (clearNavigationSyncTimeoutRef.current !== null) {
+              window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+              clearNavigationSyncTimeoutRef.current = null;
+            }
+          }
           return;
         }
 

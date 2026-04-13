@@ -10,13 +10,15 @@ const MetricsTab = lazy(async () => ({ default: (await import('./MetricsTab')).M
 const ControlUiTab = lazy(async () => ({ default: (await import('./ControlUiTab')).ControlUiTab }));
 const FeishuTab = lazy(async () => ({ default: (await import('./FeishuTab')).FeishuTab }));
 const PluginsTab = lazy(async () => ({ default: (await import('./PluginsTab')).PluginsTab }));
+const InstanceActivityTab = lazy(async () => ({ default: (await import('./InstanceActivityTab')).InstanceActivityTab }));
 
-const baseTabs = ['overview', 'logs', 'config', 'metrics', 'controlui', 'feishu'] as const;
+const baseTabs = ['overview', 'activity', 'logs', 'config', 'metrics', 'controlui', 'feishu'] as const;
 
 type Tab = typeof baseTabs[number] | 'plugins';
 
 const tabLabelKey: Record<Tab, string> = {
   overview: 'tabOverview',
+  activity: 'tabActivity',
   logs: 'tabLogs',
   config: 'tabConfig',
   metrics: 'tabMetrics',
@@ -68,6 +70,7 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
       {activeTab === 'overview' ? <OverviewTab instance={instance} /> : null}
       {activeTab !== 'overview' ? (
         <Suspense fallback={<div className="panel-card muted">{t('loadingTab')}</div>}>
+          {activeTab === 'activity' ? <InstanceActivityTab instanceId={instanceId} /> : null}
           {activeTab === 'logs' ? <LogsTab instanceId={instanceId} /> : null}
           {activeTab === 'config' ? <ConfigTab instanceId={instanceId} /> : null}
           {activeTab === 'metrics' ? <MetricsTab instance={instance} /> : null}

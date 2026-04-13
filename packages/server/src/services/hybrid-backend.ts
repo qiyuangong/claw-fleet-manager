@@ -72,6 +72,9 @@ export class HybridBackend implements DeploymentBackend {
   }
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
+    if (opts.runtime !== 'openclaw') {
+      throw new Error(`runtime "${opts.runtime}" is not supported yet`);
+    }
     if (opts.name) {
       await this.ensureInstanceIdAvailable(opts.name);
     }

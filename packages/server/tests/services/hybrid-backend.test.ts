@@ -125,6 +125,14 @@ describe('HybridBackend', () => {
     });
   });
 
+  it('rejects unsupported runtimes before dispatching to a backend', async () => {
+    await expect(backend.createInstance({ runtime: 'hermes', kind: 'profile', name: 'research-bot' }))
+      .rejects.toThrow('runtime "hermes" is not supported yet');
+
+    expect(dockerBackend.createInstance).not.toHaveBeenCalled();
+    expect(profileBackend.createInstance).not.toHaveBeenCalled();
+  });
+
   it('rejects createInstance when the requested id already exists in the other backend', async () => {
     await expect(backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'team-alpha' })).rejects.toThrow(/already exists/i);
     expect(dockerBackend.createInstance).not.toHaveBeenCalled();

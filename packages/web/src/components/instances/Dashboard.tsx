@@ -93,12 +93,14 @@ function RankPanel({ items }: { items: RankItem[] }) {
 
 export function Dashboard({
   rows,
+  throughputRows,
   instances,
   statusFocus,
   onStatusFocusChange,
   onSearchQueryChange,
 }: {
   rows: FlatRow[];
+  throughputRows: FlatRow[];
   instances: FleetInstance[];
   statusFocus: DashboardStatusFocus;
   onStatusFocusChange: (focus: DashboardStatusFocus) => void;
@@ -136,7 +138,7 @@ export function Dashboard({
   const throughputBuckets = Array.from({ length: bucketCount }, (_, index) => {
     const bucketStart = rangeStart + index * bucketMs;
     const bucketEnd = bucketStart + bucketMs;
-    const count = rows.filter((row) => {
+    const count = throughputRows.filter((row) => {
       const ts = sessionTimestamp(row.session) ?? 0;
       return ts >= bucketStart && ts < bucketEnd;
     }).length;

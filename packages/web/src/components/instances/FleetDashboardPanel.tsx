@@ -45,6 +45,28 @@ export function FleetDashboardPanel() {
   const [statusFocus, setStatusFocus] = useState<DashboardStatusFocus>('all');
 
   const allRows = useMemo(() => buildFlatRows(data?.instances ?? []), [data]);
+  const dashboardRows = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const baseRows = filterRows(allRows, statusFilter, 'all');
+    const searchedRows = normalizedQuery.length === 0
+      ? baseRows
+      : baseRows.filter((row) => {
+        const haystacks = [
+          row.instanceId,
+          sessionTitle(row.session),
+          row.session.key,
+          row.session.kind,
+          row.session.model,
+          row.session.lastMessagePreview,
+        ];
+
+        return haystacks.some((value) => value?.toLowerCase().includes(normalizedQuery));
+      });
+
+    return statusFocus === 'all'
+      ? searchedRows
+      : searchedRows.filter((row) => dashboardStatusBucket(row.session.status) === statusFocus);
+  }, [allRows, searchQuery, statusFilter, statusFocus]);
   const filteredRows = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const baseRows = filterRows(allRows, statusFilter, timeFilter);
@@ -146,6 +168,7 @@ export function FleetDashboardPanel() {
 
             <Dashboard
               rows={filteredRows}
+              throughputRows={dashboardRows}
               instances={fleet?.instances ?? []}
               statusFocus={statusFocus}
               onStatusFocusChange={setStatusFocus}

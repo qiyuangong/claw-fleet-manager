@@ -381,6 +381,9 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
     ],
   });
 
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByText('Fleet summary, throughput, runtime distribution, and load hotspots.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Manage Instances' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Users' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Fleet Config' })).toBeVisible();
@@ -451,7 +454,7 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
     port: 987,
   });
 
-  await page.getByRole('button', { name: /^openclaw-1/i }).click();
+  await page.locator('.table-shell tr', { hasText: 'openclaw-1' }).getByRole('button', { name: 'Open' }).click();
   await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();
 
   await expect(page.getByRole('heading', { name: 'Runtime' })).toBeVisible();
@@ -521,6 +524,7 @@ test('hybrid fleet keeps one shell and shows both instance kinds together', asyn
   });
 
   await expect(page.getByText('2/2 instances ready')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Manage Instances' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Manage Instances' }).click();
@@ -529,7 +533,7 @@ test('hybrid fleet keeps one shell and shows both instance kinds together', asyn
   await expect(page.getByText('Docker')).toBeVisible();
   await expect(page.getByText('Profile')).toBeVisible();
 
-  await page.getByRole('button', { name: /^team-alpha/i }).click();
+  await page.locator('.table-shell tr', { hasText: 'team-alpha' }).getByRole('button', { name: 'Open' }).click();
   await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();
   await expect(page.getByText('PID')).toBeVisible();
   await expect(page.getByText('4242')).toBeVisible();
@@ -680,7 +684,7 @@ test('activity page shows per-instance session fetch errors in the board strip',
   await expect(page.getByRole('button', { name: 'openclaw-1 Healthy session run-1' })).toBeVisible();
 });
 
-test('sidebar instance list scrolls when many instances are available', async ({ page }) => {
+test('non-admin sidebar instance list scrolls when many assigned instances are available', async ({ page }) => {
   const manyInstances = Array.from({ length: 20 }, (_, index) => ({
     id: `team-${String(index + 1).padStart(2, '0')}`,
     mode: index % 2 === 0 ? 'docker' : ('profile' as const),
@@ -696,6 +700,8 @@ test('sidebar instance list scrolls when many instances are available', async ({
   }));
 
   await mountDashboard(page, {
+    role: 'user',
+    assignedProfiles: manyInstances.map((instance) => instance.id),
     fleetMode: 'hybrid',
     instances: manyInstances,
   });

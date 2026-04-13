@@ -10,6 +10,7 @@ import {
 } from '../../api/client';
 import { getCurrentUser } from '../../api/users';
 import { FleetConfigPanel } from '../config/FleetConfigPanel';
+import { FleetDashboardPanel } from '../instances/FleetDashboardPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { InstanceManagementPanel } from '../instances/InstanceManagementPanel';
 import { FleetSessionsPanel } from '../instances/FleetSessionsPanel';
@@ -208,6 +209,8 @@ export function Shell() {
           <InstanceManagementPanel onOpenInstance={selectInstance} />
         ) : activeView.type === 'users' ? (
           <UserManagementPanel />
+        ) : activeView.type === 'dashboard' ? (
+          <FleetDashboardPanel />
         ) : activeView.type === 'sessions' ? (
           <FleetSessionsPanel />
         ) : (

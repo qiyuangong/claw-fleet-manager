@@ -226,7 +226,6 @@ export function FleetSessionsPanel() {
   // Stats
   const allRows = useMemo(() => buildFlatRows(data?.instances ?? []), [data]);
   const summary = useMemo(() => summarizeRows(allRows), [allRows]);
-
   // Filtered + sorted rows
   const filteredRows = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -256,7 +255,10 @@ export function FleetSessionsPanel() {
     [data],
   );
   const boardColumns = useMemo(() => buildBoardColumns(filteredRows), [filteredRows]);
-  const hasActiveFilters = statusFilter !== 'all' || timeFilter !== 'all' || searchQuery.trim().length > 0;
+  const hasActiveFilters =
+    statusFilter !== 'all' ||
+    timeFilter !== 'all' ||
+    searchQuery.trim().length > 0;
 
   return (
     <div className="field-grid">
@@ -275,7 +277,6 @@ export function FleetSessionsPanel() {
           </button>
         </div>
 
-        {/* Stats bar */}
         {data && (
           <div className="sessions-stats-bar">
             <span className="sessions-stat">

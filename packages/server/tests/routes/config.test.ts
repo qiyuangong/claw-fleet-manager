@@ -1,7 +1,24 @@
-// packages/server/tests/routes/config.test.ts
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { configRoutes } from '../../src/routes/config.js';
+
+const configEditorCapabilities = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: false,
+  sessions: false,
+  plugins: false,
+  runtimeAdmin: true,
+} as const;
+
+const fleetInstances = [
+  { id: 'openclaw-1', runtime: 'openclaw' as const, mode: 'docker' as const, runtimeCapabilities: configEditorCapabilities },
+  { id: 'openclaw-profile', runtime: 'openclaw' as const, mode: 'profile' as const, runtimeCapabilities: configEditorCapabilities },
+  { id: 'hermes-lab', runtime: 'hermes' as const, mode: 'docker' as const, runtimeCapabilities: configEditorCapabilities },
+  { id: 'research-bot', runtime: 'hermes' as const, mode: 'profile' as const, runtimeCapabilities: configEditorCapabilities },
+];
 
 const mockFleetConfig = {
   readFleetConfig: vi.fn(),
@@ -22,22 +39,14 @@ const mockFleetConfig = {
 const mockBackend = {
   getCachedStatus: vi.fn().mockReturnValue({
     mode: 'hybrid',
-    instances: [
-      { id: 'openclaw-1', mode: 'docker' },
-      { id: 'openclaw-2', mode: 'docker' },
-      { id: 'team-alpha', mode: 'profile' },
-    ],
-    totalRunning: 2,
+    instances: fleetInstances,
+    totalRunning: 4,
     updatedAt: Date.now(),
   }),
   refresh: vi.fn().mockResolvedValue({
     mode: 'hybrid',
-    instances: [
-      { id: 'openclaw-1', mode: 'docker' },
-      { id: 'openclaw-2', mode: 'docker' },
-      { id: 'team-alpha', mode: 'profile' },
-    ],
-    totalRunning: 2,
+    instances: fleetInstances,
+    totalRunning: 4,
     updatedAt: Date.now(),
   }),
   readInstanceConfig: vi.fn().mockResolvedValue({ gateway: { mode: 'token' } }),
@@ -73,22 +82,14 @@ describe('Config routes — hybrid mode', () => {
     });
     mockBackend.getCachedStatus.mockReturnValue({
       mode: 'hybrid',
-      instances: [
-        { id: 'openclaw-1', mode: 'docker' },
-        { id: 'openclaw-2', mode: 'docker' },
-        { id: 'team-alpha', mode: 'profile' },
-      ],
-      totalRunning: 2,
+      instances: fleetInstances,
+      totalRunning: 4,
       updatedAt: Date.now(),
     });
     mockBackend.refresh.mockResolvedValue({
       mode: 'hybrid',
-      instances: [
-        { id: 'openclaw-1', mode: 'docker' },
-        { id: 'openclaw-2', mode: 'docker' },
-        { id: 'team-alpha', mode: 'profile' },
-      ],
-      totalRunning: 2,
+      instances: fleetInstances,
+      totalRunning: 4,
       updatedAt: Date.now(),
     });
   });
@@ -150,7 +151,7 @@ describe('Config routes — hybrid mode', () => {
   it('PUT /api/config/fleet preserves hidden env values when saving visible fields', async () => {
     mockBackend.getCachedStatus.mockReturnValueOnce({
       mode: 'hybrid',
-      instances: [{ id: 'team-alpha', mode: 'profile' }],
+      instances: [{ id: 'research-bot', runtime: 'hermes', mode: 'profile', runtimeCapabilities: configEditorCapabilities }],
       totalRunning: 1,
       updatedAt: Date.now(),
     });
@@ -172,7 +173,25 @@ describe('Config routes — hybrid mode', () => {
   it('PUT /api/config/fleet allows baseDir changes when no docker instances exist', async () => {
     mockBackend.getCachedStatus.mockReturnValueOnce({
       mode: 'hybrid',
-      instances: [{ id: 'team-alpha', mode: 'profile' }],
+      instances: [{ id: 'research-bot', runtime: 'hermes', mode: 'profile', runtimeCapabilities: configEditorCapabilities }],
+      totalRunning: 1,
+      updatedAt: Date.now(),
+    });
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/config/fleet',
+      payload: { BASE_DIR: '/srv/openclaw', TZ: 'Asia/Shanghai' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw', { applyImmediately: true });
+  });
+
+  it('PUT /api/config/fleet allows baseDir changes when only Hermes docker instances exist', async () => {
+    mockBackend.getCachedStatus.mockReturnValueOnce({
+      mode: 'hybrid',
+      instances: [{ id: 'hermes-lab', runtime: 'hermes', mode: 'docker', runtimeCapabilities: configEditorCapabilities }],
       totalRunning: 1,
       updatedAt: Date.now(),
     });
@@ -209,24 +228,32 @@ describe('Config routes — hybrid mode', () => {
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('BASE_DIR_UNVERIFIED');
     expect(mockFleetConfig.updateBaseDir).not.toHaveBeenCalled();
+    (app as any).backend.getCachedStatus = mockBackend.getCachedStatus;
+    (app as any).backend.refresh = mockBackend.refresh;
   });
 
-  it('GET /api/fleet/:id/config returns instance config', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/fleet/openclaw-1/config' });
-    expect(res.statusCode).toBe(200);
-    expect(res.json().gateway.mode).toBe('token');
-    expect(mockBackend.readInstanceConfig).toHaveBeenCalledWith('openclaw-1');
-  });
+  it.each(['openclaw-1', 'openclaw-profile', 'hermes-lab', 'research-bot'])(
+    'GET /api/fleet/:id/config returns instance config for %s',
+    async (id) => {
+      const res = await app.inject({ method: 'GET', url: `/api/fleet/${id}/config` });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().gateway.mode).toBe('token');
+      expect(mockBackend.readInstanceConfig).toHaveBeenCalledWith(id);
+    },
+  );
 
-  it('PUT /api/fleet/:id/config writes instance config', async () => {
-    const res = await app.inject({
-      method: 'PUT',
-      url: '/api/fleet/openclaw-1/config',
-      payload: { gateway: { mode: 'local' } },
-    });
-    expect(res.statusCode).toBe(200);
-    expect(mockBackend.writeInstanceConfig).toHaveBeenCalledWith('openclaw-1', { gateway: { mode: 'local' } });
-  });
+  it.each(['openclaw-1', 'openclaw-profile', 'hermes-lab', 'research-bot'])(
+    'PUT /api/fleet/:id/config writes instance config for %s',
+    async (id) => {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/fleet/${id}/config`,
+        payload: { gateway: { mode: 'local' } },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(mockBackend.writeInstanceConfig).toHaveBeenCalledWith(id, { gateway: { mode: 'local' } });
+    },
+  );
 
   it('PUT /api/config/fleet rejects non-string values', async () => {
     const res = await app.inject({
@@ -252,11 +279,5 @@ describe('Config routes — hybrid mode', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_ID');
-  });
-
-  it('accepts profile name as instance id', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/fleet/main/config' });
-    expect(res.statusCode).toBe(200);
-    expect(mockBackend.readInstanceConfig).toHaveBeenCalledWith('main');
   });
 });

@@ -88,7 +88,9 @@ export async function sessionRoutes(app: FastifyInstance) {
     },
   }, async () => {
     const status = app.backend.getCachedStatus();
-    const running = (status?.instances ?? []).filter((i) => i.status === 'running');
+    const running = (status?.instances ?? []).filter((instance) =>
+      instance.status === 'running' && instance.runtimeCapabilities.sessions,
+    );
     const instances = await Promise.all(running.map((i) => fetchEntry(i, app.backend)));
     return { instances, updatedAt: Date.now() };
   });

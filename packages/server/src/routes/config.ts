@@ -4,9 +4,17 @@ import { z } from 'zod';
 import { validateInstanceId } from '../validate.js';
 import { requireAdmin, requireProfileAccess } from '../authorize.js';
 import { errorResponseSchema, fleetConfigSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
+import type { FleetInstance } from '../types.js';
 
 const fleetConfigBodySchema = z.record(z.string(), z.string());
 const instanceConfigBodySchema = z.record(z.string(), z.unknown());
+
+async function findInstance(app: FastifyInstance, id: string): Promise<FleetInstance | undefined> {
+  const cached = app.backend.getCachedStatus()?.instances.find((instance) => instance.id === id);
+  if (cached) return cached;
+  const refreshed = await app.backend.refresh();
+  return refreshed.instances.find((instance) => instance.id === id);
+}
 
 export async function configRoutes(app: FastifyInstance) {
   app.get('/api/config/fleet', {
@@ -59,7 +67,9 @@ export async function configRoutes(app: FastifyInstance) {
           });
         }
       }
-      const hasDockerInstances = status?.instances.some((instance) => instance.mode === 'docker') ?? false;
+      const hasDockerInstances = status?.instances.some((instance) =>
+        instance.runtime === 'openclaw' && instance.mode === 'docker',
+      ) ?? false;
       if (hasDockerInstances) {
         return reply.status(409).send({
           error: 'Base directory can only be changed before Docker instances are created',
@@ -94,6 +104,7 @@ export async function configRoutes(app: FastifyInstance) {
           additionalProperties: true,
         },
         400: errorResponseSchema,
+        409: errorResponseSchema,
         404: errorResponseSchema,
       },
     },
@@ -103,6 +114,16 @@ export async function configRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
     try {
+      const instance = await findInstance(app, id);
+      if (!instance) {
+        return reply.status(404).send({ error: 'Config not found', code: 'CONFIG_NOT_FOUND' });
+      }
+      if (!instance.runtimeCapabilities.configEditor) {
+        return reply.status(409).send({
+          error: `Instance "${id}" does not support config editing`,
+          code: 'UNSUPPORTED_RUNTIME_ACTION',
+        });
+      }
       return await app.backend.readInstanceConfig(id);
     } catch {
       return reply.status(404).send({ error: 'Config not found', code: 'CONFIG_NOT_FOUND' });
@@ -122,6 +143,8 @@ export async function configRoutes(app: FastifyInstance) {
       response: {
         200: okResponseSchema,
         400: errorResponseSchema,
+        409: errorResponseSchema,
+        404: errorResponseSchema,
         500: errorResponseSchema,
       },
     },
@@ -135,6 +158,16 @@ export async function configRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Body must be a JSON object', code: 'INVALID_BODY' });
     }
     try {
+      const instance = await findInstance(app, id);
+      if (!instance) {
+        return reply.status(404).send({ error: 'Config not found', code: 'CONFIG_NOT_FOUND' });
+      }
+      if (!instance.runtimeCapabilities.configEditor) {
+        return reply.status(409).send({
+          error: `Instance "${id}" does not support config editing`,
+          code: 'UNSUPPORTED_RUNTIME_ACTION',
+        });
+      }
       await app.backend.writeInstanceConfig(id, parsed.data as object);
       return { ok: true };
     } catch (error: any) {

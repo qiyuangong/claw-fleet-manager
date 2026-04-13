@@ -5,7 +5,7 @@ import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyWebsocket from '@fastify/websocket';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { loadConfig, resolveConfigPath } from './config.js';
 import { registerAuth } from './auth.js';
 import { configRoutes } from './routes/config.js';
@@ -20,6 +20,8 @@ import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
 import { DockerBackend } from './services/docker-backend.js';
+import { HermesDockerBackend } from './services/hermes-docker-backend.js';
+import { HermesProfileBackend } from './services/hermes-profile-backend.js';
 import { HybridBackend } from './services/hybrid-backend.js';
 import { ProfileBackend } from './services/profile-backend.js';
 import { DockerService } from './services/docker.js';
@@ -104,7 +106,26 @@ const profileBackend = new ProfileBackend(config.fleetDir, config.profiles ?? {
   autoRestart: true,
   stopTimeoutMs: 10000,
 }, config.baseDir, app.log);
-const backend = new HybridBackend(dockerBackend, profileBackend, userService);
+const hermesProfileBackend = new HermesProfileBackend(config.hermesProfiles ?? {
+  binary: 'hermes',
+  baseHomeDir: `${process.env.HOME}/.hermes/profiles`,
+  stopTimeoutMs: 10000,
+});
+const hermesDockerBackend = new HermesDockerBackend(
+  new DockerService(),
+  config.hermesDocker ?? {
+    image: 'ghcr.io/nousresearch/hermes-agent:latest',
+    mountPath: '/opt/data',
+    env: {},
+  },
+  join(config.baseDir ?? `${process.env.HOME}/openclaw-instances`, 'hermes'),
+);
+const backend = new HybridBackend({
+  openclawDocker: dockerBackend,
+  openclawProfile: profileBackend,
+  hermesDocker: hermesDockerBackend,
+  hermesProfile: hermesProfileBackend,
+}, userService);
 
 // ── Decorators ───────────────────────────────────────────────────────────────
 app.decorate('backend', backend as DeploymentBackend);

@@ -7,10 +7,34 @@ vi.mock('node:fs', () => ({
   unlinkSync: vi.fn(),
 }));
 
+const openclawCapabilities = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: true,
+  sessions: true,
+  plugins: true,
+  runtimeAdmin: true,
+} as const;
+
+const hermesCapabilities = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: false,
+  sessions: false,
+  plugins: false,
+  runtimeAdmin: true,
+} as const;
+
 describe('HybridBackend', () => {
   const dockerInstance = {
     id: 'openclaw-1',
+    runtime: 'openclaw' as const,
     mode: 'docker' as const,
+    runtimeCapabilities: openclawCapabilities,
     index: 1,
     status: 'running' as const,
     port: 18789,
@@ -24,7 +48,9 @@ describe('HybridBackend', () => {
   };
   const profileInstance = {
     id: 'team-alpha',
+    runtime: 'openclaw' as const,
     mode: 'profile' as const,
+    runtimeCapabilities: openclawCapabilities,
     status: 'running' as const,
     port: 18809,
     token: 'masked',
@@ -36,6 +62,39 @@ describe('HybridBackend', () => {
     image: 'openclaw:local',
     profile: 'team-alpha',
     pid: 4242,
+  };
+  const hermesDockerInstance = {
+    id: 'hermes-lab',
+    runtime: 'hermes' as const,
+    mode: 'docker' as const,
+    runtimeCapabilities: hermesCapabilities,
+    index: 2,
+    status: 'running' as const,
+    port: 0,
+    token: 'masked',
+    uptime: 100,
+    cpu: 1,
+    memory: { used: 1, limit: 2 },
+    disk: { config: 1, workspace: 2 },
+    health: 'healthy' as const,
+    image: 'hermes:local',
+  };
+  const hermesProfileInstance = {
+    id: 'research-bot',
+    runtime: 'hermes' as const,
+    mode: 'profile' as const,
+    runtimeCapabilities: hermesCapabilities,
+    status: 'running' as const,
+    port: 0,
+    token: 'masked',
+    uptime: 100,
+    cpu: 1,
+    memory: { used: 1, limit: 2 },
+    disk: { config: 1, workspace: 2 },
+    health: 'healthy' as const,
+    image: 'hermes:local',
+    profile: 'research-bot',
+    pid: 5252,
   };
 
   const dockerBackend = {
@@ -76,6 +135,44 @@ describe('HybridBackend', () => {
     writeInstanceConfig: vi.fn(),
   };
 
+  const hermesDockerBackend = {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    getCachedStatus: vi.fn(),
+    refresh: vi.fn(),
+    createInstance: vi.fn(),
+    removeInstance: vi.fn(),
+    renameInstance: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    restart: vi.fn(),
+    streamLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
+    streamAllLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
+    execInstanceCommand: vi.fn(),
+    revealToken: vi.fn(),
+    readInstanceConfig: vi.fn(),
+    writeInstanceConfig: vi.fn(),
+  };
+
+  const hermesProfileBackend = {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    getCachedStatus: vi.fn(),
+    refresh: vi.fn(),
+    createInstance: vi.fn(),
+    removeInstance: vi.fn(),
+    renameInstance: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(),
+    restart: vi.fn(),
+    streamLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
+    streamAllLogs: vi.fn().mockReturnValue({ stop: vi.fn() }),
+    execInstanceCommand: vi.fn(),
+    revealToken: vi.fn(),
+    readInstanceConfig: vi.fn(),
+    writeInstanceConfig: vi.fn(),
+  };
+
   const userService = {
     renameAssignedProfile: vi.fn().mockResolvedValue(undefined),
   };
@@ -94,24 +191,50 @@ describe('HybridBackend', () => {
       totalRunning: 1,
       updatedAt: 2000,
     });
+    hermesDockerBackend.getCachedStatus.mockReturnValue({
+      instances: [hermesDockerInstance],
+      totalRunning: 1,
+      updatedAt: 3000,
+    });
+    hermesProfileBackend.getCachedStatus.mockReturnValue({
+      instances: [hermesProfileInstance],
+      totalRunning: 1,
+      updatedAt: 4000,
+    });
     dockerBackend.refresh.mockResolvedValue(dockerBackend.getCachedStatus());
     profileBackend.refresh.mockResolvedValue(profileBackend.getCachedStatus());
+    hermesDockerBackend.refresh.mockResolvedValue(hermesDockerBackend.getCachedStatus());
+    hermesProfileBackend.refresh.mockResolvedValue(hermesProfileBackend.getCachedStatus());
     dockerBackend.createInstance.mockResolvedValue(dockerInstance);
     profileBackend.createInstance.mockResolvedValue(profileInstance);
-    backend = new HybridBackend(dockerBackend as any, profileBackend as any, userService as any);
+    hermesDockerBackend.createInstance.mockResolvedValue(hermesDockerInstance);
+    hermesProfileBackend.createInstance.mockResolvedValue(hermesProfileInstance);
+    backend = new HybridBackend({
+      openclawDocker: dockerBackend as any,
+      openclawProfile: profileBackend as any,
+      hermesDocker: hermesDockerBackend as any,
+      hermesProfile: hermesProfileBackend as any,
+    }, userService as any);
   });
 
-  it('refresh merges docker and profile instances into one hybrid fleet', async () => {
+  it('refresh merges all runtime and mode backends into one fleet', async () => {
     const status = await backend.refresh();
 
-    expect(status.instances.map((instance) => instance.id)).toEqual(['openclaw-1', 'team-alpha']);
-    expect(status.totalRunning).toBe(2);
-    expect(status.updatedAt).toBe(2000);
+    expect(status.instances.map((instance) => instance.id)).toEqual([
+      'hermes-lab',
+      'openclaw-1',
+      'research-bot',
+      'team-alpha',
+    ]);
+    expect(status.totalRunning).toBe(4);
+    expect(status.updatedAt).toBe(4000);
   });
 
-  it('createInstance dispatches by requested kind', async () => {
+  it('createInstance dispatches by runtime and kind', async () => {
     await backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'openclaw-2' });
     await backend.createInstance({ runtime: 'openclaw', kind: 'profile', name: 'team-beta' });
+    await backend.createInstance({ runtime: 'hermes', kind: 'docker', name: 'hermes-lab-2' });
+    await backend.createInstance({ runtime: 'hermes', kind: 'profile', name: 'research-bot-2' });
 
     expect(dockerBackend.createInstance).toHaveBeenCalledWith({
       runtime: 'openclaw',
@@ -123,27 +246,33 @@ describe('HybridBackend', () => {
       kind: 'profile',
       name: 'team-beta',
     });
+    expect(hermesDockerBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'hermes',
+      kind: 'docker',
+      name: 'hermes-lab-2',
+    });
+    expect(hermesProfileBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'hermes',
+      kind: 'profile',
+      name: 'research-bot-2',
+    });
   });
 
-  it('rejects unsupported runtimes before dispatching to a backend', async () => {
-    await expect(backend.createInstance({ runtime: 'hermes', kind: 'profile', name: 'research-bot' }))
-      .rejects.toThrow('runtime "hermes" is not supported yet');
-
-    expect(dockerBackend.createInstance).not.toHaveBeenCalled();
-    expect(profileBackend.createInstance).not.toHaveBeenCalled();
+  it('rejects createInstance when the requested id already exists in another backend', async () => {
+    await expect(backend.createInstance({ runtime: 'hermes', kind: 'docker', name: 'team-alpha' })).rejects.toThrow(/already exists/i);
+    expect(hermesDockerBackend.createInstance).not.toHaveBeenCalled();
   });
 
-  it('rejects createInstance when the requested id already exists in the other backend', async () => {
-    await expect(backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'team-alpha' })).rejects.toThrow(/already exists/i);
-    expect(dockerBackend.createInstance).not.toHaveBeenCalled();
-  });
-
-  it('routes instance operations by the instance mode', async () => {
+  it('routes instance operations by runtime and mode', async () => {
     await backend.start('openclaw-1');
     await backend.stop('team-alpha');
+    await backend.restart('hermes-lab');
+    await backend.start('research-bot');
 
     expect(dockerBackend.start).toHaveBeenCalledWith('openclaw-1');
     expect(profileBackend.stop).toHaveBeenCalledWith('team-alpha');
+    expect(hermesDockerBackend.restart).toHaveBeenCalledWith('hermes-lab');
+    expect(hermesProfileBackend.start).toHaveBeenCalledWith('research-bot');
   });
 
   it('renameInstance routes to the owning backend, rewrites assignments, and returns the refreshed instance', async () => {
@@ -303,27 +432,36 @@ describe('HybridBackend', () => {
     expect(dockerBackend.renameInstance).toHaveBeenNthCalledWith(2, 'team-renamed', 'openclaw-1');
   });
 
-  it('initialize tolerates docker backend initialization failure when profiles are still available', async () => {
+  it('initialize tolerates openclaw docker backend initialization failure when other backends are available', async () => {
     dockerBackend.initialize.mockRejectedValueOnce(new Error('docker unavailable'));
 
     await expect(backend.initialize()).resolves.toBeUndefined();
     expect(profileBackend.initialize).toHaveBeenCalled();
-    expect(backend.getCachedStatus()?.instances.map((instance) => instance.id)).toEqual(['openclaw-1', 'team-alpha']);
+    expect(backend.getCachedStatus()?.instances.map((instance) => instance.id)).toEqual([
+      'hermes-lab',
+      'openclaw-1',
+      'research-bot',
+      'team-alpha',
+    ]);
   });
 
-  it('refresh falls back to cached profile status when docker refresh fails', async () => {
+  it('refresh falls back to cached profile status when openclaw docker refresh fails', async () => {
     dockerBackend.getCachedStatus.mockReturnValue(null);
     profileBackend.getCachedStatus.mockReturnValue({
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 2000,
     });
+    hermesDockerBackend.getCachedStatus.mockReturnValue(null);
+    hermesProfileBackend.getCachedStatus.mockReturnValue(null);
     dockerBackend.refresh.mockRejectedValueOnce(new Error('docker unavailable'));
     profileBackend.refresh.mockResolvedValueOnce({
       instances: [profileInstance],
       totalRunning: 1,
       updatedAt: 3000,
     });
+    hermesDockerBackend.refresh.mockRejectedValueOnce(new Error('hermes docker unavailable'));
+    hermesProfileBackend.refresh.mockRejectedValueOnce(new Error('hermes profile unavailable'));
 
     const status = await backend.refresh();
 
@@ -333,17 +471,8 @@ describe('HybridBackend', () => {
 
   describe('migrate', () => {
     const migratedProfileInstance = {
+      ...profileInstance,
       id: 'openclaw-1',
-      mode: 'profile' as const,
-      status: 'running' as const,
-      port: 18789,
-      token: 'masked',
-      uptime: 10,
-      cpu: 0,
-      memory: { used: 0, limit: 0 },
-      disk: { config: 0, workspace: 0 },
-      health: 'healthy' as const,
-      image: 'openclaw',
       profile: 'openclaw-1',
     };
 
@@ -366,26 +495,42 @@ describe('HybridBackend', () => {
       });
 
       dockerBackend.getCachedStatus.mockReturnValue({
-        mode: 'docker',
         instances: [dockerInstance],
         totalRunning: 1,
         updatedAt: Date.now(),
       });
       profileBackend.getCachedStatus.mockReturnValue({
-        mode: 'profiles',
         instances: [profileInstance],
         totalRunning: 1,
         updatedAt: Date.now(),
       });
+      hermesDockerBackend.getCachedStatus.mockReturnValue({
+        instances: [hermesDockerInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
+      hermesProfileBackend.getCachedStatus.mockReturnValue({
+        instances: [hermesProfileInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
       dockerBackend.refresh.mockResolvedValue({
-        mode: 'docker',
         instances: [dockerInstance],
         totalRunning: 1,
         updatedAt: Date.now(),
       });
       profileBackend.refresh.mockResolvedValue({
-        mode: 'profiles',
         instances: [profileInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
+      hermesDockerBackend.refresh.mockResolvedValue({
+        instances: [hermesDockerInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
+      hermesProfileBackend.refresh.mockResolvedValue({
+        instances: [hermesProfileInstance],
         totalRunning: 1,
         updatedAt: Date.now(),
       });
@@ -395,11 +540,16 @@ describe('HybridBackend', () => {
       profileBackend.revealToken.mockResolvedValue('plain-token');
       dockerBackend.removeInstance.mockResolvedValue(undefined);
       profileBackend.removeInstance.mockResolvedValue(undefined);
-      backend = new HybridBackend(dockerBackend as any, profileBackend as any, userService as any);
+      backend = new HybridBackend({
+        openclawDocker: dockerBackend as any,
+        openclawProfile: profileBackend as any,
+        hermesDocker: hermesDockerBackend as any,
+        hermesProfile: hermesProfileBackend as any,
+      }, userService as any);
     });
 
     it('migrate() docker to profile stops container and calls profileBackend.createInstanceFromMigration', async () => {
-      const result = await (backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: true });
+      const result = await backend.migrate('openclaw-1', { targetMode: 'profile', deleteSource: true });
 
       expect(dockerBackend.stop).toHaveBeenCalledWith('openclaw-1');
       expect(dockerBackend.revealToken).toHaveBeenCalledWith('openclaw-1');
@@ -410,13 +560,13 @@ describe('HybridBackend', () => {
     });
 
     it('migrate() docker to profile with deleteSource removes docker instance', async () => {
-      await (backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: true });
+      await backend.migrate('openclaw-1', { targetMode: 'profile', deleteSource: true });
 
       expect(dockerBackend.removeInstance).toHaveBeenCalledWith('openclaw-1');
     });
 
     it('migrate() rejects docker to profile when deleteSource is false to avoid duplicate ids', async () => {
-      await expect((backend as any).migrate('openclaw-1', { targetMode: 'profile', deleteSource: false }))
+      await expect(backend.migrate('openclaw-1', { targetMode: 'profile', deleteSource: false }))
         .rejects.toThrow('deleteSource');
 
       expect((profileBackend as any).createInstanceFromMigration).not.toHaveBeenCalled();
@@ -424,7 +574,7 @@ describe('HybridBackend', () => {
     });
 
     it('migrate() profile to docker stops profile and calls dockerBackend.createInstanceFromMigration', async () => {
-      const result = await (backend as any).migrate('team-alpha', { targetMode: 'docker', deleteSource: true });
+      const result = await backend.migrate('team-alpha', { targetMode: 'docker', deleteSource: true });
 
       expect(profileBackend.stop).toHaveBeenCalledWith('team-alpha');
       expect(profileBackend.revealToken).toHaveBeenCalledWith('team-alpha');
@@ -438,12 +588,17 @@ describe('HybridBackend', () => {
       expect(result.mode).toBe('docker');
     });
 
+    it('migrate() rejects Hermes runtime instances', async () => {
+      await expect(backend.migrate('hermes-lab', { targetMode: 'profile', deleteSource: true }))
+        .rejects.toThrow('Migration is not supported for runtime "hermes"');
+    });
+
     it('migrate() throws when instance not found', async () => {
-      await expect((backend as any).migrate('nonexistent', { targetMode: 'docker' })).rejects.toThrow('not found');
+      await expect(backend.migrate('nonexistent', { targetMode: 'docker' })).rejects.toThrow('not found');
     });
 
     it('migrate() throws when instance is already in target mode', async () => {
-      await expect((backend as any).migrate('openclaw-1', { targetMode: 'docker' })).rejects.toThrow('already in docker mode');
+      await expect(backend.migrate('openclaw-1', { targetMode: 'docker' })).rejects.toThrow('already in docker mode');
     });
   });
 });

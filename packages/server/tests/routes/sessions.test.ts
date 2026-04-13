@@ -18,19 +18,79 @@ vi.mock('../../src/services/openclaw-client.js', () => ({
   ]),
 }));
 
-const mockInstance = {
-  id: 'openclaw-1', mode: 'docker' as const, index: 1, status: 'running' as const,
-  port: 18789, token: 'tok***', uptime: 0, cpu: 0,
-  memory: { used: 0, limit: 0 }, disk: { config: 0, workspace: 0 },
-  health: 'healthy' as const, image: 'openclaw:local',
+const openclawCapabilities = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: true,
+  sessions: true,
+  plugins: true,
+  runtimeAdmin: true,
+} as const;
+
+const hermesCapabilities = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: false,
+  sessions: false,
+  plugins: false,
+  runtimeAdmin: true,
+} as const;
+
+const openclawDockerInstance = {
+  id: 'openclaw-1',
+  runtime: 'openclaw' as const,
+  mode: 'docker' as const,
+  runtimeCapabilities: openclawCapabilities,
+  index: 1,
+  status: 'running' as const,
+  port: 18789,
+  token: 'tok***',
+  uptime: 0,
+  cpu: 0,
+  memory: { used: 0, limit: 0 },
+  disk: { config: 0, workspace: 0 },
+  health: 'healthy' as const,
+  image: 'openclaw:local',
 };
 
-const stoppedInstance = { ...mockInstance, id: 'openclaw-2', status: 'stopped' as const };
+const openclawProfileInstance = {
+  ...openclawDockerInstance,
+  id: 'team-alpha',
+  mode: 'profile' as const,
+};
+
+const hermesDockerInstance = {
+  ...openclawDockerInstance,
+  id: 'hermes-lab',
+  runtime: 'hermes' as const,
+  mode: 'docker' as const,
+  runtimeCapabilities: hermesCapabilities,
+};
+
+const hermesProfileInstance = {
+  ...openclawDockerInstance,
+  id: 'research-bot',
+  runtime: 'hermes' as const,
+  mode: 'profile' as const,
+  runtimeCapabilities: hermesCapabilities,
+};
+
+const stoppedInstance = { ...openclawDockerInstance, id: 'openclaw-2', status: 'stopped' as const };
 
 const mockBackend = {
   getCachedStatus: vi.fn().mockReturnValue({
-    instances: [mockInstance, stoppedInstance],
-    totalRunning: 1,
+    instances: [
+      openclawDockerInstance,
+      openclawProfileInstance,
+      hermesDockerInstance,
+      hermesProfileInstance,
+      stoppedInstance,
+    ],
+    totalRunning: 4,
     updatedAt: Date.now(),
   }),
   revealToken: vi.fn().mockResolvedValue('full-gateway-token'),
@@ -51,22 +111,22 @@ describe('GET /api/fleet/sessions', () => {
 
     afterAll(() => app.close());
 
-    it('returns 200 with aggregated sessions from running instances only', async () => {
+    it('returns 200 with aggregated sessions from running instances that support sessions', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
       const body = res.json<{ instances: { instanceId: string; sessions: unknown[] }[]; updatedAt: number }>();
       expect(body.updatedAt).toBeGreaterThan(0);
-      // Only the running instance (openclaw-1) is fetched; stopped one is skipped
-      expect(body.instances).toHaveLength(1);
-      expect(body.instances[0].instanceId).toBe('openclaw-1');
+      expect(body.instances).toHaveLength(2);
+      expect(body.instances.map((entry) => entry.instanceId)).toEqual(['openclaw-1', 'team-alpha']);
       expect(body.instances[0].sessions).toHaveLength(1);
     });
 
-    it('revealToken is called only for the running instance', async () => {
+    it('revealToken is called only for running instances that support sessions', async () => {
       mockBackend.revealToken.mockClear();
       await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
-      expect(mockBackend.revealToken).toHaveBeenCalledOnce();
+      expect(mockBackend.revealToken).toHaveBeenCalledTimes(2);
       expect(mockBackend.revealToken).toHaveBeenCalledWith('openclaw-1');
+      expect(mockBackend.revealToken).toHaveBeenCalledWith('team-alpha');
     });
 
     it('returns instance with error when fetchInstanceSessions rejects', async () => {
@@ -90,8 +150,12 @@ describe('GET /api/fleet/sessions', () => {
       expect(body.instances[0].error).toContain('plain string error');
     });
 
-    it('returns empty instances when no running instances', async () => {
-      mockBackend.getCachedStatus.mockReturnValueOnce({ instances: [stoppedInstance], totalRunning: 0, updatedAt: Date.now() });
+    it('returns empty instances when no running instances support sessions', async () => {
+      mockBackend.getCachedStatus.mockReturnValueOnce({
+        instances: [hermesDockerInstance, stoppedInstance],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      });
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
       expect(res.json<{ instances: unknown[] }>().instances).toEqual([]);

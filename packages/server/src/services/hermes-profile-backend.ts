@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process';
-import { existsSync, createReadStream, readFileSync, readdirSync, renameSync, rmSync, watch, writeFileSync } from 'node:fs';
+import { execFile, spawn } from 'node:child_process';
+import { closeSync, createReadStream, existsSync, openSync, readFileSync, readdirSync, renameSync, rmSync, watch, writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -67,16 +67,82 @@ export class HermesProfileBackend implements DeploymentBackend {
     return status;
   }
 
-  async start(_id: string): Promise<void> {
-    throw new Error('Hermes profile lifecycle is managed by the Hermes runtime, not this backend');
+  async start(id: string): Promise<void> {
+    const homeDir = this.ensureProfileHome(id);
+    const pidPath = this.getProfilePidPath(id);
+    const statePath = this.getProfileStatePath(id);
+
+    const existingPid = this.readPid(pidPath);
+    if (existingPid !== undefined && this.isPidAlive(existingPid)) {
+      await this.writeRuntimeState(statePath, 'running');
+      return;
+    }
+
+    await this.ensureHermesProfileScaffold(homeDir);
+    await this.writeRuntimeState(statePath, 'starting');
+
+    const logPath = this.getProfileLogPath(id);
+    const logFd = openSync(logPath, 'a');
+    try {
+      const child = spawn(this.cfg.binary, ['gateway', 'run'], {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        env: {
+          ...process.env,
+          HERMES_HOME: homeDir,
+        },
+      });
+      if (child.pid === undefined || child.pid === null) {
+        throw new Error(`Failed to start Hermes gateway for profile "${id}"`);
+      }
+      child.unref();
+      writeFileSync(pidPath, `${child.pid}\n`, 'utf-8');
+      await this.writeRuntimeState(statePath, 'running');
+    } finally {
+      closeSync(logFd);
+    }
   }
 
-  async stop(_id: string): Promise<void> {
-    throw new Error('Hermes profile lifecycle is managed by the Hermes runtime, not this backend');
+  async stop(id: string): Promise<void> {
+    this.ensureProfileHome(id);
+    const pidPath = this.getProfilePidPath(id);
+    const statePath = this.getProfileStatePath(id);
+    const pid = this.readPid(pidPath);
+    if (pid === undefined) {
+      await this.writeRuntimeState(statePath, 'stopped');
+      return;
+    }
+
+    await this.writeRuntimeState(statePath, 'draining');
+    if (this.isPidAlive(pid)) {
+      try {
+        process.kill(pid, 'SIGTERM');
+      } catch {
+        // If SIGTERM fails, continue to cleanup below.
+      }
+
+      const deadline = Date.now() + this.cfg.stopTimeoutMs;
+      while (Date.now() < deadline) {
+        if (!this.isPidAlive(pid)) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (this.isPidAlive(pid)) {
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch {
+          // Best effort.
+        }
+      }
+    }
+
+    rmSync(pidPath, { force: true });
+    await this.writeRuntimeState(statePath, 'stopped');
   }
 
-  async restart(_id: string): Promise<void> {
-    throw new Error('Hermes profile lifecycle is managed by the Hermes runtime, not this backend');
+  async restart(id: string): Promise<void> {
+    await this.stop(id);
+    await this.start(id);
   }
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
@@ -93,10 +159,6 @@ export class HermesProfileBackend implements DeploymentBackend {
     }
 
     const homeDir = this.getProfileHome(name);
-    if (existsSync(homeDir)) {
-      throw new Error(`Profile "${name}" already exists`);
-    }
-
     await mkdir(homeDir, { recursive: true });
     await this.ensureHermesProfileScaffold(homeDir, opts.config);
 
@@ -240,6 +302,14 @@ export class HermesProfileBackend implements DeploymentBackend {
     return join(this.getProfileHome(name), 'logs', 'gateway.log');
   }
 
+  private getProfilePidPath(name: string): string {
+    return join(this.getProfileHome(name), 'gateway.pid');
+  }
+
+  private getProfileStatePath(name: string): string {
+    return join(this.getProfileHome(name), 'gateway_state.json');
+  }
+
   private ensureProfileHome(id: string): string {
     const homeDir = this.getProfileHome(id);
     if (!existsSync(homeDir)) {
@@ -277,22 +347,53 @@ export class HermesProfileBackend implements DeploymentBackend {
 
   private async buildInstance(name: string): Promise<FleetInstance> {
     const homeDir = this.getProfileHome(name);
-    const pidPath = join(homeDir, 'gateway.pid');
+    const pidPath = this.getProfilePidPath(name);
+    const statePath = this.getProfileStatePath(name);
+    const state = this.readRuntimeState(statePath);
     let pid: number | undefined;
     let status: FleetInstance['status'] = 'stopped';
+    let health: FleetInstance['health'] = 'none';
 
-    if (existsSync(pidPath)) {
-      const rawPid = readFileSync(pidPath, 'utf-8').trim();
-      const parsedPid = Number.parseInt(rawPid, 10);
-      if (Number.isFinite(parsedPid) && parsedPid > 0) {
-        pid = parsedPid;
-        try {
-          process.kill(parsedPid, 0);
-          status = 'running';
-        } catch {
-          status = 'stopped';
-        }
+    const livePid = this.readPid(pidPath);
+    if (livePid !== undefined) {
+      pid = livePid;
+      if (this.isPidAlive(livePid)) {
+        status = 'running';
+        health = 'healthy';
       }
+    }
+
+    if (state) {
+      switch (state.status) {
+        case 'starting':
+          status = 'restarting';
+          health = 'starting';
+          break;
+        case 'running':
+          status = 'running';
+          health = 'healthy';
+          break;
+        case 'startup_failed':
+          status = 'unhealthy';
+          health = 'unhealthy';
+          break;
+        case 'draining':
+          status = 'restarting';
+          health = 'starting';
+          break;
+        case 'stopped':
+          if (status !== 'running') {
+            status = 'stopped';
+            health = 'none';
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (status === 'running' && health === 'none') {
+      health = 'healthy';
     }
 
     const [configSize, workspaceSize] = await Promise.all([
@@ -311,11 +412,44 @@ export class HermesProfileBackend implements DeploymentBackend {
       cpu: 0,
       memory: { used: 0, limit: 0 },
       disk: { config: configSize, workspace: workspaceSize },
-      health: 'none',
+      health,
       image: this.cfg.binary,
       profile: name,
       pid,
       runtimeCapabilities: HERMES_PROFILE_RUNTIME_CAPABILITIES,
     };
+  }
+
+  private readPid(pidPath: string): number | undefined {
+    if (!existsSync(pidPath)) {
+      return undefined;
+    }
+    const rawPid = readFileSync(pidPath, 'utf-8').trim();
+    const parsedPid = Number.parseInt(rawPid, 10);
+    return Number.isFinite(parsedPid) && parsedPid > 0 ? parsedPid : undefined;
+  }
+
+  private readRuntimeState(statePath: string): { status?: string } | undefined {
+    if (!existsSync(statePath)) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(readFileSync(statePath, 'utf-8')) as { status?: string };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async writeRuntimeState(statePath: string, status: string): Promise<void> {
+    writeFileSync(statePath, JSON.stringify({ status }, null, 2) + '\n', 'utf-8');
+  }
+
+  private isPidAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

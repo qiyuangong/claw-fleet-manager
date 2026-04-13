@@ -4,6 +4,7 @@ import { migrateRoutes } from '../../src/routes/migrate.js';
 
 const migratedInstance = {
   id: 'openclaw-1',
+  runtime: 'openclaw' as const,
   mode: 'profile' as const,
   status: 'running' as const,
   port: 18789,
@@ -14,6 +15,16 @@ const migratedInstance = {
   disk: { config: 0, workspace: 0 },
   health: 'healthy' as const,
   image: 'openclaw',
+  runtimeCapabilities: {
+    configEditor: true,
+    logs: true,
+    rename: true,
+    delete: true,
+    proxyAccess: true,
+    sessions: true,
+    plugins: true,
+    runtimeAdmin: true,
+  },
 };
 
 const mockBackend = {

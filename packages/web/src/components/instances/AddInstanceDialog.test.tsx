@@ -45,7 +45,7 @@ describe('AddInstanceDialog', () => {
     renderDialog();
 
     await user.type(screen.getByPlaceholderText('profileNamePlaceholder'), 'research-bot');
-    expect(screen.queryByPlaceholderText('gatewayPortPlaceholder')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('gatewayPortPlaceholder')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'createHermesProfileCta' }));
 
     await waitFor(() => {
@@ -62,7 +62,7 @@ describe('AddInstanceDialog', () => {
 
     await userEvent.setup().type(screen.getByPlaceholderText('profileNamePlaceholder'), 'main');
 
-    expect(screen.getByText('profileNameReserved')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'createHermesProfileCta' })).toBeDisabled();
+    expect(screen.getByText('profileNameReserved')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'createHermesProfileCta' }).hasAttribute('disabled')).toBe(true);
   });
 });

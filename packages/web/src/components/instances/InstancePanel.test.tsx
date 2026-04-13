@@ -73,12 +73,12 @@ describe('InstancePanel', () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByRole('button', { name: 'tabOverview' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'tabLogs' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'tabConfig' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'tabActivity' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'tabControlUi' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'tabPlugins' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'tabOverview' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'tabLogs' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'tabConfig' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'tabActivity' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'tabControlUi' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'tabPlugins' })).toBeNull();
   });
 
   it('resets a stale unsupported tab back to overview for Hermes instances', async () => {
@@ -104,6 +104,6 @@ describe('InstancePanel', () => {
     await waitFor(() => {
       expect(useAppStore.getState().activeTab).toBe('overview');
     });
-    expect(screen.queryByRole('button', { name: 'tabControlUi' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'tabControlUi' })).toBeNull();
   });
 });

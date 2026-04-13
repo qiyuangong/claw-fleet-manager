@@ -6,15 +6,22 @@
 
 ## 概览
 
-Claw Fleet Manager 是一个基于 Turbo 和 npm workspaces 的 monorepo，用于在浏览器中管理 `openclaw` 实例。
+Claw Fleet Manager 是一个基于 Turbo 和 npm workspaces 的 monorepo，用于在浏览器中管理 `openclaw` 与 `hermes` 网关实例。
 
 - `packages/server`：基于 Fastify 的控制平面，负责认证、鉴权、集群 API、WebSocket 日志流，以及嵌入式 Control UI 的反向代理
 - `packages/web`：基于 React 19 + Vite 的管理面板，使用 React Query 和 Zustand 实现实例操作、配置编辑、插件流程和用户管理
 
-服务端在统一 API 之下支持两种运行后端：
+服务端现在在统一 API 之下按两个维度建模实例：
 
-- `docker`：通过 Docker API 直接管理 `openclaw-N` 容器，并在 fleet 目录中完成每实例配置与 workspace 的自举
-- `profiles`：管理原生 `openclaw --profile <name>` 网关进程，以及每个 profile 对应的配置/状态目录
+- `runtime`：`openclaw` 或 `hermes`
+- `mode`：`profile` 或 `docker`
+
+因此在同一个实例列表中会出现四种受管实例：
+
+- OpenClaw profile
+- OpenClaw docker
+- Hermes profile
+- Hermes docker
 
 ## 系统拓扑
 
@@ -26,9 +33,11 @@ flowchart LR
     Server["packages/server<br/>Fastify"]
     Auth["认证与鉴权<br/>Basic Auth / cookie / proxy token<br/>admin 与 assigned profiles"]
     Routes["路由层<br/>fleet · config · instances · users<br/>logs · proxy · profiles"]
-    Backend["DeploymentBackend"]
-    DockerBackend["DockerBackend"]
-    ProfileBackend["ProfileBackend"]
+    Backend["HybridBackend<br/>runtime + mode 路由"]
+    OCDocker["DockerBackend<br/>OpenClaw docker"]
+    OCProfile["ProfileBackend<br/>OpenClaw profile"]
+    HermesDocker["HermesDockerBackend"]
+    HermesProfile["HermesProfileBackend"]
     UserSvc["UserService<br/>users.json"]
     FleetCfg["FleetConfigService<br/>fleet.env .env openclaw.json"]
     Provision["docker-instance-provisioning<br/>openclaw.json + workspace 自举"]
@@ -45,15 +54,20 @@ flowchart LR
     Routes --> UserSvc
     Routes --> FleetCfg
     Routes --> Backend
-    Backend --> DockerBackend
-    Backend --> ProfileBackend
-    DockerBackend --> Docker
-    DockerBackend --> Tail
-    DockerBackend --> Files
-    DockerBackend --> Provision
+    Backend --> OCDocker
+    Backend --> OCProfile
+    Backend --> HermesDocker
+    Backend --> HermesProfile
+    OCDocker --> Docker
+    OCDocker --> Tail
+    OCDocker --> Files
+    OCDocker --> Provision
     Provision --> Files
-    ProfileBackend --> OpenClaw
-    ProfileBackend --> Files
+    OCProfile --> OpenClaw
+    OCProfile --> Files
+    HermesDocker --> Docker
+    HermesDocker --> Files
+    HermesProfile --> Files
     UserSvc --> Files
     FleetCfg --> Files
     Tail --> Files
@@ -82,12 +96,15 @@ flowchart LR
    - `FleetConfigService`
    - `UserService`
 5. 如果 `users.json` 不存在，则用 `config.auth` 初始化第一个管理员账号
-6. 根据部署模式创建实际后端：
-   - `DockerBackend`
-   - `ProfileBackend`
-7. 通过 Fastify decorator 注入 `backend`、`deploymentMode`、`fleetConfig`、`fleetDir` 和 `userService`
-8. 注册认证、WebSocket、各类路由以及静态资源托管
-9. 调用 `backend.initialize()` 并监听 `0.0.0.0:{port}`
+6. 创建各个运行时后端：
+   - OpenClaw docker 的 `DockerBackend`
+   - OpenClaw profile 的 `ProfileBackend`
+   - `HermesDockerBackend`
+   - `HermesProfileBackend`
+7. 用 `HybridBackend` 将它们组合起来，并按 `(runtime, mode)` 路由
+8. 通过 Fastify decorator 注入 `backend`、`deploymentMode`、`fleetConfig`、`fleetDir` 和 `userService`
+9. 注册认证、WebSocket、各类路由以及静态资源托管
+10. 调用 `backend.initialize()` 并监听 `0.0.0.0:{port}`
 
 ## 认证与权限控制
 
@@ -145,6 +162,8 @@ flowchart LR
 
 `packages/server/src/services/backend.ts` 定义了统一的 `DeploymentBackend` 接口。路由层始终依赖这一抽象，而不是直接依赖 Docker 或 profile 进程实现。
 
+`packages/server/src/services/hybrid-backend.ts` 现在是运行时感知的路由器，会根据实例的 `(runtime, mode)` 将创建、生命周期、配置、日志、重命名、删除以及迁移请求分发到对应后端。
+
 ### DockerBackend
 
 [`packages/server/src/services/docker-backend.ts`](../../packages/server/src/services/docker-backend.ts) 负责：
@@ -191,6 +210,28 @@ flowchart LR
 - workspace 初始化时会自动写入 `.gitignore`、`CLAUDE.md` 和 `MEMORY.md`
 - `autoRestart` 仅作用于 profile 模式
 - 服务端退出时不会主动关闭 profile 进程，后续会重新接管
+
+### HermesProfileBackend
+
+[`packages/server/src/services/hermes-profile-backend.ts`](../../packages/server/src/services/hermes-profile-backend.ts) 负责管理 Hermes 的 `HERMES_HOME` 目录，并以 profile 作用域启动 `hermes gateway run`。
+
+运行特性：
+
+- 实例 ID 使用受管 profile 名称
+- 每个实例都有独立的 Hermes home，其中包含 `config.yaml`、运行时状态、日志和 workspace
+- 当前 Hermes profile 支持生命周期、日志、重命名/删除和配置编辑
+- 当前不支持 Control UI 代理、会话活动、飞书流程和插件管理
+
+### HermesDockerBackend
+
+[`packages/server/src/services/hermes-docker-backend.ts`](../../packages/server/src/services/hermes-docker-backend.ts) 负责管理 Hermes 网关容器，并为每个实例挂载持久化 home 目录。
+
+运行特性：
+
+- 容器会打上 Hermes 运行时标签，并与 OpenClaw docker 实例分开识别
+- Hermes docker 使用 `server.config.json` 中配置的运行时镜像
+- Hermes docker 当前支持的仍是 gateway-first 能力：生命周期、日志、删除/重命名和配置编辑
+- OpenClaw 专属能力会在 API 和前端中显式隐藏
 
 ## 支撑服务
 

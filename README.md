@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <strong>Manage an OpenClaw fleet from the browser.</strong><br/>
-  Start, stop, configure, and monitor profile-based and Docker-based instances from one dashboard.
+  <strong>Manage an OpenClaw and Hermes fleet from the browser.</strong><br/>
+  Start, stop, configure, and monitor profile-based and Docker-based gateway instances from one dashboard.
 </p>
 
 <p align="center">
@@ -30,22 +30,24 @@
   <img src="docs/guides/screenshots/00-dashboard.png" alt="Claw Fleet Manager dashboard" width="900"/>
 </p>
 
-**Claw Fleet Manager** is a web UI and API server for operating multiple OpenClaw instances without living in the terminal.
+**Claw Fleet Manager** is a web UI and API server for operating multiple OpenClaw and Hermes gateway instances without living in the terminal.
 
 It supports a **hybrid fleet** model:
 
-- **Profile instances** backed by native `openclaw --profile` processes
-- **Docker instances** backed by managed `openclaw-N` containers
+- **OpenClaw profile instances** backed by native `openclaw --profile` processes
+- **OpenClaw Docker instances** backed by managed `openclaw-N` containers
+- **Hermes profile instances** backed by managed `hermes gateway run` homes
+- **Hermes Docker instances** backed by managed Hermes gateway containers
 
-Both can run side by side in the same fleet, with a shared dashboard for lifecycle actions, logs, config, metrics, and access control.
+All four can run side by side in the same fleet list, with shared lifecycle actions, logs, config editing, metrics, and access control.
 
 ## Why this project exists
 
-Running several OpenClaw instances quickly becomes operational work: credentials, per-instance config, logs, health checks, plugin management, and restarts. This project centralizes that work behind a browser-based control plane.
+Running several gateway instances quickly becomes operational work: credentials, per-instance config, logs, health checks, plugin management, and restarts. This project centralizes that work behind a browser-based control plane.
 
 Use it when you want to:
 
-- manage a fleet instead of a single local instance
+- manage a mixed-runtime fleet instead of a single local instance
 - give admins and operators a usable control surface
 - monitor health, uptime, CPU, memory, and disk in one place
 - inspect logs and edit per-instance config without SSH-heavy workflows
@@ -53,20 +55,29 @@ Use it when you want to:
 
 ## What you can do
 
-| Capability | Profile instances | Docker instances |
-|---|:---:|:---:|
-| Fleet overview and health metrics | ✓ | ✓ |
-| Start / stop / restart instances | ✓ | ✓ |
-| Live log streaming over WebSocket | ✓ | ✓ |
-| Edit per-instance `openclaw.json` | ✓ | ✓ |
-| Embedded Control UI via reverse proxy | ✓ | ✓ |
-| Device approval and Feishu pairing | ✓ | ✓ |
-| Multi-user access with admin / user roles | ✓ | ✓ |
-| Create / remove instances | ✓ | ✓ |
-| Install / uninstall plugins | ✓ | ✓ |
-| Migrate between instance types | ✓ | ✓ |
-| Auto-restart on crash | ✓ | — |
-| Per-instance Tailscale HTTPS URLs | — | ✓ |
+| Capability | OpenClaw profile | OpenClaw docker | Hermes profile | Hermes docker |
+|---|:---:|:---:|:---:|:---:|
+| Fleet overview and health metrics | ✓ | ✓ | ✓ | ✓ |
+| Start / stop / restart instances | ✓ | ✓ | ✓ | ✓ |
+| Live log streaming over WebSocket | ✓ | ✓ | ✓ | ✓ |
+| Edit per-instance config | ✓ | ✓ | ✓ | ✓ |
+| Multi-user access with admin / user roles | ✓ | ✓ | ✓ | ✓ |
+| Create / remove / rename instances | ✓ | ✓ | ✓ | ✓ |
+| Embedded Control UI via reverse proxy | ✓ | ✓ | — | — |
+| Device approval and Feishu pairing | ✓ | ✓ | — | — |
+| Install / uninstall plugins | ✓ | ✓ | — | — |
+| Activity/session tab | ✓ | ✓ | — | — |
+| Migrate between profile and Docker | ✓ | ✓ | — | — |
+| Auto-restart on crash | ✓ | — | — | — |
+| Per-instance Tailscale HTTPS URLs | — | ✓ | — | — |
+
+## Hermes gateway support
+
+Hermes support is currently **gateway-first**:
+
+- the fleet manager can create, list, start, stop, restart, rename, delete, inspect logs for, and edit config for Hermes instances
+- Hermes instances appear in the same fleet list as OpenClaw instances, with explicit runtime and mode labels
+- OpenClaw-only surfaces such as Control UI, Feishu pairing, plugins, activity/session views, and migration remain hidden for Hermes
 
 ## Screenshots
 
@@ -122,6 +133,7 @@ Where `AUTH_USERNAME` is the same value as `auth.username`.
 Optional profile settings:
 
 - add a `profiles` block to customize profile instance defaults such as binary path, ports, and auto-restart
+- add `hermes.profiles` and `hermes.docker` blocks to customize Hermes binary, image, and base directories
 - avoid using `main` as a profile name because OpenClaw reserves it for the standalone default profile
 
 Docker behavior:

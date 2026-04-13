@@ -46,6 +46,7 @@ FLEET_DIR="$DATA_ROOT/fleet"
 BASE_DIR="$DATA_ROOT/instances"
 CONFIG_PATH="$DATA_ROOT/server.config.json"
 FLEET_ENV_PATH="$FLEET_DIR/config/fleet.env"
+TLS_MOUNT_DIRS=()
 
 TLS_BLOCK=""
 if [[ -n "${TLS_CERT:-}" || -n "${TLS_KEY:-}" ]]; then
@@ -64,6 +65,11 @@ if [[ -n "${TLS_CERT:-}" || -n "${TLS_KEY:-}" ]]; then
   if [[ ! -f "$TLS_KEY" ]]; then
     printf 'TLS_KEY does not exist: %s\n' "$TLS_KEY" >&2
     exit 1
+  fi
+
+  TLS_MOUNT_DIRS=("$(dirname "$TLS_CERT")")
+  if [[ "$(dirname "$TLS_KEY")" != "${TLS_MOUNT_DIRS[0]}" ]]; then
+    TLS_MOUNT_DIRS+=("$(dirname "$TLS_KEY")")
   fi
 
   TLS_BLOCK=$(cat <<EOF
@@ -123,16 +129,26 @@ docker build -t "$IMAGE_TAG" "$ROOT_DIR"
 
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
-docker run -d \
-  --name "$CONTAINER_NAME" \
-  --restart unless-stopped \
-  --add-host host.docker.internal:host-gateway \
-  -p "$MANAGER_PORT:$MANAGER_PORT" \
-  -e "FLEET_MANAGER_CONFIG=$CONFIG_PATH" \
-  -e "OPENCLAW_UPSTREAM_HOST=host.docker.internal" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$DATA_ROOT:$DATA_ROOT" \
-  "$IMAGE_TAG"
+DOCKER_RUN_ARGS=(
+  -d
+  --name "$CONTAINER_NAME"
+  --restart unless-stopped
+  --add-host host.docker.internal:host-gateway
+  -p "$MANAGER_PORT:$MANAGER_PORT"
+  -e "FLEET_MANAGER_CONFIG=$CONFIG_PATH"
+  -e "OPENCLAW_UPSTREAM_HOST=host.docker.internal"
+  -v /var/run/docker.sock:/var/run/docker.sock
+  -v "$DATA_ROOT:$DATA_ROOT"
+)
+
+for mount_dir in "${TLS_MOUNT_DIRS[@]}"; do
+  if [[ "$mount_dir" == "$DATA_ROOT"* ]]; then
+    continue
+  fi
+  DOCKER_RUN_ARGS+=(-v "$mount_dir:$mount_dir:ro")
+done
+
+docker run "${DOCKER_RUN_ARGS[@]}" "$IMAGE_TAG"
 
 PROTO=http
 if [[ -n "$TLS_BLOCK" ]]; then

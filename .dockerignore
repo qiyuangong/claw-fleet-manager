@@ -7,6 +7,7 @@ packages/server/node_modules
 packages/web/node_modules
 packages/server/dist
 packages/web/dist
+.docker-data
 playwright-report
 test-results
 docs

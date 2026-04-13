@@ -188,7 +188,7 @@ Important constraints:
 - it mounts `/var/run/docker.sock`, so the manager controls the host Docker daemon
 - the script mounts the data directory at the **same absolute host path** inside the container, which is required for Docker bind mounts created by the manager to work correctly
 - the default OpenClaw image for new managed instances is `openclaw:local`; override with `OPENCLAW_IMAGE=... ./scripts/docker-deploy.sh` if needed
-- if you want embedded Control UI over HTTPS, pass existing cert files with `TLS_CERT=/abs/path/cert.pem TLS_KEY=/abs/path/key.pem ./scripts/docker-deploy.sh`
+- if you want embedded Control UI over HTTPS, pass existing cert files with `TLS_CERT=/abs/path/cert.pem TLS_KEY=/abs/path/key.pem ./scripts/docker-deploy.sh`; cert paths outside the data root are mounted read-only automatically
 
 Useful overrides:
 

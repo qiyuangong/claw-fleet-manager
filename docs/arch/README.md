@@ -286,7 +286,7 @@ This is what allows the frontend `ControlUiTab` to use `/proxy/:id/` when access
 
 - React Query handles server synchronization
 - Zustand stores UI state:
-  - selected view (`instance`, `config`, or `users`)
+  - selected view (`instance`, `instances`, `dashboard`, `runningSessions`, `sessions`, `users`, `config`, or `account`)
   - active tab
   - current user snapshot
 
@@ -312,14 +312,20 @@ The top-level shell is:
 
 Main views:
 
-- fleet config panel
-- instance panel
-- user management panel
+- fleet dashboard panel (`dashboard`) — fleet-wide session overview with status summary and activity board
+- instance management panel (`instances`) — create, rename, and delete instances
+- instance panel (`instance`) — per-instance tabs
+- running sessions panel (`runningSessions`) — live monitor of active sessions
+- sessions panel (`sessions`) — historical session table with filtering and sorting
+- user management panel (`users`) — user CRUD and profile assignment
+- fleet config panel (`config`) — global fleet settings
+- account panel (`account`) — non-admin self-service home
 
 ### Instance Panel Tabs
 
 [`packages/web/src/components/instances/InstancePanel.tsx`](../../packages/web/src/components/instances/InstancePanel.tsx) keeps `OverviewTab` eager and lazy-loads the heavier tabs:
 
+- `InstanceActivityTab`
 - `LogsTab`
 - `ConfigTab`
 - `MetricsTab`

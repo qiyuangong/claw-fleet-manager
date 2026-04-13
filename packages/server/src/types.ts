@@ -14,6 +14,7 @@ export interface ServerConfig {
   tls?: { cert: string; key: string };
   profiles?: ProfilesConfig;
   hermesProfiles?: HermesProfilesConfig;
+  hermesDocker?: HermesDockerConfig;
 }
 
 export type InstanceRuntime = 'openclaw' | 'hermes';
@@ -44,6 +45,12 @@ export interface HermesProfilesConfig {
   binary: string;
   baseHomeDir: string;
   stopTimeoutMs: number;
+}
+
+export interface HermesDockerConfig {
+  image: string;
+  mountPath: string;
+  env: Record<string, string>;
 }
 
 export interface FleetInstance {

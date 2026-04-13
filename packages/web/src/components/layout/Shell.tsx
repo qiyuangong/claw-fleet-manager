@@ -124,6 +124,10 @@ export function Shell() {
     if (!currentUser || currentUser.role === 'admin' || !fleet) return;
     if (activeView.type === 'account') return;
     if (activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)) return;
+    beginNavigationSync('hydrate', {
+      activeView: { type: 'account' },
+      activeTab: 'overview',
+    });
     selectAccount();
   }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectAccount]);
 

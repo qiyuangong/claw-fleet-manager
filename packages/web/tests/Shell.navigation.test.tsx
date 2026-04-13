@@ -282,4 +282,80 @@ describe('Shell navigation history sync', () => {
     expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/?view=account');
     expect(pushStateSpy).not.toHaveBeenCalled();
   });
+
+  it('shows the non-admin loading state while fleet access is still resolving for an unauthorized route', async () => {
+    mockUseCurrentUser.mockReturnValue({
+      data: { username: 'member', role: 'user', assignedProfiles: [] },
+      error: null,
+      isLoading: false,
+    });
+    mockUseFleet.mockReturnValue({
+      data: undefined,
+      error: null,
+      isLoading: true,
+    });
+
+    window.history.replaceState({}, '', '/?view=users');
+
+    const view = renderShell();
+
+    await waitFor(() => {
+      expect(view.getByText('loadingInstances')).toBeTruthy();
+    });
+
+    expect(view.getByText('resolvingInstances')).toBeTruthy();
+    expect(view.queryByText('users panel')).toBeNull();
+    expect(view.queryByText('dashboard panel')).toBeNull();
+  });
+
+  it('replaces history when fleet load later corrects a non-admin forbidden route to account', async () => {
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+
+    currentUserResult = {
+      data: { username: 'member', role: 'user', assignedProfiles: [] },
+      error: null,
+      isLoading: false,
+    };
+    fleetResult = {
+      data: undefined,
+      error: null,
+      isLoading: true,
+    };
+
+    window.history.replaceState({}, '', '/?view=users');
+
+    const view = renderShell();
+
+    await waitFor(() => {
+      expect(view.getByText('loadingInstances')).toBeTruthy();
+    });
+
+    replaceStateSpy.mockClear();
+    pushStateSpy.mockClear();
+
+    act(() => {
+      fleetResult = {
+        data: { instances: [], totalRunning: 0 },
+        error: null,
+        isLoading: false,
+      };
+      view.rerender(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <Shell />
+        </QueryClientProvider>,
+      );
+    });
+
+    await waitFor(() => {
+      expect(useAppStore.getState().activeView).toEqual({ type: 'account' });
+    });
+
+    await waitFor(() => {
+      expect(window.location.search).toBe('?view=account');
+    });
+
+    expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/?view=account');
+    expect(pushStateSpy).not.toHaveBeenCalled();
+  });
 });

@@ -36,8 +36,10 @@ describe('useAppStore — navigation', () => {
   });
 
   it('selectUsers sets users view', () => {
+    useAppStore.getState().setTab('logs');
     useAppStore.getState().selectUsers();
     expect(useAppStore.getState().activeView).toEqual({ type: 'users' });
+    expect(useAppStore.getState().activeTab).toBe('overview');
   });
 
   it('selectAccount sets account view', () => {

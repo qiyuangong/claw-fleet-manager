@@ -1,16 +1,11 @@
 import { create } from 'zustand';
 import type { PublicUser } from './types';
 
-export type Tab = 'overview' | 'activity' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu' | 'plugins';
-export type ActiveView =
-  | { type: 'instance'; id: string }
-  | { type: 'instances' }
-  | { type: 'config' }
-  | { type: 'users' }
-  | { type: 'account' }
-  | { type: 'sessions' }
-  | { type: 'runningSessions' }
-  | { type: 'dashboard' };
+export const NAVIGATION_TABS = ['overview', 'activity', 'logs', 'config', 'metrics', 'controlui', 'feishu', 'plugins'] as const;
+export const TOP_LEVEL_VIEWS = ['instances', 'config', 'users', 'account', 'sessions', 'runningSessions', 'dashboard'] as const;
+
+export type Tab = (typeof NAVIGATION_TABS)[number];
+export type ActiveView = { type: 'instance'; id: string } | { type: (typeof TOP_LEVEL_VIEWS)[number] };
 
 interface AppState {
   activeView: ActiveView;
@@ -33,13 +28,13 @@ export const useAppStore = create<AppState>((set) => ({
   activeTab: 'overview',
   currentUser: null,
   selectInstance: (id, tab = 'overview') => set({ activeView: { type: 'instance', id }, activeTab: tab }),
-  selectInstances: () => set({ activeView: { type: 'instances' } }),
-  selectConfig: () => set({ activeView: { type: 'config' } }),
-  selectUsers: () => set({ activeView: { type: 'users' } }),
-  selectAccount: () => set({ activeView: { type: 'account' } }),
-  selectSessions: () => set({ activeView: { type: 'sessions' } }),
-  selectRunningSessions: () => set({ activeView: { type: 'runningSessions' } }),
-  selectDashboard: () => set({ activeView: { type: 'dashboard' } }),
+  selectInstances: () => set({ activeView: { type: 'instances' }, activeTab: 'overview' }),
+  selectConfig: () => set({ activeView: { type: 'config' }, activeTab: 'overview' }),
+  selectUsers: () => set({ activeView: { type: 'users' }, activeTab: 'overview' }),
+  selectAccount: () => set({ activeView: { type: 'account' }, activeTab: 'overview' }),
+  selectSessions: () => set({ activeView: { type: 'sessions' }, activeTab: 'overview' }),
+  selectRunningSessions: () => set({ activeView: { type: 'runningSessions' }, activeTab: 'overview' }),
+  selectDashboard: () => set({ activeView: { type: 'dashboard' }, activeTab: 'overview' }),
   setTab: (tab) => set({ activeTab: tab }),
   setCurrentUser: (user) => set({ currentUser: user }),
 }));

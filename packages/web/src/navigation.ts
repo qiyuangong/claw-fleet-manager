@@ -1,19 +1,16 @@
-import type { ActiveView, Tab } from './store';
+import { NAVIGATION_TABS, TOP_LEVEL_VIEWS, type ActiveView, type Tab } from './store';
 
 export type NavigationState = {
   activeView: ActiveView;
   activeTab: Tab;
 };
 
-const validTabs: Tab[] = ['overview', 'activity', 'logs', 'config', 'metrics', 'controlui', 'feishu', 'plugins'];
-const topLevelViews: ActiveView['type'][] = ['instances', 'config', 'users', 'account', 'sessions', 'dashboard'];
-
 function isTab(value: string | null): value is Tab {
-  return value !== null && validTabs.includes(value as Tab);
+  return value !== null && NAVIGATION_TABS.includes(value as Tab);
 }
 
 function isTopLevelView(value: string | null): value is ActiveView['type'] {
-  return value !== null && topLevelViews.includes(value as ActiveView['type']);
+  return value !== null && TOP_LEVEL_VIEWS.includes(value as ActiveView['type']);
 }
 
 function parseInstanceState(url: URL, fallback: NavigationState): NavigationState {

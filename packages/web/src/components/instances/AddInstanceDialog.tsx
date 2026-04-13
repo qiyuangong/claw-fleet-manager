@@ -5,6 +5,7 @@ import { createInstance } from '../../api/fleet';
 import { useFleetConfig } from '../../hooks/useFleetConfig';
 
 interface Props {
+  runtime?: 'openclaw' | 'hermes';
   kind: 'docker' | 'profile';
   onClose: () => void;
 }
@@ -25,7 +26,7 @@ const emptyDockerOverrides: DockerOverridesForm = {
   enableNpmPackages: true,
 };
 
-export function AddInstanceDialog({ kind, onClose }: Props) {
+export function AddInstanceDialog({ runtime = 'openclaw', kind, onClose }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: fleetConfig } = useFleetConfig();
@@ -42,7 +43,7 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
         return prev;
       }
       return {
-        image: fleetConfig.openclawImage ?? '',
+        image: runtime === 'openclaw' ? (fleetConfig.openclawImage ?? '') : '',
         cpuLimit: fleetConfig.cpuLimit ?? '',
         memoryLimit: fleetConfig.memLimit ?? '',
         portStep: fleetConfig.portStep ? String(fleetConfig.portStep) : '',
@@ -53,10 +54,10 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
 
   const create = useMutation({
     mutationFn: () => createInstance({
-      runtime: 'openclaw',
+      runtime,
       kind,
       name,
-      port: kind === 'profile' && port ? parseInt(port, 10) : undefined,
+      ...(runtime === 'openclaw' && kind === 'profile' && port ? { port: parseInt(port, 10) } : {}),
       ...(kind === 'docker' && showAdvanced ? {
         image: dockerOverrides.image.trim() || undefined,
         cpuLimit: dockerOverrides.cpuLimit.trim() || undefined,
@@ -73,16 +74,25 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
     onError: (err: Error) => setError(err.message),
   });
 
-  const nameValid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name) && (kind === 'docker' || name !== 'main');
   const reservedName = kind === 'profile' && name === 'main';
+  const nameValid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name) && !reservedName;
   const portStepValid = !showAdvanced || !dockerOverrides.portStep || Number.parseInt(dockerOverrides.portStep, 10) > 0;
-  const titleKey = kind === 'docker' ? 'addDockerInstanceTitle' : 'addProfileTitle';
-  const helpKey = kind === 'docker' ? 'addDockerInstanceHelp' : 'addProfileHelp';
-  const ctaKey = kind === 'docker' ? 'createDockerInstanceCta' : 'createProfileCta';
+  const titleKey = runtime === 'hermes'
+    ? (kind === 'docker' ? 'addHermesDockerInstanceTitle' : 'addHermesProfileTitle')
+    : (kind === 'docker' ? 'addDockerInstanceTitle' : 'addProfileTitle');
+  const helpKey = runtime === 'hermes'
+    ? (kind === 'docker' ? 'addHermesDockerInstanceHelp' : 'addHermesProfileHelp')
+    : (kind === 'docker' ? 'addDockerInstanceHelp' : 'addProfileHelp');
+  const ctaKey = runtime === 'hermes'
+    ? (kind === 'docker' ? 'createHermesDockerInstanceCta' : 'createHermesProfileCta')
+    : (kind === 'docker' ? 'createDockerInstanceCta' : 'createProfileCta');
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
       <div className="dialog-card" onClick={(e) => e.stopPropagation()}>
+        <p className="pill" style={{ marginTop: 0 }}>
+          {runtime === 'hermes' ? t('runtimeHermes') : t('runtimeOpenClaw')}
+        </p>
         <h2 style={{ margin: '0 0 1rem' }}>{t(titleKey)}</h2>
         <p className="muted" style={{ marginTop: 0 }}>{t(helpKey)}</p>
 
@@ -101,7 +111,7 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
         ) : null}
         {reservedName ? <p className="error-text" style={{ marginTop: '0.5rem' }}>{t('profileNameReserved')}</p> : null}
 
-        {kind === 'profile' ? (
+        {runtime === 'openclaw' && kind === 'profile' ? (
           <>
             <label className="field-label" style={{ marginTop: '0.75rem' }}>
               {t('gatewayPort')} <span className="muted">{t('gatewayPortHint')}</span>
@@ -135,7 +145,7 @@ export function AddInstanceDialog({ kind, onClose }: Props) {
               <div className="field-grid" style={{ marginTop: '1rem' }}>
                 <p className="muted" style={{ margin: 0 }}>{t('dockerAdvancedHelp')}</p>
                 <label className="field-label">
-                  <span>{t('openclawImage')}</span>
+                  <span>{runtime === 'openclaw' ? t('openclawImage') : t('image')}</span>
                   <input
                     className="text-input mono"
                     value={dockerOverrides.image}

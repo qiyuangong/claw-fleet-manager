@@ -44,7 +44,7 @@ export function ActivityBoard({ columns, errors, onSelectInstance }: ActivityBoa
 
       <div className="activity-board-columns">
         {orderedColumns.map((column) => (
-          <section key={column.key} className="activity-board-column">
+          <section key={column.key} className={`activity-board-column activity-board-column--${column.key}`}>
             <header className="activity-board-column-header">
               <h3 className="activity-board-column-title">{t(columnLabelKey(column.key) as Parameters<typeof t>[0])}</h3>
               <span className="activity-board-column-count">{column.rows.length}</span>

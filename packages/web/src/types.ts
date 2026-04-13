@@ -48,6 +48,7 @@ export type InstanceSessionRow = {
   displayName?: string;
   derivedTitle?: string;
   lastMessagePreview?: string;
+  previewItems?: InstanceSessionPreviewItem[];
   status?: 'running' | 'done' | 'failed' | 'killed' | 'timeout';
   startedAt?: number;
   endedAt?: number;
@@ -60,6 +61,11 @@ export type InstanceSessionRow = {
   totalTokens?: number;
   estimatedCostUsd?: number;
   updatedAt?: number;
+};
+
+export type InstanceSessionPreviewItem = {
+  role: string;
+  text: string;
 };
 
 export type InstanceSessionsEntry = {

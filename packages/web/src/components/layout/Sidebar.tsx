@@ -16,6 +16,7 @@ export function Sidebar() {
   const selectUsers = useAppStore((state) => state.selectUsers);
   const selectDashboard = useAppStore((state) => state.selectDashboard);
   const selectSessions = useAppStore((state) => state.selectSessions);
+  const selectRunningSessions = useAppStore((state) => state.selectRunningSessions);
   const selectAccount = useAppStore((state) => state.selectAccount);
 
   const visibleInstances = data?.instances.filter((instance) => {
@@ -91,6 +92,12 @@ export function Sidebar() {
               onClick={selectInstances}
             >
               {t('manageInstances')}
+            </button>
+            <button
+              className={`sidebar-nav-item${activeView.type === 'runningSessions' ? ' selected' : ''}`}
+              onClick={selectRunningSessions}
+            >
+              {t('runningSessions')}
             </button>
             <button
               className={`sidebar-nav-item${activeView.type === 'sessions' ? ' selected' : ''}`}

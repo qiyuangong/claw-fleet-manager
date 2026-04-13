@@ -173,6 +173,37 @@ describe('HermesProfileBackend', () => {
     expect(readFileSync(join(rootDir, '.hermes', 'profiles', 'research-bot', 'gateway.pid'), 'utf-8').trim()).toBe('4321');
   });
 
+  it('rejects concurrent mutations when a Hermes profile is already locked', async () => {
+    const lockBackend = new HermesProfileBackend({
+      binary: 'hermes',
+      baseHomeDir: join(rootDir, '.hermes', 'profiles'),
+      stopTimeoutMs: 50,
+    });
+    await lockBackend.initialize();
+
+    createProfileHome('research-bot', 'running', 4321);
+    killSpy.mockImplementation(((pid: number, signal?: NodeJS.Signals | number) => {
+      if (signal === 0) {
+        if (!livePids.has(pid)) {
+          throw new Error('ESRCH');
+        }
+        return true;
+      }
+      if (signal === 'SIGKILL') {
+        livePids.delete(pid);
+        return true;
+      }
+      return true;
+    }) as typeof process.kill);
+
+    const stopPromise = lockBackend.stop('research-bot');
+
+    await expect(lockBackend.renameInstance('research-bot', 'research-bot-2'))
+      .rejects.toThrow(/locked/i);
+
+    await stopPromise;
+  });
+
   it('stale gateway_state.json without a live pid does not report running or healthy', async () => {
     createProfileHome('research-bot', 'running');
 

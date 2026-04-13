@@ -35,6 +35,7 @@ type HermesProfileConfig = Record<string, unknown> & {
 
 export class HermesProfileBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
+  private locks = new Map<string, boolean>();
 
   constructor(private cfg: HermesProfilesConfig) {}
 
@@ -68,53 +69,55 @@ export class HermesProfileBackend implements DeploymentBackend {
   }
 
   async start(id: string): Promise<void> {
-    const homeDir = this.ensureProfileHome(id);
-    const pidPath = this.getProfilePidPath(id);
-    const statePath = this.getProfileStatePath(id);
+    await this.withLocks([id], async () => {
+      const homeDir = this.ensureProfileHome(id);
+      const pidPath = this.getProfilePidPath(id);
+      const statePath = this.getProfileStatePath(id);
 
-    const existingPid = await this.getValidatedPid(pidPath, homeDir);
-    if (existingPid !== undefined) {
-      await this.writeRuntimeState(statePath, 'running');
-      return;
-    }
-
-    await this.ensureHermesProfileScaffold(homeDir);
-    await this.writeRuntimeState(statePath, 'starting');
-
-    const logPath = this.getProfileLogPath(id);
-    const logFd = openSync(logPath, 'a');
-    try {
-      const child = spawn(this.cfg.binary, ['gateway', 'run'], {
-        detached: true,
-        stdio: ['ignore', logFd, logFd],
-        env: {
-          ...process.env,
-          HERMES_HOME: homeDir,
-        },
-      });
-      if (child.pid === undefined || child.pid === null) {
-        throw new Error(`Failed to start Hermes gateway for profile "${id}"`);
+      const existingPid = await this.getValidatedPid(pidPath, homeDir);
+      if (existingPid !== undefined) {
+        await this.writeRuntimeState(statePath, 'running');
+        return;
       }
-      child.unref();
-      writeFileSync(pidPath, `${child.pid}\n`, 'utf-8');
-      await this.writeRuntimeState(statePath, 'running');
-    } finally {
-      closeSync(logFd);
-    }
+
+      await this.ensureHermesProfileScaffold(homeDir);
+      await this.writeRuntimeState(statePath, 'starting');
+
+      const logPath = this.getProfileLogPath(id);
+      const logFd = openSync(logPath, 'a');
+      try {
+        const child = spawn(this.cfg.binary, ['gateway', 'run'], {
+          detached: true,
+          stdio: ['ignore', logFd, logFd],
+          env: {
+            ...process.env,
+            HERMES_HOME: homeDir,
+          },
+        });
+        if (child.pid === undefined || child.pid === null) {
+          throw new Error(`Failed to start Hermes gateway for profile "${id}"`);
+        }
+        child.unref();
+        writeFileSync(pidPath, `${child.pid}\n`, 'utf-8');
+        await this.writeRuntimeState(statePath, 'running');
+      } finally {
+        closeSync(logFd);
+      }
+    });
   }
 
   async stop(id: string): Promise<void> {
-    this.ensureProfileHome(id);
-    const pidPath = this.getProfilePidPath(id);
-    const statePath = this.getProfileStatePath(id);
-    const pid = await this.getValidatedPid(pidPath, this.getProfileHome(id));
-    if (pid === undefined) {
-      await this.writeRuntimeState(statePath, 'stopped');
-      return;
-    }
+    await this.withLocks([id], async () => {
+      this.ensureProfileHome(id);
+      const pidPath = this.getProfilePidPath(id);
+      const statePath = this.getProfileStatePath(id);
+      const pid = await this.getValidatedPid(pidPath, this.getProfileHome(id));
+      if (pid === undefined) {
+        await this.writeRuntimeState(statePath, 'stopped');
+        return;
+      }
 
-    await this.writeRuntimeState(statePath, 'draining');
-    if (this.isPidAlive(pid)) {
+      await this.writeRuntimeState(statePath, 'draining');
       try {
         process.kill(pid, 'SIGTERM');
       } catch {
@@ -123,26 +126,28 @@ export class HermesProfileBackend implements DeploymentBackend {
 
       const deadline = Date.now() + this.cfg.stopTimeoutMs;
       while (Date.now() < deadline) {
-        if (!this.isPidAlive(pid)) break;
+        if (!(await this.isHermesGatewayProcess(pid, this.getProfileHome(id)))) break;
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
 
-      if (this.isPidAlive(pid)) {
+      if (await this.isHermesGatewayProcess(pid, this.getProfileHome(id))) {
         try {
           process.kill(pid, 'SIGKILL');
         } catch {
           // Best effort.
         }
       }
-    }
 
-    rmSync(pidPath, { force: true });
-    await this.writeRuntimeState(statePath, 'stopped');
+      rmSync(pidPath, { force: true });
+      await this.writeRuntimeState(statePath, 'stopped');
+    });
   }
 
   async restart(id: string): Promise<void> {
-    await this.stop(id);
-    await this.start(id);
+    await this.withLocks([id], async () => {
+      await this.stopWithoutLock(id);
+      await this.startWithoutLock(id);
+    });
   }
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
@@ -168,12 +173,14 @@ export class HermesProfileBackend implements DeploymentBackend {
   }
 
   async removeInstance(id: string): Promise<void> {
-    const homeDir = this.getProfileHome(id);
-    if (existsSync(homeDir) && await this.isProfileRunning(id)) {
-      await this.stop(id);
-    }
-    rmSync(homeDir, { recursive: true, force: true });
-    await this.refresh();
+    await this.withLocks([id], async () => {
+      const homeDir = this.getProfileHome(id);
+      if (existsSync(homeDir) && await this.isProfileRunning(id)) {
+        await this.stopWithoutLock(id);
+      }
+      rmSync(homeDir, { recursive: true, force: true });
+      await this.refresh();
+    });
   }
 
   async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
@@ -186,23 +193,25 @@ export class HermesProfileBackend implements DeploymentBackend {
 
     const currentHome = this.getProfileHome(id);
     const nextHome = this.getProfileHome(nextName);
-    if (!existsSync(currentHome)) {
-      throw new Error(`Profile "${id}" not found`);
-    }
-    if (await this.isProfileRunning(id)) {
-      throw new Error(`Profile "${id}" must be stopped before it can be renamed`);
-    }
-    if (existsSync(nextHome)) {
-      throw new Error(`Profile "${nextName}" already exists`);
-    }
+    return await this.withLocks([id, nextName], async () => {
+      if (!existsSync(currentHome)) {
+        throw new Error(`Profile "${id}" not found`);
+      }
+      if (await this.isProfileRunning(id)) {
+        throw new Error(`Profile "${id}" must be stopped before it can be renamed`);
+      }
+      if (existsSync(nextHome)) {
+        throw new Error(`Profile "${nextName}" already exists`);
+      }
 
-    renameSync(currentHome, nextHome);
-    await this.refresh();
-    const renamed = this.cache?.instances.find((instance) => instance.id === nextName);
-    if (!renamed) {
-      throw new Error(`Instance "${nextName}" not found after rename`);
-    }
-    return renamed;
+      renameSync(currentHome, nextHome);
+      await this.refresh();
+      const renamed = this.cache?.instances.find((instance) => instance.id === nextName);
+      if (!renamed) {
+        throw new Error(`Instance "${nextName}" not found after rename`);
+      }
+      return renamed;
+    });
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
@@ -465,6 +474,77 @@ export class HermesProfileBackend implements DeploymentBackend {
     return await this.isHermesGatewayProcess(pid, expectedHome) ? pid : undefined;
   }
 
+  private async startWithoutLock(id: string): Promise<void> {
+    const homeDir = this.ensureProfileHome(id);
+    const pidPath = this.getProfilePidPath(id);
+    const statePath = this.getProfileStatePath(id);
+
+    const existingPid = await this.getValidatedPid(pidPath, homeDir);
+    if (existingPid !== undefined) {
+      await this.writeRuntimeState(statePath, 'running');
+      return;
+    }
+
+    await this.ensureHermesProfileScaffold(homeDir);
+    await this.writeRuntimeState(statePath, 'starting');
+
+    const logPath = this.getProfileLogPath(id);
+    const logFd = openSync(logPath, 'a');
+    try {
+      const child = spawn(this.cfg.binary, ['gateway', 'run'], {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        env: {
+          ...process.env,
+          HERMES_HOME: homeDir,
+        },
+      });
+      if (child.pid === undefined || child.pid === null) {
+        throw new Error(`Failed to start Hermes gateway for profile "${id}"`);
+      }
+      child.unref();
+      writeFileSync(pidPath, `${child.pid}\n`, 'utf-8');
+      await this.writeRuntimeState(statePath, 'running');
+    } finally {
+      closeSync(logFd);
+    }
+  }
+
+  private async stopWithoutLock(id: string): Promise<void> {
+    this.ensureProfileHome(id);
+    const pidPath = this.getProfilePidPath(id);
+    const statePath = this.getProfileStatePath(id);
+    const pid = await this.getValidatedPid(pidPath, this.getProfileHome(id));
+    if (pid === undefined) {
+      await this.writeRuntimeState(statePath, 'stopped');
+      return;
+    }
+
+    await this.writeRuntimeState(statePath, 'draining');
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch {
+      // If SIGTERM fails, continue to cleanup below.
+    }
+
+    const deadline = Date.now() + this.cfg.stopTimeoutMs;
+    while (Date.now() < deadline) {
+      if (!(await this.isHermesGatewayProcess(pid, this.getProfileHome(id)))) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    if (await this.isHermesGatewayProcess(pid, this.getProfileHome(id))) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // Best effort.
+      }
+    }
+
+    rmSync(pidPath, { force: true });
+    await this.writeRuntimeState(statePath, 'stopped');
+  }
+
   private readRuntimeState(statePath: string): { status?: string } | undefined {
     if (!existsSync(statePath)) {
       return undefined;
@@ -507,5 +587,26 @@ export class HermesProfileBackend implements DeploymentBackend {
   private async isProfileRunning(id: string): Promise<boolean> {
     const pid = await this.getValidatedPid(this.getProfilePidPath(id), this.getProfileHome(id));
     return pid !== undefined;
+  }
+
+  private async withLocks<T>(ids: string[], operation: () => Promise<T>): Promise<T> {
+    const uniqueIds = [...new Set(ids)];
+    for (const id of uniqueIds) {
+      if (this.locks.get(id)) {
+        throw new Error(`Instance "${id}" is locked`);
+      }
+    }
+
+    for (const id of uniqueIds) {
+      this.locks.set(id, true);
+    }
+
+    try {
+      return await operation();
+    } finally {
+      for (const id of uniqueIds) {
+        this.locks.set(id, false);
+      }
+    }
   }
 }

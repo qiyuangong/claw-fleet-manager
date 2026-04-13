@@ -5,12 +5,14 @@ export type NavigationState = {
   activeTab: Tab;
 };
 
+type TopLevelView = (typeof TOP_LEVEL_VIEWS)[number];
+
 function isTab(value: string | null): value is Tab {
   return value !== null && NAVIGATION_TABS.includes(value as Tab);
 }
 
-function isTopLevelView(value: string | null): value is ActiveView['type'] {
-  return value !== null && TOP_LEVEL_VIEWS.includes(value as ActiveView['type']);
+function isTopLevelView(value: string | null): value is TopLevelView {
+  return value !== null && TOP_LEVEL_VIEWS.includes(value as TopLevelView);
 }
 
 function parseInstanceState(url: URL, fallback: NavigationState): NavigationState {

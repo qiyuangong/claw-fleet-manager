@@ -28,12 +28,7 @@ describe('HermesProfileBackend', () => {
       const child = {
         pid: 4321,
         unref: vi.fn(),
-        on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-          if (event === 'exit') {
-            child.__onExit = handler;
-          }
-        }),
-        __onExit: undefined as undefined | ((code: number | null, signal: NodeJS.Signals | null) => void),
+        on: vi.fn(),
         __options: options,
       };
       livePids.add(4321);
@@ -50,11 +45,7 @@ describe('HermesProfileBackend', () => {
         }
         return true;
       }
-      if (signal === 'SIGTERM') {
-        livePids.delete(pid);
-        return true;
-      }
-      if (signal === 'SIGKILL') {
+      if (signal === 'SIGTERM' || signal === 'SIGKILL') {
         livePids.delete(pid);
         return true;
       }
@@ -75,12 +66,21 @@ describe('HermesProfileBackend', () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it('createInstance adopts an existing Hermes profile home', async () => {
-    const profileHome = join(rootDir, '.hermes', 'profiles', 'research-bot');
+  function createProfileHome(name: string, state: string, pid?: number): string {
+    const profileHome = join(rootDir, '.hermes', 'profiles', name);
     mkdirSync(join(profileHome, 'logs'), { recursive: true });
-    writeFileSync(join(profileHome, 'config.yaml'), yaml.stringify({ agent: { name: 'research-bot' } }));
+    writeFileSync(join(profileHome, 'config.yaml'), yaml.stringify({ agent: { name } }));
     writeFileSync(join(profileHome, 'logs', 'gateway.log'), 'booted\n');
-    writeFileSync(join(profileHome, 'gateway_state.json'), JSON.stringify({ status: 'running' }, null, 2));
+    writeFileSync(join(profileHome, 'gateway_state.json'), JSON.stringify({ status: state }, null, 2));
+    if (pid !== undefined) {
+      writeFileSync(join(profileHome, 'gateway.pid'), `${pid}\n`);
+      livePids.add(pid);
+    }
+    return profileHome;
+  }
+
+  it('createInstance adopts an existing Hermes profile home', async () => {
+    const profileHome = createProfileHome('research-bot', 'stopped');
 
     const instance = await backend.createInstance({
       runtime: 'hermes',
@@ -92,13 +92,11 @@ describe('HermesProfileBackend', () => {
     expect(instance.runtime).toBe('hermes');
     expect(instance.mode).toBe('profile');
     expect(readFileSync(join(profileHome, 'config.yaml'), 'utf-8')).toContain('agent:');
+    expect(readFileSync(join(profileHome, 'logs', 'gateway.log'), 'utf-8')).toContain('booted');
   });
 
-  it('lifecycle launch arguments and env use hermes gateway run and HERMES_HOME', async () => {
-    const profileHome = join(rootDir, '.hermes', 'profiles', 'research-bot');
-    mkdirSync(profileHome, { recursive: true });
-    writeFileSync(join(profileHome, 'config.yaml'), yaml.stringify({ agent: {} }));
-    writeFileSync(join(profileHome, 'gateway_state.json'), JSON.stringify({ status: 'stopped' }, null, 2));
+  it('start launches hermes gateway run with HERMES_HOME and stop removes a running profile safely', async () => {
+    const profileHome = createProfileHome('research-bot', 'stopped');
 
     await backend.createInstance({
       runtime: 'hermes',
@@ -113,36 +111,34 @@ describe('HermesProfileBackend', () => {
       ['gateway', 'run'],
       expect.objectContaining({
         detached: true,
-        env: expect.objectContaining({
-          HERMES_HOME: profileHome,
-        }),
+        env: expect.objectContaining({ HERMES_HOME: profileHome }),
       }),
     );
+    expect(readFileSync(join(profileHome, 'gateway.pid'), 'utf-8').trim()).toBe('4321');
 
-    const pidPath = join(profileHome, 'gateway.pid');
-    expect(readFileSync(pidPath, 'utf-8').trim()).toBe('4321');
+    await backend.removeInstance('research-bot');
 
-    await backend.stop('research-bot');
     expect(livePids.has(4321)).toBe(false);
-    expect(readFileSync(join(profileHome, 'gateway_state.json'), 'utf-8')).toContain('stopped');
+    expect(() => readFileSync(join(profileHome, 'gateway.pid'), 'utf-8')).toThrow();
   });
 
-  it('buildInstance derives status from gateway_state.json when pid is absent', async () => {
-    const profileHome = join(rootDir, '.hermes', 'profiles', 'research-bot');
-    mkdirSync(profileHome, { recursive: true });
-    writeFileSync(join(profileHome, 'config.yaml'), yaml.stringify({ agent: {} }));
-    writeFileSync(join(profileHome, 'gateway_state.json'), JSON.stringify({ status: 'running' }, null, 2));
+  it('renameInstance rejects while the Hermes profile is running', async () => {
+    createProfileHome('research-bot', 'running', 4321);
+    await backend.refresh();
 
-    await backend.createInstance({
-      runtime: 'hermes',
-      kind: 'profile',
-      name: 'research-bot',
-    });
+    await expect(backend.renameInstance('research-bot', 'research-bot-2'))
+      .rejects.toThrow(/stopped before it can be renamed/i);
+
+    expect(readFileSync(join(rootDir, '.hermes', 'profiles', 'research-bot', 'gateway.pid'), 'utf-8').trim()).toBe('4321');
+  });
+
+  it('stale gateway_state.json without a live pid does not report running or healthy', async () => {
+    createProfileHome('research-bot', 'running');
 
     const status = await backend.refresh();
     const instance = status.instances.find((item) => item.id === 'research-bot');
 
-    expect(instance?.status).toBe('running');
-    expect(instance?.health).toBe('healthy');
+    expect(instance?.status).toBe('stopped');
+    expect(instance?.health).toBe('none');
   });
 });

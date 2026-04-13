@@ -168,7 +168,11 @@ export class HermesProfileBackend implements DeploymentBackend {
   }
 
   async removeInstance(id: string): Promise<void> {
-    rmSync(this.getProfileHome(id), { recursive: true, force: true });
+    const homeDir = this.getProfileHome(id);
+    if (existsSync(homeDir) && await this.isProfileRunning(id)) {
+      await this.stop(id);
+    }
+    rmSync(homeDir, { recursive: true, force: true });
     await this.refresh();
   }
 
@@ -184,6 +188,9 @@ export class HermesProfileBackend implements DeploymentBackend {
     const nextHome = this.getProfileHome(nextName);
     if (!existsSync(currentHome)) {
       throw new Error(`Profile "${id}" not found`);
+    }
+    if (await this.isProfileRunning(id)) {
+      throw new Error(`Profile "${id}" must be stopped before it can be renamed`);
     }
     if (existsSync(nextHome)) {
       throw new Error(`Profile "${nextName}" already exists`);
@@ -366,20 +373,35 @@ export class HermesProfileBackend implements DeploymentBackend {
     if (state) {
       switch (state.status) {
         case 'starting':
-          status = 'restarting';
-          health = 'starting';
+          if (pid !== undefined && this.isPidAlive(pid)) {
+            status = 'restarting';
+            health = 'starting';
+          } else if (status !== 'running') {
+            status = 'restarting';
+            health = 'starting';
+          }
           break;
         case 'running':
-          status = 'running';
-          health = 'healthy';
+          if (pid !== undefined && this.isPidAlive(pid)) {
+            status = 'running';
+            health = 'healthy';
+          } else {
+            status = 'stopped';
+            health = 'none';
+          }
           break;
         case 'startup_failed':
           status = 'unhealthy';
           health = 'unhealthy';
           break;
         case 'draining':
-          status = 'restarting';
-          health = 'starting';
+          if (pid !== undefined && this.isPidAlive(pid)) {
+            status = 'restarting';
+            health = 'starting';
+          } else if (status !== 'running') {
+            status = 'stopped';
+            health = 'none';
+          }
           break;
         case 'stopped':
           if (status !== 'running') {
@@ -451,5 +473,10 @@ export class HermesProfileBackend implements DeploymentBackend {
     } catch {
       return false;
     }
+  }
+
+  private async isProfileRunning(id: string): Promise<boolean> {
+    const pid = this.readPid(this.getProfilePidPath(id));
+    return pid !== undefined && this.isPidAlive(pid);
   }
 }

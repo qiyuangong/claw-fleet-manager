@@ -3,8 +3,10 @@ import { defaultNavigationState, parseNavigationFromUrl, serializeNavigationToUr
 
 describe('navigation codec', () => {
   it('parses instance URLs with tab', () => {
+    const url = new URL('https://example.test/?view=instance&id=openclaw-1&tab=logs');
+
     const state = parseNavigationFromUrl(
-      'https://example.test/?view=instance&id=openclaw-1&tab=logs',
+      url,
       defaultNavigationState(true),
     );
 
@@ -16,15 +18,16 @@ describe('navigation codec', () => {
 
   it('falls back invalid view to the provided default', () => {
     const fallback = defaultNavigationState(false);
+    const url = new URL('https://example.test/?view=not-a-real-view');
 
-    expect(
-      parseNavigationFromUrl('https://example.test/?view=not-a-real-view', fallback),
-    ).toEqual(fallback);
+    expect(parseNavigationFromUrl(url, fallback)).toEqual(fallback);
   });
 
   it('falls back invalid instance tab to overview', () => {
+    const url = new URL('https://example.test/?view=instance&id=openclaw-1&tab=not-a-real-tab');
+
     const state = parseNavigationFromUrl(
-      'https://example.test/?view=instance&id=openclaw-1&tab=not-a-real-tab',
+      url,
       defaultNavigationState(true),
     );
 

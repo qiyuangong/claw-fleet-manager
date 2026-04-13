@@ -35,12 +35,11 @@ export function defaultNavigationState(isAdmin: boolean): NavigationState {
   };
 }
 
-export function parseNavigationFromUrl(url: string, fallback: NavigationState): NavigationState {
-  const parsed = new URL(url, 'https://example.test');
-  const view = parsed.searchParams.get('view');
+export function parseNavigationFromUrl(url: URL, fallback: NavigationState): NavigationState {
+  const view = url.searchParams.get('view');
 
   if (view === 'instance') {
-    return parseInstanceState(parsed, fallback);
+    return parseInstanceState(url, fallback);
   }
 
   if (isTopLevelView(view)) {

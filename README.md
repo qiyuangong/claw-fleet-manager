@@ -1,10 +1,6 @@
 # Claw Fleet Manager
 
 <p align="center">
-  <a href="README_CN.md"><strong>简体中文</strong></a>
-</p>
-
-<p align="center">
   <strong>Manage an OpenClaw fleet from the browser.</strong><br/>
   Start, stop, configure, and monitor profile-based and Docker-based instances from one dashboard.
 </p>

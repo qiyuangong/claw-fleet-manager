@@ -218,9 +218,9 @@ describe('DockerService', () => {
       workspaceDir: '/tmp/hermes-lab/workspace',
       cpuLimit: '1',
       memLimit: '1G',
-      binds: ['/tmp/hermes-lab:/data/hermes'],
-      extraEnv: ['HERMES_HOME=/data/hermes'],
-      command: ['hermes', 'gateway'],
+      binds: ['/tmp/hermes-lab:/opt/data'],
+      extraEnv: ['HERMES_HOME=/opt/data'],
+      command: ['gateway', 'run'],
       exposedTcpPorts: [],
       healthcheck: null,
     });
@@ -229,11 +229,11 @@ describe('DockerService', () => {
       Labels: expect.objectContaining({
         'dev.claw-fleet.runtime': 'hermes',
       }),
-      Cmd: ['hermes', 'gateway'],
+      Cmd: ['gateway', 'run'],
       ExposedPorts: undefined,
       Healthcheck: undefined,
       HostConfig: expect.objectContaining({
-        Binds: ['/tmp/hermes-lab:/data/hermes'],
+        Binds: ['/tmp/hermes-lab:/opt/data'],
         PortBindings: undefined,
       }),
     }));

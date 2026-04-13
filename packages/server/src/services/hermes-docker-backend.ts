@@ -127,7 +127,7 @@ export class HermesDockerBackend implements DeploymentBackend {
         `HERMES_HOME=${this.cfg.mountPath}`,
         ...Object.entries(this.cfg.env).map(([key, value]) => `${key}=${value}`),
       ],
-      command: ['hermes', 'gateway'],
+      command: ['gateway', 'run'],
       exposedTcpPorts: [],
       healthcheck: null,
     });

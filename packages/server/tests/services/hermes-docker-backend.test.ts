@@ -48,7 +48,7 @@ describe('HermesDockerBackend', () => {
       mockDocker as any,
       {
         image: 'ghcr.io/nousresearch/hermes-agent:latest',
-        mountPath: '/data/hermes',
+        mountPath: '/opt/data',
         env: { HERMES_LOG_LEVEL: 'debug' },
       },
       rootDir,
@@ -66,12 +66,12 @@ describe('HermesDockerBackend', () => {
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       name: 'hermes-lab',
       image: 'ghcr.io/nousresearch/hermes-agent:latest',
-      binds: [expect.stringContaining('hermes-lab:/data/hermes')],
+      binds: [expect.stringContaining('hermes-lab:/opt/data')],
       extraEnv: expect.arrayContaining([
-        'HERMES_HOME=/data/hermes',
+        'HERMES_HOME=/opt/data',
         'HERMES_LOG_LEVEL=debug',
       ]),
-      command: ['hermes', 'gateway'],
+      command: ['gateway', 'run'],
       exposedTcpPorts: [],
       runtime: 'hermes',
       healthcheck: null,

@@ -24,7 +24,7 @@ const hermesProfilesSchema = z.object({
 
 const hermesDockerSchema = z.object({
   image: z.string().default('ghcr.io/nousresearch/hermes-agent:latest'),
-  mountPath: z.string().default('/data/hermes'),
+  mountPath: z.string().default('/opt/data'),
   env: z.record(z.string(), z.string()).default({}),
 });
 

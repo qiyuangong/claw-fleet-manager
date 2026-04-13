@@ -39,16 +39,22 @@ afterEach(
     }),
 );
 
-function makeServer(opts: { rejectConnect?: boolean; silentAfterChallenge?: boolean } = {}) {
+function makeServer(
+  opts: { rejectConnect?: boolean; rejectPreviewConnect?: boolean; silentAfterChallenge?: boolean; silentPreview?: boolean } = {},
+) {
   const server = new WebSocketServer({ port: PORT });
   server.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'n' } }));
     if (opts.silentAfterChallenge) return;
     ws.on('message', (raw: Buffer) => {
-      const frame = JSON.parse(String(raw)) as { method: string; id: string };
+      const frame = JSON.parse(String(raw)) as { method: string; id: string; params?: { scopes?: string[] } };
       if (frame.method === 'connect') {
         if (opts.rejectConnect) {
           ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: false, error: { code: 'AUTH_FAILED', message: 'bad token' } }));
+          return;
+        }
+        if (opts.rejectPreviewConnect && frame.params?.scopes?.includes('operator.admin')) {
+          ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: false, error: { code: 'AUTH_FAILED', message: 'missing scope: operator.admin' } }));
           return;
         }
         ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: {} }));
@@ -57,6 +63,7 @@ function makeServer(opts: { rejectConnect?: boolean; silentAfterChallenge?: bool
         ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { sessions: FIXTURE_SESSIONS } }));
       }
       if (frame.method === 'sessions.preview') {
+        if (opts.silentPreview) return;
         ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { previews: FIXTURE_PREVIEWS } }));
       }
     });
@@ -96,6 +103,22 @@ describe('fetchInstanceSessions', () => {
       { role: 'tool', text: 'call npm test' },
       { role: 'assistant', text: 'The test now passes.' },
     ]);
+  });
+
+  it('falls back to last-message sessions when preview connect needs admin scope', async () => {
+    wss = makeServer({ rejectPreviewConnect: true });
+    const sessions = await fetchInstanceSessions(PORT, 'valid-token', 5_000, { status: 'running', previewLimit: 2 });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].lastMessagePreview).toBe('The test now passes.');
+    expect(sessions[0].previewItems).toBeUndefined();
+  });
+
+  it('falls back to last-message sessions when preview request times out', async () => {
+    wss = makeServer({ silentPreview: true });
+    const sessions = await fetchInstanceSessions(PORT, 'valid-token', 300, { status: 'running', previewLimit: 2 });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].lastMessagePreview).toBe('The test now passes.');
+    expect(sessions[0].previewItems).toBeUndefined();
   });
 
   it('rejects when connect is refused', async () => {

@@ -125,6 +125,8 @@ function instanceActionSchema(action: 'start' | 'stop' | 'restart') {
     response: {
       200: lifecycleResponseSchema,
       400: errorResponseSchema,
+      404: errorResponseSchema,
+      409: errorResponseSchema,
       500: errorResponseSchema,
     },
   } as const;

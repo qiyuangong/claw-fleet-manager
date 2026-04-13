@@ -57,7 +57,7 @@ describe('Config routes — hybrid mode', () => {
   const app = Fastify();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockFleetConfig.readFleetConfig.mockImplementation(() => ({
       baseUrl: 'https://api.example.com',
       apiKey: 'sk-***123',
@@ -92,6 +92,9 @@ describe('Config routes — hybrid mode', () => {
       totalRunning: 4,
       updatedAt: Date.now(),
     });
+    mockBackend.readInstanceConfig.mockResolvedValue({ gateway: { mode: 'token' } });
+    mockBackend.writeInstanceConfig.mockResolvedValue(undefined);
+    (app as any).backend = mockBackend;
   });
 
   beforeAll(async () => {
@@ -188,8 +191,8 @@ describe('Config routes — hybrid mode', () => {
     expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw', { applyImmediately: true });
   });
 
-  it('PUT /api/config/fleet allows baseDir changes when only Hermes docker instances exist', async () => {
-    mockBackend.getCachedStatus.mockReturnValueOnce({
+  it('PUT /api/config/fleet rejects baseDir changes when Hermes docker instances exist', async () => {
+    mockBackend.getCachedStatus.mockReturnValue({
       mode: 'hybrid',
       instances: [{ id: 'hermes-lab', runtime: 'hermes', mode: 'docker', runtimeCapabilities: configEditorCapabilities }],
       totalRunning: 1,
@@ -202,8 +205,9 @@ describe('Config routes — hybrid mode', () => {
       payload: { BASE_DIR: '/srv/openclaw', TZ: 'Asia/Shanghai' },
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(mockFleetConfig.updateBaseDir).toHaveBeenCalledWith('/srv/openclaw', { applyImmediately: true });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('BASE_DIR_IN_USE');
+    expect(mockFleetConfig.updateBaseDir).not.toHaveBeenCalled();
   });
 
   it('PUT /api/config/fleet rejects baseDir changes when docker availability cannot be verified', async () => {

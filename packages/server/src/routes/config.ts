@@ -67,9 +67,7 @@ export async function configRoutes(app: FastifyInstance) {
           });
         }
       }
-      const hasDockerInstances = status?.instances.some((instance) =>
-        instance.runtime === 'openclaw' && instance.mode === 'docker',
-      ) ?? false;
+      const hasDockerInstances = status?.instances.some((instance) => instance.mode === 'docker') ?? false;
       if (hasDockerInstances) {
         return reply.status(409).send({
           error: 'Base directory can only be changed before Docker instances are created',

@@ -34,7 +34,19 @@ describe('HermesProfileBackend', () => {
       livePids.add(4321);
       return child as any;
     });
-    mockExecFile.mockReset().mockImplementation((_cmd, _args, _options, callback) => {
+    mockExecFile.mockReset().mockImplementation((cmd, args, optionsOrCb, maybeCb) => {
+      const callback = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+      if (cmd === 'ps') {
+        const pid = String(args?.[1] ?? '');
+        let stdout = '';
+        if (pid === '4321') {
+          stdout = '/usr/bin/env hermes gateway run';
+        } else if (pid === '9999') {
+          stdout = '/usr/bin/node other-process';
+        }
+        callback?.(null, { stdout, stderr: '' });
+        return {} as any;
+      }
       callback?.(null, { stdout: '', stderr: '' });
       return {} as any;
     });
@@ -122,6 +134,16 @@ describe('HermesProfileBackend', () => {
     expect(() => readFileSync(join(profileHome, 'gateway.pid'), 'utf-8')).toThrow();
   });
 
+  it('stale reused pid is not treated as a valid Hermes gateway', async () => {
+    createProfileHome('research-bot', 'running', 9999);
+
+    const status = await backend.refresh();
+    const instance = status.instances.find((item) => item.id === 'research-bot');
+
+    expect(instance?.status).toBe('stopped');
+    expect(instance?.health).toBe('none');
+  });
+
   it('renameInstance rejects while the Hermes profile is running', async () => {
     createProfileHome('research-bot', 'running', 4321);
     await backend.refresh();
@@ -140,5 +162,33 @@ describe('HermesProfileBackend', () => {
 
     expect(instance?.status).toBe('stopped');
     expect(instance?.health).toBe('none');
+  });
+
+  it('revealToken fails closed when no token exists', async () => {
+    const profileHome = createProfileHome('research-bot', 'stopped');
+    writeFileSync(join(profileHome, '.env'), 'OTHER_KEY=value\n');
+    writeFileSync(join(profileHome, 'config.yaml'), yaml.stringify({ agent: {} }));
+
+    await backend.createInstance({
+      runtime: 'hermes',
+      kind: 'profile',
+      name: 'research-bot',
+    });
+
+    await expect(backend.revealToken('research-bot')).rejects.toThrow(/token not found/i);
+  });
+
+  it('writeInstanceConfig writes config.yaml atomically', async () => {
+    const profileHome = createProfileHome('research-bot', 'stopped');
+    await backend.createInstance({
+      runtime: 'hermes',
+      kind: 'profile',
+      name: 'research-bot',
+    });
+
+    await backend.writeInstanceConfig('research-bot', { agent: { mode: 'chat' } });
+
+    expect(readFileSync(join(profileHome, 'config.yaml'), 'utf-8')).toContain('mode: chat');
+    expect(() => readFileSync(join(profileHome, 'config.yaml.tmp'), 'utf-8')).toThrow();
   });
 });

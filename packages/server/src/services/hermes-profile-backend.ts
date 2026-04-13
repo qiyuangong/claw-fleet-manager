@@ -72,8 +72,8 @@ export class HermesProfileBackend implements DeploymentBackend {
     const pidPath = this.getProfilePidPath(id);
     const statePath = this.getProfileStatePath(id);
 
-    const existingPid = this.readPid(pidPath);
-    if (existingPid !== undefined && this.isPidAlive(existingPid)) {
+    const existingPid = await this.getValidatedPid(pidPath);
+    if (existingPid !== undefined) {
       await this.writeRuntimeState(statePath, 'running');
       return;
     }
@@ -107,7 +107,7 @@ export class HermesProfileBackend implements DeploymentBackend {
     this.ensureProfileHome(id);
     const pidPath = this.getProfilePidPath(id);
     const statePath = this.getProfileStatePath(id);
-    const pid = this.readPid(pidPath);
+    const pid = await this.getValidatedPid(pidPath);
     if (pid === undefined) {
       await this.writeRuntimeState(statePath, 'stopped');
       return;
@@ -281,14 +281,20 @@ export class HermesProfileBackend implements DeploymentBackend {
         if (!trimmed || trimmed.startsWith('#')) continue;
         const [key, ...rest] = trimmed.split('=');
         if (key === 'HERMES_GATEWAY_TOKEN') {
-          return rest.join('=').trim();
+          const token = rest.join('=').trim();
+          if (token) {
+            return token;
+          }
         }
       }
     }
 
     const config = await this.readInstanceConfig(id) as HermesProfileConfig;
     const token = config.gateway?.auth?.token;
-    return token ?? 'hidden';
+    if (typeof token === 'string' && token.trim()) {
+      return token.trim();
+    }
+    throw new Error(`Token not found for profile "${id}"`);
   }
 
   async readInstanceConfig(id: string): Promise<object> {
@@ -298,7 +304,9 @@ export class HermesProfileBackend implements DeploymentBackend {
 
   async writeInstanceConfig(id: string, config: object): Promise<void> {
     const configPath = join(this.ensureProfileHome(id), 'config.yaml');
-    writeFileSync(configPath, yaml.stringify(config));
+    const tmpPath = `${configPath}.tmp`;
+    writeFileSync(tmpPath, yaml.stringify(config));
+    renameSync(tmpPath, configPath);
   }
 
   private getProfileHome(name: string): string {
@@ -361,28 +369,26 @@ export class HermesProfileBackend implements DeploymentBackend {
     let status: FleetInstance['status'] = 'stopped';
     let health: FleetInstance['health'] = 'none';
 
-    const livePid = this.readPid(pidPath);
+    const livePid = await this.getValidatedPid(pidPath);
     if (livePid !== undefined) {
       pid = livePid;
-      if (this.isPidAlive(livePid)) {
-        status = 'running';
-        health = 'healthy';
-      }
+      status = 'running';
+      health = 'healthy';
     }
 
     if (state) {
       switch (state.status) {
         case 'starting':
-          if (pid !== undefined && this.isPidAlive(pid)) {
+          if (pid !== undefined) {
             status = 'restarting';
             health = 'starting';
-          } else if (status !== 'running') {
-            status = 'restarting';
-            health = 'starting';
+          } else {
+            status = 'stopped';
+            health = 'none';
           }
           break;
         case 'running':
-          if (pid !== undefined && this.isPidAlive(pid)) {
+          if (pid !== undefined) {
             status = 'running';
             health = 'healthy';
           } else {
@@ -395,10 +401,10 @@ export class HermesProfileBackend implements DeploymentBackend {
           health = 'unhealthy';
           break;
         case 'draining':
-          if (pid !== undefined && this.isPidAlive(pid)) {
+          if (pid !== undefined) {
             status = 'restarting';
             health = 'starting';
-          } else if (status !== 'running') {
+          } else {
             status = 'stopped';
             health = 'none';
           }
@@ -451,6 +457,14 @@ export class HermesProfileBackend implements DeploymentBackend {
     return Number.isFinite(parsedPid) && parsedPid > 0 ? parsedPid : undefined;
   }
 
+  private async getValidatedPid(pidPath: string): Promise<number | undefined> {
+    const pid = this.readPid(pidPath);
+    if (pid === undefined) {
+      return undefined;
+    }
+    return await this.isHermesGatewayProcess(pid) ? pid : undefined;
+  }
+
   private readRuntimeState(statePath: string): { status?: string } | undefined {
     if (!existsSync(statePath)) {
       return undefined;
@@ -475,8 +489,22 @@ export class HermesProfileBackend implements DeploymentBackend {
     }
   }
 
+  private async isHermesGatewayProcess(pid: number): Promise<boolean> {
+    if (!this.isPidAlive(pid)) {
+      return false;
+    }
+
+    try {
+      const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'command=']);
+      const command = stdout.trim().replace(/\s+/g, ' ');
+      return /\bhermes\b.*\bgateway\b.*\brun\b/i.test(command);
+    } catch {
+      return false;
+    }
+  }
+
   private async isProfileRunning(id: string): Promise<boolean> {
-    const pid = this.readPid(this.getProfilePidPath(id));
-    return pid !== undefined && this.isPidAlive(pid);
+    const pid = await this.getValidatedPid(this.getProfilePidPath(id));
+    return pid !== undefined;
   }
 }

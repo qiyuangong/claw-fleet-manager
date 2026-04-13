@@ -225,6 +225,7 @@ export async function fetchInstanceSessions(
             }
 
             if (previewLimit > 0 && sessions.length > 0) {
+              clearTimeout(timer);
               try {
                 const previewsByKey = await fetchSessionPreviews(
                   port,

@@ -40,7 +40,13 @@ afterEach(
 );
 
 function makeServer(
-  opts: { rejectConnect?: boolean; rejectPreviewConnect?: boolean; silentAfterChallenge?: boolean; silentPreview?: boolean } = {},
+  opts: {
+    rejectConnect?: boolean;
+    rejectPreviewConnect?: boolean;
+    silentAfterChallenge?: boolean;
+    silentPreview?: boolean;
+    sessionsListDelayMs?: number;
+  } = {},
 ) {
   const server = new WebSocketServer({ port: PORT });
   server.on('connection', (ws) => {
@@ -60,7 +66,9 @@ function makeServer(
         ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: {} }));
       }
       if (frame.method === 'sessions.list') {
-        ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { sessions: FIXTURE_SESSIONS } }));
+        const send = () => ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: true, payload: { sessions: FIXTURE_SESSIONS } }));
+        if (opts.sessionsListDelayMs) setTimeout(send, opts.sessionsListDelayMs);
+        else send();
       }
       if (frame.method === 'sessions.preview') {
         if (opts.silentPreview) return;
@@ -115,6 +123,14 @@ describe('fetchInstanceSessions', () => {
 
   it('falls back to last-message sessions when preview request times out', async () => {
     wss = makeServer({ silentPreview: true });
+    const sessions = await fetchInstanceSessions(PORT, 'valid-token', 300, { status: 'running', previewLimit: 2 });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].lastMessagePreview).toBe('The test now passes.');
+    expect(sessions[0].previewItems).toBeUndefined();
+  });
+
+  it('does not let preview fallback trip the base fetch timeout after sessions list succeeds', async () => {
+    wss = makeServer({ sessionsListDelayMs: 220, silentPreview: true });
     const sessions = await fetchInstanceSessions(PORT, 'valid-token', 300, { status: 'running', previewLimit: 2 });
     expect(sessions).toHaveLength(1);
     expect(sessions[0].lastMessagePreview).toBe('The test now passes.');

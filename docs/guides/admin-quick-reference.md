@@ -15,7 +15,7 @@
 | Approve Feishu pairing | Sidebar → instance → Feishu tab | Click **Approve** next to the code |
 | View live logs | Sidebar → instance → Logs tab | Logs stream automatically |
 | View CPU/memory | Sidebar → instance → Metrics tab | Charts update live |
-| View instance activity | Sidebar → instance → Activity tab | Filter by status/time; toggle Board/Table view |
+| View instance activity | Sidebar → Manage Instances → Open Instance → Activity tab | Filter by status/time; toggle Board/Table view |
 | Install plugin | Sidebar → instance → Plugins tab | Enter package/path → click **Install** |
 | Remove plugin | Sidebar → instance → Plugins tab | Click **Remove** → confirm |
 | Edit config | Sidebar → instance → Config tab | Edit JSON → Save → restart instance |

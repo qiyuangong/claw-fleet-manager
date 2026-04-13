@@ -15,7 +15,7 @@
 | 审批飞书配对 | 侧边栏 → 实例 → Feishu 标签页 | 点击配对码旁的 **Approve** |
 | 查看实时日志 | 侧边栏 → 实例 → Logs 标签页 | 日志自动流式输出 |
 | 查看 CPU/内存 | 侧边栏 → 实例 → Metrics 标签页 | 图表实时更新 |
-| 查看实例活动 | 侧边栏 → 实例 → Activity 标签页 | 按状态/时间筛选；切换看板/表格视图 |
+| 查看实例活动 | 侧边栏 → Manage Instances → Open Instance → Activity 标签页 | 按状态/时间筛选；切换看板/表格视图 |
 | 安装插件 | 侧边栏 → 实例 → Plugins 标签页 | 点击 **Install Plugin** → 输入标识符 |
 | 卸载插件 | 侧边栏 → 实例 → Plugins 标签页 | 点击 **Remove** → 确认 |
 | 编辑配置 | 侧边栏 → 实例 → Config 标签页 | 编辑 JSON → Save → 重启实例 |

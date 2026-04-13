@@ -134,7 +134,7 @@ Use this to give an instance a new name. Renaming is only available for **stoppe
 
 5. Click **Rename**. The instance reappears under the new name.
 
-> **After renaming:** User profile assignments that referenced the old name are updated automatically. Restart the instance after renaming to resume normal operation.
+> **After renaming:** User profile assignments that referenced the old name are updated automatically. Use **Start** on the Overview tab to bring the instance back up.
 
 ---
 

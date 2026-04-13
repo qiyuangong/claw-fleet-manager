@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Shell } from '../src/components/layout/Shell';
 import { useAppStore } from '../src/store';
@@ -123,8 +123,10 @@ describe('Shell navigation history sync', () => {
     });
 
     pushStateSpy.mockClear();
-    window.history.replaceState({}, '', '/?view=instance&id=openclaw-2&tab=metrics');
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    act(() => {
+      window.history.replaceState({}, '', '/?view=instance&id=openclaw-2&tab=metrics');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
 
     await waitFor(() => {
       expect(useAppStore.getState().activeView).toEqual({ type: 'instance', id: 'openclaw-2' });
@@ -132,6 +134,16 @@ describe('Shell navigation history sync', () => {
 
     expect(useAppStore.getState().activeTab).toBe('metrics');
     expect(pushStateSpy).not.toHaveBeenCalled();
+
+    act(() => {
+      useAppStore.getState().selectUsers();
+    });
+
+    await waitFor(() => {
+      expect(window.location.search).toBe('?view=users');
+    });
+
+    expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/?view=users');
   });
 
   it('pushes history for new navigation state and skips duplicate URLs', async () => {
@@ -145,7 +157,9 @@ describe('Shell navigation history sync', () => {
 
     pushStateSpy.mockClear();
 
-    useAppStore.getState().selectUsers();
+    act(() => {
+      useAppStore.getState().selectUsers();
+    });
 
     await waitFor(() => {
       expect(window.location.search).toBe('?view=users');
@@ -154,15 +168,58 @@ describe('Shell navigation history sync', () => {
     expect(pushStateSpy).toHaveBeenCalledWith({}, '', '/?view=users');
 
     pushStateSpy.mockClear();
-    useAppStore.getState().applyNavigationState({
-      activeView: { type: 'users' },
-      activeTab: 'overview',
+    act(() => {
+      useAppStore.getState().applyNavigationState({
+        activeView: { type: 'users' },
+        activeTab: 'overview',
+      });
     });
 
     await waitFor(() => {
       expect(window.location.search).toBe('?view=users');
     });
 
+    expect(pushStateSpy).not.toHaveBeenCalled();
+  });
+
+  it('normalizes unauthorized popstate routes to the role-guarded destination URL', async () => {
+    const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+    const pushStateSpy = vi.spyOn(window.history, 'pushState');
+
+    mockUseCurrentUser.mockReturnValue({
+      data: { username: 'member', role: 'user', assignedProfiles: [] },
+      error: null,
+      isLoading: false,
+    });
+    mockUseFleet.mockReturnValue({
+      data: { instances: [], totalRunning: 0 },
+      error: null,
+      isLoading: false,
+    });
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(useAppStore.getState().activeView).toEqual({ type: 'account' });
+    });
+
+    replaceStateSpy.mockClear();
+    pushStateSpy.mockClear();
+
+    act(() => {
+      window.history.replaceState({}, '', '/?view=users');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+    await waitFor(() => {
+      expect(useAppStore.getState().activeView).toEqual({ type: 'account' });
+    });
+
+    await waitFor(() => {
+      expect(window.location.search).toBe('?view=account');
+    });
+
+    expect(replaceStateSpy).toHaveBeenCalledWith({}, '', '/?view=account');
     expect(pushStateSpy).not.toHaveBeenCalled();
   });
 });

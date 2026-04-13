@@ -24,9 +24,12 @@ import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useAppStore } from '../../store';
 import {
   defaultNavigationState,
+  type NavigationState,
   parseNavigationFromUrl,
   serializeNavigationToUrl,
 } from '../../navigation';
+
+type NavigationSyncSource = 'hydrate' | 'popstate' | null;
 
 export function Shell() {
   const { t } = useTranslation();
@@ -46,8 +49,10 @@ export function Shell() {
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
   const hasHydratedNavigationRef = useRef(false);
-  const isApplyingPopstateRef = useRef(false);
-  const skipNextHistorySyncRef = useRef(false);
+  const navigationSyncSourceRef = useRef<NavigationSyncSource>(null);
+  const navigationSyncExpectedUrlRef = useRef<string | null>(null);
+  const navigationSyncAppliedRef = useRef(false);
+  const clearNavigationSyncTimeoutRef = useRef<number | null>(null);
   const nonAdminAllowedInstances = useMemo(
     () => (currentUser && currentUser.role !== 'admin' && fleet
       ? fleet.instances.filter((instance) => (currentUser.assignedProfiles ?? []).includes(instance.id))
@@ -59,16 +64,26 @@ export function Shell() {
     setCurrentUser(currentUser ?? null);
   }, [currentUser, setCurrentUser]);
 
+  const beginNavigationSync = (source: Exclude<NavigationSyncSource, null>, navigationState: NavigationState) => {
+    if (clearNavigationSyncTimeoutRef.current !== null) {
+      window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+      clearNavigationSyncTimeoutRef.current = null;
+    }
+
+    navigationSyncSourceRef.current = source;
+    navigationSyncExpectedUrlRef.current = serializeNavigationToUrl(navigationState);
+    navigationSyncAppliedRef.current = false;
+  };
+
   useEffect(() => {
     if (!currentUser || hasHydratedNavigationRef.current) return;
 
     const fallback = defaultNavigationState(currentUser.role === 'admin');
     const navigationState = parseNavigationFromUrl(new URL(window.location.href), fallback);
-    const nextUrl = serializeNavigationToUrl(navigationState);
 
-    skipNextHistorySyncRef.current = true;
+    beginNavigationSync('hydrate', navigationState);
     applyNavigationState(navigationState);
-    window.history.replaceState({}, '', nextUrl);
+    window.history.replaceState({}, '', serializeNavigationToUrl(navigationState));
     hasHydratedNavigationRef.current = true;
   }, [applyNavigationState, currentUser]);
 
@@ -78,8 +93,7 @@ export function Shell() {
     const handlePopstate = () => {
       const fallback = defaultNavigationState(currentUser.role === 'admin');
       const navigationState = parseNavigationFromUrl(new URL(window.location.href), fallback);
-      isApplyingPopstateRef.current = true;
-      skipNextHistorySyncRef.current = true;
+      beginNavigationSync('popstate', navigationState);
       applyNavigationState(navigationState);
     };
 
@@ -88,35 +102,70 @@ export function Shell() {
   }, [applyNavigationState, currentUser]);
 
   useEffect(() => {
-    if (!currentUser || !hasHydratedNavigationRef.current) return;
+    if (!currentUser || currentUser.role === 'admin' || !fleet) return;
+    if (activeView.type === 'account') return;
+    if (activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)) return;
+    selectAccount();
+  }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectAccount]);
 
-    if (skipNextHistorySyncRef.current) {
-      skipNextHistorySyncRef.current = false;
-      return;
-    }
+  useEffect(() => {
+    if (!currentUser || !hasHydratedNavigationRef.current) return;
 
     const nextUrl = serializeNavigationToUrl({ activeView, activeTab });
     const currentUrl = `${window.location.pathname}${window.location.search}`;
+    const expectedUrl = navigationSyncExpectedUrlRef.current;
 
-    if (currentUrl === nextUrl) {
-      isApplyingPopstateRef.current = false;
+    if (navigationSyncSourceRef.current !== null) {
+      if (!navigationSyncAppliedRef.current) {
+        if (expectedUrl !== null && nextUrl !== expectedUrl) {
+          return;
+        }
+
+        navigationSyncAppliedRef.current = true;
+
+        if (currentUrl !== nextUrl) {
+          window.history.replaceState({}, '', nextUrl);
+        }
+
+        const source = navigationSyncSourceRef.current;
+        const expected = expectedUrl;
+        clearNavigationSyncTimeoutRef.current = window.setTimeout(() => {
+          if (navigationSyncSourceRef.current !== source) return;
+          if (navigationSyncExpectedUrlRef.current !== expected) return;
+          navigationSyncSourceRef.current = null;
+          navigationSyncExpectedUrlRef.current = null;
+          navigationSyncAppliedRef.current = false;
+          clearNavigationSyncTimeoutRef.current = null;
+        }, 0);
+
+        return;
+      }
+
+      if (currentUrl !== nextUrl) {
+        window.history.replaceState({}, '', nextUrl);
+      }
+      if (clearNavigationSyncTimeoutRef.current !== null) {
+        window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+        clearNavigationSyncTimeoutRef.current = null;
+      }
+      navigationSyncSourceRef.current = null;
+      navigationSyncExpectedUrlRef.current = null;
+      navigationSyncAppliedRef.current = false;
       return;
     }
 
-    if (isApplyingPopstateRef.current) {
-      isApplyingPopstateRef.current = false;
+    if (currentUrl === nextUrl) {
       return;
     }
 
     window.history.pushState({}, '', nextUrl);
   }, [activeTab, activeView, currentUser]);
 
-  useEffect(() => {
-    if (!currentUser || currentUser.role === 'admin' || !fleet) return;
-    if (activeView.type === 'account') return;
-    if (activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)) return;
-    selectAccount();
-  }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectAccount]);
+  useEffect(() => () => {
+    if (clearNavigationSyncTimeoutRef.current !== null) {
+      window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+    }
+  }, []);
 
   const handleLogout = () => {
     clearApiClientSessionAuth();

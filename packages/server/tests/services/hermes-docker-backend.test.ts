@@ -59,7 +59,7 @@ describe('HermesDockerBackend', () => {
   it('createInstance creates a Hermes container with persistent HERMES_HOME', async () => {
     mockDocker.listFleetContainers
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ name: 'hermes-lab', id: 'abc', state: 'running', index: 1 }]);
+      .mockResolvedValueOnce([{ name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' }]);
 
     const instance = await backend.createInstance({ runtime: 'hermes', kind: 'docker', name: 'hermes-lab' });
 
@@ -73,6 +73,8 @@ describe('HermesDockerBackend', () => {
       ]),
       command: ['hermes', 'gateway'],
       exposedTcpPorts: [],
+      runtime: 'hermes',
+      healthcheck: null,
     }));
 
     expect(readFileSync(join(rootDir, 'hermes-lab', 'config.yaml'), 'utf-8')).toContain('gateway:');
@@ -85,7 +87,8 @@ describe('HermesDockerBackend', () => {
     mkdirSync(join(homeDir, 'workspace'), { recursive: true });
     writeFileSync(join(homeDir, 'config.yaml'), yaml.stringify({ agent: {}, gateway: { auth: { token: 'secret-token' } } }));
     mockDocker.listFleetContainers.mockResolvedValue([
-      { name: 'hermes-lab', id: 'abc', state: 'running', index: 1 },
+      { name: 'openclaw-1', id: 'def', state: 'running', index: 2, runtime: 'openclaw' },
+      { name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' },
     ]);
 
     const status = await backend.refresh();
@@ -105,5 +108,20 @@ describe('HermesDockerBackend', () => {
         sessions: false,
       }),
     }));
+  });
+
+  it('refresh ignores non-Hermes managed containers', async () => {
+    const homeDir = join(rootDir, 'hermes-lab');
+    mkdirSync(join(homeDir, 'workspace'), { recursive: true });
+    writeFileSync(join(homeDir, 'config.yaml'), yaml.stringify({ agent: {}, gateway: { auth: { token: 'secret-token' } } }));
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'def', state: 'running', index: 2, runtime: 'openclaw' },
+      { name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' },
+    ]);
+
+    const status = await backend.refresh();
+
+    expect(status.instances).toHaveLength(1);
+    expect(status.instances[0].id).toBe('hermes-lab');
   });
 });

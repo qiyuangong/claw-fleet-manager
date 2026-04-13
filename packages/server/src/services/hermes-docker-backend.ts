@@ -48,7 +48,8 @@ export class HermesDockerBackend implements DeploymentBackend {
 
   async refresh(): Promise<FleetStatus> {
     await mkdir(this.baseDir, { recursive: true });
-    const containers = await this.docker.listFleetContainers();
+    const containers = (await this.docker.listFleetContainers())
+      .filter((container) => container.runtime === 'hermes');
     const instances = await Promise.all(
       containers.map((container) => this.buildInstance(container)),
     );
@@ -112,6 +113,7 @@ export class HermesDockerBackend implements DeploymentBackend {
     await this.docker.createManagedContainer({
       name,
       index,
+      runtime: 'hermes',
       image: opts.image ?? this.cfg.image,
       gatewayPort: 0,
       token: '',
@@ -127,6 +129,7 @@ export class HermesDockerBackend implements DeploymentBackend {
       ],
       command: ['hermes', 'gateway'],
       exposedTcpPorts: [],
+      healthcheck: null,
     });
 
     const status = await this.refresh();
@@ -158,7 +161,8 @@ export class HermesDockerBackend implements DeploymentBackend {
     }
 
     return this.withLocks([id, nextName], async () => {
-      const containers = await this.docker.listFleetContainers();
+      const containers = (await this.docker.listFleetContainers())
+        .filter((container) => container.runtime === 'hermes');
       const source = containers.find((container) => container.name === id);
       if (!source) {
         throw new Error(`Instance "${id}" not found`);
@@ -218,7 +222,8 @@ export class HermesDockerBackend implements DeploymentBackend {
   streamAllLogs(onData: (id: string, line: string) => void): LogHandle {
     const streams: import('node:stream').Readable[] = [];
     (async () => {
-      const containers = await this.docker.listFleetContainers();
+      const containers = (await this.docker.listFleetContainers())
+        .filter((container) => container.runtime === 'hermes');
       for (const container of containers) {
         try {
           const logStream = await this.docker.getContainerLogs(container.name, { follow: true, tail: 20 }) as import('node:stream').Readable;

@@ -5,6 +5,7 @@ export interface ContainerInfo {
   id: string;
   state: string;
   index?: number;
+  runtime: 'openclaw' | 'hermes';
 }
 
 export interface ContainerStats {
@@ -22,6 +23,7 @@ export interface ContainerInspection {
 export interface ManagedContainerSpec {
   name: string;
   index: number;
+  runtime?: 'openclaw' | 'hermes';
   image: string;
   gatewayPort: number;
   token: string;
@@ -35,6 +37,15 @@ export interface ManagedContainerSpec {
   binds?: string[];
   extraEnv?: string[];
   exposedTcpPorts?: number[];
+  healthcheck?: ContainerHealthcheck | null;
+}
+
+export interface ContainerHealthcheck {
+  Test: string[];
+  Interval?: number;
+  Timeout?: number;
+  Retries?: number;
+  StartPeriod?: number;
 }
 
 export interface RecreateManagedContainerSpec {
@@ -62,6 +73,7 @@ export class DockerService {
         id: container.Id,
         state: container.State,
         index: parseContainerIndex(container),
+        runtime: parseContainerRuntime(container),
       }))
       .sort((a, b) => {
         if (a.index !== undefined && b.index !== undefined) return a.index - b.index;
@@ -159,6 +171,7 @@ export class DockerService {
       env.splice(2, 0, `OPENCLAW_GATEWAY_TOKEN=${spec.token}`);
     }
     const cmd = spec.command ?? ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'];
+    const healthcheck = spec.healthcheck === undefined ? defaultOpenClawHealthcheck() : spec.healthcheck;
 
     const container = await this.docker.createContainer({
       name: spec.name,
@@ -166,22 +179,12 @@ export class DockerService {
       Labels: {
         'dev.claw-fleet.managed': 'true',
         'dev.claw-fleet.instance-index': String(spec.index),
+        'dev.claw-fleet.runtime': spec.runtime ?? 'openclaw',
       },
       Env: env,
       Cmd: cmd,
       ExposedPorts: Object.keys(exposedPorts).length > 0 ? exposedPorts : undefined,
-      Healthcheck: {
-        Test: [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ],
-        Interval: 30 * 1_000_000_000,
-        Timeout: 5 * 1_000_000_000,
-        Retries: 5,
-        StartPeriod: 20 * 1_000_000_000,
-      },
+      Healthcheck: healthcheck ?? undefined,
       HostConfig: {
         AutoRemove: false,
         Binds: binds,
@@ -302,6 +305,14 @@ function parseContainerIndex(container: {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function parseContainerRuntime(container: {
+  Names: string[];
+  Labels?: Record<string, string>;
+}): 'openclaw' | 'hermes' {
+  const runtime = container.Labels?.['dev.claw-fleet.runtime'];
+  return runtime === 'hermes' ? 'hermes' : 'openclaw';
+}
+
 function rewriteManagedBinds(binds: string[], spec: RecreateManagedContainerSpec): string[] {
   return binds.map((bind) => {
     const [source, target, ...rest] = bind.split(':');
@@ -333,4 +344,19 @@ function parseMemoryLimit(value: string): number {
     : unit === 'T' ? 1024 ** 4
     : 1;
   return Math.round(amount * multiplier);
+}
+
+function defaultOpenClawHealthcheck(): ContainerHealthcheck {
+  return {
+    Test: [
+      'CMD',
+      'node',
+      '-e',
+      "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+    ],
+    Interval: 30 * 1_000_000_000,
+    Timeout: 5 * 1_000_000_000,
+    Retries: 5,
+    StartPeriod: 20 * 1_000_000_000,
+  };
 }

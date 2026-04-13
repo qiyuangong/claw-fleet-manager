@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import type { NavigationState } from '../src/navigation';
 import { selectedInstanceIdSelector, useAppStore } from '../src/store';
 
 beforeEach(() => {
@@ -36,8 +37,10 @@ describe('useAppStore — navigation', () => {
   });
 
   it('selectUsers sets users view', () => {
+    useAppStore.getState().setTab('logs');
     useAppStore.getState().selectUsers();
     expect(useAppStore.getState().activeView).toEqual({ type: 'users' });
+    expect(useAppStore.getState().activeTab).toBe('overview');
   });
 
   it('selectAccount sets account view', () => {
@@ -55,6 +58,30 @@ describe('useAppStore — tabs', () => {
   it('setTab to metrics', () => {
     useAppStore.getState().setTab('metrics');
     expect(useAppStore.getState().activeTab).toBe('metrics');
+  });
+
+  it('applyNavigationState preserves instance tabs from URL state', () => {
+    const navigationState: NavigationState = {
+      activeView: { type: 'instance', id: 'openclaw-9' },
+      activeTab: 'logs',
+    };
+
+    useAppStore.getState().applyNavigationState(navigationState);
+
+    expect(useAppStore.getState().activeView).toEqual({ type: 'instance', id: 'openclaw-9' });
+    expect(useAppStore.getState().activeTab).toBe('logs');
+  });
+
+  it('applyNavigationState normalizes top-level views back to overview', () => {
+    useAppStore.getState().setTab('metrics');
+
+    useAppStore.getState().applyNavigationState({
+      activeView: { type: 'users' },
+      activeTab: 'logs',
+    });
+
+    expect(useAppStore.getState().activeView).toEqual({ type: 'users' });
+    expect(useAppStore.getState().activeTab).toBe('overview');
   });
 });
 

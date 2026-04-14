@@ -29,6 +29,7 @@ export function getHermesDockerFleetRoot(baseDir: string): string {
 
 export class HermesDockerBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
+  private interval: ReturnType<typeof setInterval> | null = null;
   private locks = new Map<string, boolean>();
 
   constructor(
@@ -40,10 +41,16 @@ export class HermesDockerBackend implements DeploymentBackend {
   async initialize(): Promise<void> {
     await mkdir(this.resolveBaseDir(), { recursive: true });
     await this.refresh();
+    this.interval = setInterval(() => {
+      void this.refresh();
+    }, 5000);
   }
 
   async shutdown(): Promise<void> {
-    this.cache = this.cache ?? null;
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
   }
 
   getCachedStatus(): FleetStatus | null {

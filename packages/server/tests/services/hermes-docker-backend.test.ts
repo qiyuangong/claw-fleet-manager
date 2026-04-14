@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -60,6 +60,11 @@ describe('HermesDockerBackend', () => {
       rootDir,
     );
     await backend.initialize();
+  });
+
+  afterEach(async () => {
+    await backend.shutdown();
+    vi.useRealTimers();
   });
 
   it('createInstance creates a Hermes container with persistent HERMES_HOME', async () => {
@@ -158,5 +163,37 @@ describe('HermesDockerBackend', () => {
       workspaceDir: join(nextRootDir, 'hermes-lab', 'workspace'),
       binds: [join(nextRootDir, 'hermes-lab') + ':/opt/data'],
     }));
+  });
+
+  it('refreshes Hermes cache periodically after initialize and stops on shutdown', async () => {
+    vi.useFakeTimers();
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+    const localDocker = {
+      ...mockDocker,
+      listFleetContainers: vi.fn().mockResolvedValue([]),
+    };
+    const localBackend = new HermesDockerBackend(
+      localDocker as any,
+      {
+        image: 'ghcr.io/nousresearch/hermes-agent:latest',
+        mountPath: '/opt/data',
+        env: {},
+      },
+      rootDir,
+    );
+    const refreshSpy = vi.spyOn(localBackend, 'refresh');
+
+    await localBackend.initialize();
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    refreshSpy.mockClear();
+
+    const intervalCallback = setIntervalSpy.mock.calls[0]?.[0];
+    expect(typeof intervalCallback).toBe('function');
+    (intervalCallback as () => void)();
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+    await localBackend.shutdown();
+    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
   });
 });

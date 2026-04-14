@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireProfileAccess } from '../authorize.js';
+import type { FleetInstance } from '../types.js';
 import { validateInstanceId } from '../validate.js';
 
 const installPluginSchema = z.object({
@@ -18,6 +19,32 @@ function parseCliJson(stdout: string): object {
   return JSON.parse(ansiStripped.slice(jsonStart)) as object;
 }
 
+async function findInstance(app: FastifyInstance, id: string): Promise<FleetInstance | undefined> {
+  const cached = app.backend.getCachedStatus?.()?.instances.find((instance: FleetInstance) => instance.id === id);
+  if (cached) return cached;
+  const refreshed = await app.backend.refresh?.();
+  return refreshed?.instances.find((instance: FleetInstance) => instance.id === id);
+}
+
+async function requirePluginSupport(app: FastifyInstance, id: string) {
+  const instance = await findInstance(app, id);
+  if (!instance) {
+    return {
+      ok: false as const,
+      statusCode: 404,
+      body: { error: `Instance "${id}" not found`, code: 'INSTANCE_NOT_FOUND' },
+    };
+  }
+  if (!instance.runtimeCapabilities.plugins) {
+    return {
+      ok: false as const,
+      statusCode: 409,
+      body: { error: `Instance "${id}" does not support this action`, code: 'UNSUPPORTED_RUNTIME_ACTION' },
+    };
+  }
+  return { ok: true as const, instance };
+}
+
 export async function pluginRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(
     '/api/fleet/:id/plugins',
@@ -26,6 +53,10 @@ export async function pluginRoutes(app: FastifyInstance) {
       const { id } = request.params;
       if (!validateInstanceId(id)) {
         return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+      }
+      const support = await requirePluginSupport(app, id);
+      if (!support.ok) {
+        return reply.status(support.statusCode).send(support.body);
       }
 
       try {
@@ -53,6 +84,10 @@ export async function pluginRoutes(app: FastifyInstance) {
           code: 'INVALID_BODY',
         });
       }
+      const support = await requirePluginSupport(app, id);
+      if (!support.ok) {
+        return reply.status(support.statusCode).send(support.body);
+      }
 
       try {
         const stdout = await app.backend.execInstanceCommand(id, ['plugins', 'install', parsed.data.spec]);
@@ -73,6 +108,10 @@ export async function pluginRoutes(app: FastifyInstance) {
       }
       if (!PLUGIN_ID_RE.test(pluginId)) {
         return reply.status(400).send({ error: 'Invalid plugin id', code: 'INVALID_PLUGIN_ID' });
+      }
+      const support = await requirePluginSupport(app, id);
+      if (!support.ok) {
+        return reply.status(support.statusCode).send(support.body);
       }
 
       try {

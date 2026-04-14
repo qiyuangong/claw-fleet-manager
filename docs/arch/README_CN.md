@@ -327,7 +327,7 @@ flowchart LR
 
 - React Query 负责和服务端同步数据
 - Zustand 负责 UI 状态：
-  - 当前视图（`instance`、`config` 或 `users`）
+  - 当前视图（`instance`、`instances`、`dashboard`、`runningSessions`、`sessions`、`users`、`config` 或 `account`）
   - 当前 tab
   - 当前用户快照
 
@@ -353,14 +353,20 @@ flowchart LR
 
 主视图包括：
 
-- fleet 配置面板
-- 实例详情面板
-- 用户管理面板
+- 舰队仪表盘面板（`dashboard`）——全舰队会话总览，含状态汇总和活动看板
+- 实例管理面板（`instances`）——创建、重命名和删除实例
+- 实例详情面板（`instance`）——含各实例 tab
+- 运行中会话面板（`runningSessions`）——实时监控活跃会话
+- 会话管理面板（`sessions`）——含筛选和排序的历史会话表格
+- 用户管理面板（`users`）——用户增删改查及 profile 分配
+- fleet 配置面板（`config`）——全局舰队设置
+- 账户面板（`account`）——非管理员自助主页
 
 ### 实例详情页 Tab
 
 [`packages/web/src/components/instances/InstancePanel.tsx`](../../packages/web/src/components/instances/InstancePanel.tsx) 会保留 `OverviewTab` 为同步加载，并延迟加载更重的 tab：
 
+- `InstanceActivityTab`
 - `LogsTab`
 - `ConfigTab`
 - `MetricsTab`

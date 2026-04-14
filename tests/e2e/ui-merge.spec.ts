@@ -488,6 +488,56 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   await expect(page.getByText('/tmp/workspace/openclaw-1')).toBeVisible();
 });
 
+test('browser back and forward restore manager views and instance tabs', async ({ page }) => {
+  await mountDashboard(page, {
+    fleetMode: 'hybrid',
+    instances: [
+      {
+        id: 'openclaw-1',
+        mode: 'docker',
+        status: 'running',
+        port: 3101,
+        token: 'masked-token',
+        uptime: 3600,
+        cpu: 14,
+        memory: { used: 1024 * 1024 * 512, limit: 1024 * 1024 * 1024 },
+        disk: { config: 100, workspace: 200 },
+        health: 'healthy',
+        image: 'openclaw:local',
+      },
+    ],
+  });
+
+  await page.getByRole('button', { name: 'Manage Instances' }).click();
+  await expect(page).toHaveURL(/\/\?view=instances$/);
+  await expect(page.getByRole('heading', { name: 'Instance Management' })).toBeVisible();
+
+  await page.locator('.table-shell tr', { hasText: 'openclaw-1' }).getByRole('button', { name: 'Open' }).click();
+  await expect(page).toHaveURL(/\/\?view=instance&id=openclaw-1$/);
+  await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Runtime' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'logs' }).click();
+  await expect(page).toHaveURL(/\/\?view=instance&id=openclaw-1&tab=logs$/);
+  await expect(page.getByText(/connected .*\/ws\/logs\/openclaw-1/).first()).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/\?view=instance&id=openclaw-1$/);
+  await expect(page.getByRole('heading', { name: 'Runtime' })).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/\?view=instances$/);
+  await expect(page.getByRole('heading', { name: 'Instance Management' })).toBeVisible();
+
+  await page.goForward();
+  await expect(page).toHaveURL(/\/\?view=instance&id=openclaw-1$/);
+  await expect(page.getByRole('heading', { name: 'Runtime' })).toBeVisible();
+
+  await page.goForward();
+  await expect(page).toHaveURL(/\/\?view=instance&id=openclaw-1&tab=logs$/);
+  await expect(page.getByText(/connected .*\/ws\/logs\/openclaw-1/).first()).toBeVisible();
+});
+
 test('hybrid fleet keeps one shell and shows both instance kinds together', async ({ page }) => {
   await mountDashboard(page, {
     fleetMode: 'hybrid',

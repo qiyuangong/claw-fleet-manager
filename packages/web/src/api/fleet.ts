@@ -83,6 +83,11 @@ export interface ProfilePluginList {
   plugins: ProfilePlugin[];
 }
 
+export interface FleetSessionsQuery {
+  status?: 'running' | 'done' | 'failed' | 'killed' | 'timeout';
+  previewLimit?: number;
+}
+
 export const createInstance = (opts: CreateInstanceOpts) =>
   apiFetch<FleetInstance>('/api/fleet/instances', {
     method: 'POST',
@@ -118,4 +123,10 @@ export const uninstallProfilePlugin = (id: string, pluginId: string) =>
     method: 'DELETE',
   });
 
-export const getFleetSessions = () => apiFetch<FleetSessionsResult>('/api/fleet/sessions');
+export const getFleetSessions = (query?: FleetSessionsQuery) => {
+  const params = new URLSearchParams();
+  if (query?.status) params.set('status', query.status);
+  if (query?.previewLimit != null) params.set('previewLimit', String(query.previewLimit));
+  const search = params.toString();
+  return apiFetch<FleetSessionsResult>(search ? `/api/fleet/sessions?${search}` : '/api/fleet/sessions');
+};

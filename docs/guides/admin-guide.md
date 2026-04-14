@@ -1,6 +1,6 @@
-# Claw Fleet Manager — Administrator Guide (Profile Mode)
+# Claw Fleet Manager — Administrator Guide
 
-This guide covers day-to-day admin workflows for **Claw Fleet Manager** running in Profile mode.
+This guide covers day-to-day admin workflows for **Claw Fleet Manager**.
 Each section is self-contained — jump directly to the task you need.
 
 > **Prerequisites:** You are logged in as an admin user. The server is running and accessible in your browser.
@@ -12,12 +12,17 @@ Each section is self-contained — jump directly to the task you need.
 - [0. Dashboard Orientation](#0-dashboard-orientation)
 - [1. Create a New Instance](#1-create-a-new-instance)
 - [2. Start / Stop / Restart an Instance](#2-start--stop--restart-an-instance)
-- [3. Manage Users](#3-manage-users)
-- [4. Approve a Device](#4-approve-a-device)
-- [5. Feishu Pairing](#5-feishu-pairing)
-- [6. View Logs and Monitor Health](#6-view-logs-and-monitor-health)
-- [7. Install or Remove a Plugin](#7-install-or-remove-a-plugin)
-- [8. Edit Instance Configuration](#8-edit-instance-configuration)
+- [3. Rename an Instance](#3-rename-an-instance)
+- [4. Manage Users](#4-manage-users)
+- [5. Approve a Device](#5-approve-a-device)
+- [6. Feishu Pairing](#6-feishu-pairing)
+- [7. View Logs and Monitor Health](#7-view-logs-and-monitor-health)
+- [8. View Instance Activity](#8-view-instance-activity)
+- [9. Install or Remove a Plugin](#9-install-or-remove-a-plugin)
+- [10. Edit Instance Configuration](#10-edit-instance-configuration)
+- [11. Monitor Active Sessions Fleet-Wide](#11-monitor-active-sessions-fleet-wide)
+- [12. Review Session History](#12-review-session-history)
+- [13. View the Admin Dashboard](#13-view-the-admin-dashboard)
 
 ---
 
@@ -31,10 +36,13 @@ When you open Claw Fleet Manager in your browser you see three areas.
 
 | Element | What it does |
 |---------|-------------|
-| Instance list | One button per profile instance — click to open it |
-| Manage Instances | Create or delete instances |
-| Users | Create and manage user accounts |
-| Fleet Config | Global fleet settings |
+| Instance list | One button per instance — click to open it (non-admin users only) |
+| Dashboard | Fleet-wide session overview: status breakdowns, activity board, filters (admin only) |
+| Manage Instances | Create, rename, or delete instances (admin only) |
+| Running | Live monitor of all currently active sessions across the fleet (admin only) |
+| Activity | Historical session table with filtering, sorting, and search (admin only) |
+| Users | Create and manage user accounts (admin only) |
+| Fleet Config | Global fleet settings (admin only) |
 
 **Main panel (centre)**
 
@@ -42,9 +50,9 @@ Shows details for the selected instance or admin panel.
 
 **Tab row (top of main panel)**
 
-When an instance is selected, the tab row gives you: Overview · Logs · Config · Metrics · Control UI · Feishu · Plugins
+When an instance is selected, the tab row gives you: Overview · Activity · Logs · Config · Metrics · Control UI · Feishu · Plugins
 
-> **Note:** Non-admin users only see the instances assigned to them and do not see the Users or Fleet Config buttons.
+> **Note:** Non-admin users only see the instances assigned to them and do not see the admin navigation items.
 
 ---
 
@@ -102,15 +110,39 @@ Use this to control whether an instance is running.
 
 4. The **status badge** in the top-right of the panel updates to `running` or `stopped`.
 
-> **Tip:** After editing an instance's configuration (Section 8), use **Restart** for the changes to take effect.
+> **Tip:** After editing an instance's configuration (Section 10), use **Restart** for the changes to take effect.
 
 ---
 
-## 3. Manage Users
+## 3. Rename an Instance
+
+Use this to give an instance a new name. Renaming is only available for **stopped** instances.
+
+**Steps:**
+
+1. In the sidebar, click **Manage Instances** (under the Admin section).
+
+2. Locate the instance you want to rename. If it is running, stop it first using the **Stop** button in the same row.
+
+3. Click **Rename** in the instance's action row.
+
+   > **Rename is disabled** while the instance is running. The button tooltip explains this.
+
+4. In the dialog that opens, enter the new name.
+
+   > **Name rules:** lowercase letters, numbers, and hyphens only (e.g. `team-a`, `worker-2`). Applies to both profile and Docker instances.
+
+5. Click **Rename**. The instance reappears under the new name.
+
+> **After renaming:** User profile assignments that referenced the old name are updated automatically. Use **Start** on the Overview tab to bring the instance back up.
+
+---
+
+## 4. Manage Users
 
 Use this to create accounts, control which instances a user can access, and reset passwords.
 
-### 3a. Open User Management
+### 4a. Open User Management
 
 Click **Users** in the sidebar (under the Admin section).
 
@@ -122,7 +154,7 @@ The Users panel lists all accounts.
 
 ---
 
-### 3b. Create a User
+### 4b. Create a User
 
 1. In the **Add User** section, enter the new account details.
 
@@ -138,7 +170,7 @@ The Users panel lists all accounts.
 
 ---
 
-### 3c. Assign Instances to a User
+### 4c. Assign Instances to a User
 
 Users with the **User** role can only access instances listed in their profile assignment.
 
@@ -152,7 +184,7 @@ Users with the **User** role can only access instances listed in their profile a
 
 ---
 
-### 3d. Reset a Password
+### 4d. Reset a Password
 
 1. Find the user in the table and click **Reset Password**.
 2. Enter the new password and confirm it.
@@ -162,7 +194,7 @@ Users with the **User** role can only access instances listed in their profile a
 
 ---
 
-## 4. Approve a Device
+## 5. Approve a Device
 
 Use this when a user's browser or client is waiting for approval to connect to an instance's Control UI.
 
@@ -184,11 +216,11 @@ Use this when a user's browser or client is waiting for approval to connect to a
 
 ---
 
-## 5. Feishu Pairing
+## 6. Feishu Pairing
 
 Use this to connect an instance to a Feishu (Lark) bot channel and approve user pairing requests.
 
-### 5a. Configure Feishu credentials
+### 6a. Configure Feishu credentials
 
 You only need to do this once per instance (or when credentials change).
 
@@ -211,7 +243,7 @@ You only need to do this once per instance (or when credentials change).
 
 ---
 
-### 5b. Approve a Feishu pairing request
+### 6b. Approve a Feishu pairing request
 
 When a Feishu user sends the pairing command to the bot, their code appears here.
 
@@ -227,9 +259,9 @@ When a Feishu user sends the pairing command to the bot, their code appears here
 
 ---
 
-## 6. View Logs and Monitor Health
+## 7. View Logs and Monitor Health
 
-### 6a. Live log stream
+### 7a. Live log stream
 
 Use this to watch what an instance is doing in real time or to investigate a problem.
 
@@ -243,7 +275,7 @@ Use this to watch what an instance is doing in real time or to investigate a pro
 
 ---
 
-### 6b. CPU and memory metrics
+### 7b. CPU and memory metrics
 
 Use this to check whether an instance is under load or running low on memory.
 
@@ -260,11 +292,34 @@ Use this to check whether an instance is under load or running low on memory.
 
 ---
 
-## 7. Install or Remove a Plugin
+## 8. View Instance Activity
+
+Use this to review the session history for a specific instance — what sessions have run, their status, token usage, and cost.
+
+**Steps:**
+
+1. Open an instance panel — in the sidebar click **Manage Instances**, then click **Open Instance** in the row for the instance you want. Once the instance panel is open, click the **Activity** tab.
+
+2. The tab shows a list of sessions with:
+   - session title and key
+   - status (`running`, `done`, `failed`, `killed`, `timeout`)
+   - model used
+   - token usage and estimated cost
+   - relative timestamp
+
+3. Use the status filter (All · Active · Done · Error) and time filter (Today · 24 h · 7 d · All) to narrow the list.
+
+4. Switch between **Board** and **Table** view using the view toggle in the toolbar.
+
+> **Tip:** The board view groups sessions into status columns (running, done, failed, killed/timeout). The table view supports sorting by token count, cost, or last-updated time.
+
+---
+
+## 9. Install or Remove a Plugin
 
 Use this to add or remove extensions from an instance.
 
-### 7a. Install a plugin
+### 9a. Install a plugin
 
 1. Click the instance name in the sidebar → **Plugins** tab.
 
@@ -278,7 +333,7 @@ Use this to add or remove extensions from an instance.
 
 ---
 
-### 7b. Remove a plugin
+### 9b. Remove a plugin
 
 1. Find the plugin in the installed list.
 
@@ -290,7 +345,7 @@ Use this to add or remove extensions from an instance.
 
 ---
 
-## 8. Edit Instance Configuration
+## 10. Edit Instance Configuration
 
 Use this to change an instance's settings — model, API key, provider, or any other `openclaw.json` field.
 
@@ -309,3 +364,83 @@ Use this to change an instance's settings — model, API key, provider, or any o
 4. Go to the **Overview** tab and click **Restart**. Configuration changes take effect only after a restart.
 
    > **Important:** Do not skip the restart step — the instance continues running with the old settings until it is restarted.
+
+---
+
+## 11. Monitor Active Sessions Fleet-Wide
+
+Use this to watch what is happening across all instances in real time.
+
+**Steps:**
+
+1. In the sidebar, click **Running** (under the Admin section).
+
+2. Click **Start** to begin live polling. The panel refreshes every 300 ms.
+
+3. The panel shows a card per active session, including:
+   - instance ID
+   - session title and key
+   - model in use
+   - token count and cost so far
+   - a scrolling preview of the most recent messages
+
+4. Use the search box to filter by instance ID, session key, model, or message text.
+
+5. Click an instance ID link to jump directly to that instance's panel.
+
+6. Click **Stop** to pause live polling.
+
+> **Note:** The monitoring state is persisted in browser local storage across page reloads.
+
+---
+
+## 12. Review Session History
+
+Use this to look up completed, failed, or killed sessions across the entire fleet.
+
+**Steps:**
+
+1. In the sidebar, click **Activity** (under the Admin section).
+
+2. The panel shows a filterable, sortable table of sessions from all instances.
+
+3. Filter by status using the status tabs: **All · Active · Done · Error**.
+
+4. Filter by time window: **Today · Last 24 h · Last 7 d · All**.
+
+5. Click a column header to sort by that column.
+
+6. Use the search box to find sessions by title, key, model, or last message preview.
+
+7. Switch between **Board** view (kanban-style columns) and **Table** view using the view toggle.
+
+8. Click an instance ID to navigate to that instance's panel.
+
+---
+
+## 13. View the Admin Dashboard
+
+Use this for a fleet-wide overview of session health and activity trends.
+
+**Steps:**
+
+1. In the sidebar, click **Dashboard** (under the Admin section).
+
+2. The dashboard shows several panels:
+
+   | Panel | What it shows |
+   |---|---|
+   | Metrics grid | Total sessions, active instances, running now (clickable), avg CPU, total memory |
+   | Status Mix | Stacked bar of running / done / failed / killed/timeout proportions — click a segment to filter |
+   | Throughput | Histogram of sessions completed per time bucket; toggle between Last 24 h and Last 7 d |
+   | Runtime Bands | Distribution of session durations (live, < 5 m, 5–30 m, 30 m–2 h, 2 h+) |
+   | Hot Instances | Top instances by session count |
+   | Model Load | Top models by token usage |
+
+3. Use the **search box** and **status / time filters** above the dashboard to narrow which sessions are counted in the panels.
+
+4. Click a segment in the **Status Mix** bar or the **Running now** metric card to focus all panels on that status.
+
+5. Click **Reset filters** to return to the default view.
+
+6. Click **Refresh** to fetch the latest data manually.

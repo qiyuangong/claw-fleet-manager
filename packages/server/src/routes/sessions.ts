@@ -16,11 +16,23 @@ export type FleetSessionsResult = {
   updatedAt: number;
 };
 
-async function fetchEntry(instance: FleetInstance, backend: DeploymentBackend): Promise<InstanceSessionsEntry> {
+type FleetSessionsQuery = {
+  status?: InstanceSessionRow['status'];
+  previewLimit?: number;
+};
+
+async function fetchEntry(
+  instance: FleetInstance,
+  backend: DeploymentBackend,
+  query: FleetSessionsQuery,
+): Promise<InstanceSessionsEntry> {
   try {
     const token = await backend.revealToken(instance.id);
-    const sessions = await fetchInstanceSessions(instance.port, token);
-    return { instanceId: instance.id, sessions };
+    const sessions = await fetchInstanceSessions(instance.port, token, 5_000, query);
+    const filteredSessions = query.status
+      ? sessions.filter((session) => session.status === query.status)
+      : sessions;
+    return { instanceId: instance.id, sessions: filteredSessions };
   } catch (err) {
     return {
       instanceId: instance.id,
@@ -29,6 +41,15 @@ async function fetchEntry(instance: FleetInstance, backend: DeploymentBackend): 
     };
   }
 }
+
+const previewItemSchema = {
+  type: 'object',
+  properties: {
+    role: { type: 'string' },
+    text: { type: 'string' },
+  },
+  required: ['role', 'text'],
+} as const;
 
 const fleetSessionsResponseSchema = {
   type: 'object',
@@ -49,6 +70,10 @@ const fleetSessionsResponseSchema = {
                 displayName: { type: 'string' },
                 derivedTitle: { type: 'string' },
                 lastMessagePreview: { type: 'string' },
+                previewItems: {
+                  type: 'array',
+                  items: previewItemSchema,
+                },
                 status: { type: 'string', enum: ['running', 'done', 'failed', 'killed', 'timeout'] },
                 startedAt: { type: 'number' },
                 endedAt: { type: 'number' },
@@ -76,22 +101,29 @@ const fleetSessionsResponseSchema = {
 } as const;
 
 export async function sessionRoutes(app: FastifyInstance) {
-  app.get<{ Reply: FleetSessionsResult }>('/api/fleet/sessions', {
+  app.get<{ Querystring: FleetSessionsQuery; Reply: FleetSessionsResult }>('/api/fleet/sessions', {
     preHandler: requireAdmin,
     schema: {
       tags: ['Sessions'],
       summary: 'Get recent sessions across all running instances (admin only)',
+      querystring: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', enum: ['running', 'done', 'failed', 'killed', 'timeout'] },
+          previewLimit: { type: 'integer', minimum: 0, maximum: 8 },
+        },
+      },
       response: {
         200: fleetSessionsResponseSchema,
         403: errorResponseSchema,
       },
     },
-  }, async () => {
+  }, async (request) => {
     const status = app.backend.getCachedStatus();
     const running = (status?.instances ?? []).filter((instance) =>
       instance.status === 'running' && instance.runtimeCapabilities.sessions,
     );
-    const instances = await Promise.all(running.map((i) => fetchEntry(i, app.backend)));
+    const instances = await Promise.all(running.map((i) => fetchEntry(i, app.backend, request.query)));
     return { instances, updatedAt: Date.now() };
   });
 }

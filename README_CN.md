@@ -1,10 +1,6 @@
 # Claw Fleet Manager
 
 <p align="center">
-  <a href="README.md"><strong>English</strong></a>
-</p>
-
-<p align="center">
   <strong>在浏览器中管理 OpenClaw 集群。</strong><br/>
   用一个面板统一启停、配置和监控 Profile 实例与 Docker 实例。
 </p>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,6 +13,7 @@ import { FleetConfigPanel } from '../config/FleetConfigPanel';
 import { FleetDashboardPanel } from '../instances/FleetDashboardPanel';
 import { InstancePanel } from '../instances/InstancePanel';
 import { InstanceManagementPanel } from '../instances/InstanceManagementPanel';
+import { FleetRunningSessionsPanel } from '../instances/FleetRunningSessionsPanel';
 import { FleetSessionsPanel } from '../instances/FleetSessionsPanel';
 import { ChangePasswordDialog } from '../users/ChangePasswordDialog';
 import { UserHomePanel } from '../users/UserHomePanel';
@@ -21,13 +22,23 @@ import { useFleet } from '../../hooks/useFleet';
 import { Sidebar } from './Sidebar';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { useAppStore } from '../../store';
+import {
+  defaultNavigationState,
+  type NavigationState,
+  parseNavigationFromUrl,
+  serializeNavigationToUrl,
+} from '../../navigation';
+
+type NavigationSyncSource = 'hydrate' | 'popstate' | null;
 
 export function Shell() {
   const { t } = useTranslation();
   const activeView = useAppStore((state) => state.activeView);
+  const activeTab = useAppStore((state) => state.activeTab);
   const selectInstance = useAppStore((state) => state.selectInstance);
   const selectAccount = useAppStore((state) => state.selectAccount);
   const setCurrentUser = useAppStore((state) => state.setCurrentUser);
+  const applyNavigationState = useAppStore((state) => state.applyNavigationState);
   const { data: currentUser, error: currentUserError, isLoading: currentUserLoading } = useCurrentUser();
   const { data: fleet } = useFleet();
   const queryClient = useQueryClient();
@@ -37,6 +48,11 @@ export function Shell() {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const hydratedAuthKeyRef = useRef<string | null>(null);
+  const navigationSyncSourceRef = useRef<NavigationSyncSource>(null);
+  const navigationSyncExpectedUrlRef = useRef<string | null>(null);
+  const navigationSyncAppliedRef = useRef(false);
+  const clearNavigationSyncTimeoutRef = useRef<number | null>(null);
   const nonAdminAllowedInstances = useMemo(
     () => (currentUser && currentUser.role !== 'admin' && fleet
       ? fleet.instances.filter((instance) => (currentUser.assignedProfiles ?? []).includes(instance.id))
@@ -49,11 +65,142 @@ export function Shell() {
   }, [currentUser, setCurrentUser]);
 
   useEffect(() => {
+    if (clearNavigationSyncTimeoutRef.current !== null) {
+      window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+      clearNavigationSyncTimeoutRef.current = null;
+    }
+    if (!currentUser) {
+      hydratedAuthKeyRef.current = null;
+      navigationSyncSourceRef.current = null;
+      navigationSyncExpectedUrlRef.current = null;
+      navigationSyncAppliedRef.current = false;
+    }
+  }, [currentUser]);
+
+  const beginNavigationSync = (
+    source: Exclude<NavigationSyncSource, null>,
+    navigationState: NavigationState,
+  ) => {
+    if (clearNavigationSyncTimeoutRef.current !== null) {
+      window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+      clearNavigationSyncTimeoutRef.current = null;
+    }
+
+    navigationSyncSourceRef.current = source;
+    navigationSyncExpectedUrlRef.current = serializeNavigationToUrl(navigationState);
+    navigationSyncAppliedRef.current = false;
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const authKey = `${currentUser.username}:${currentUser.role}`;
+    if (hydratedAuthKeyRef.current === authKey) return;
+
+    const fallback = defaultNavigationState(currentUser.role === 'admin');
+    const navigationState = parseNavigationFromUrl(new URL(window.location.href), fallback);
+
+    beginNavigationSync('hydrate', navigationState);
+    applyNavigationState(navigationState);
+    window.history.replaceState({}, '', serializeNavigationToUrl(navigationState));
+    hydratedAuthKeyRef.current = authKey;
+  }, [applyNavigationState, currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const handlePopstate = () => {
+      const fallback = defaultNavigationState(currentUser.role === 'admin');
+      const navigationState = parseNavigationFromUrl(new URL(window.location.href), fallback);
+      beginNavigationSync('popstate', navigationState);
+      applyNavigationState(navigationState);
+    };
+
+    window.addEventListener('popstate', handlePopstate);
+    return () => window.removeEventListener('popstate', handlePopstate);
+  }, [applyNavigationState, currentUser]);
+
+  useEffect(() => {
     if (!currentUser || currentUser.role === 'admin' || !fleet) return;
     if (activeView.type === 'account') return;
     if (activeView.type === 'instance' && nonAdminAllowedInstances.some((instance) => instance.id === activeView.id)) return;
+    beginNavigationSync('hydrate', {
+      activeView: { type: 'account' },
+      activeTab: 'overview',
+    });
     selectAccount();
   }, [activeView, currentUser, fleet, nonAdminAllowedInstances, selectAccount]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const nextUrl = serializeNavigationToUrl({ activeView, activeTab });
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    const expectedUrl = navigationSyncExpectedUrlRef.current;
+
+    if (navigationSyncSourceRef.current !== null) {
+      if (!navigationSyncAppliedRef.current) {
+        if (expectedUrl !== null && nextUrl !== expectedUrl) {
+          if (currentUser.role !== 'admin' && activeView.type === 'account') {
+            if (currentUrl !== nextUrl) {
+              window.history.replaceState({}, '', nextUrl);
+            }
+            navigationSyncSourceRef.current = null;
+            navigationSyncExpectedUrlRef.current = null;
+            navigationSyncAppliedRef.current = false;
+            if (clearNavigationSyncTimeoutRef.current !== null) {
+              window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+              clearNavigationSyncTimeoutRef.current = null;
+            }
+          }
+          return;
+        }
+
+        navigationSyncAppliedRef.current = true;
+
+        if (currentUrl !== nextUrl) {
+          window.history.replaceState({}, '', nextUrl);
+        }
+
+        const source = navigationSyncSourceRef.current;
+        const expected = expectedUrl;
+        clearNavigationSyncTimeoutRef.current = window.setTimeout(() => {
+          if (navigationSyncSourceRef.current !== source) return;
+          if (navigationSyncExpectedUrlRef.current !== expected) return;
+          navigationSyncSourceRef.current = null;
+          navigationSyncExpectedUrlRef.current = null;
+          navigationSyncAppliedRef.current = false;
+          clearNavigationSyncTimeoutRef.current = null;
+        }, 0);
+
+        return;
+      }
+
+      if (currentUrl !== nextUrl) {
+        window.history.replaceState({}, '', nextUrl);
+      }
+      if (clearNavigationSyncTimeoutRef.current !== null) {
+        window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+        clearNavigationSyncTimeoutRef.current = null;
+      }
+      navigationSyncSourceRef.current = null;
+      navigationSyncExpectedUrlRef.current = null;
+      navigationSyncAppliedRef.current = false;
+      return;
+    }
+
+    if (currentUrl === nextUrl) {
+      return;
+    }
+
+    window.history.pushState({}, '', nextUrl);
+  }, [activeTab, activeView, currentUser]);
+
+  useEffect(() => () => {
+    if (clearNavigationSyncTimeoutRef.current !== null) {
+      window.clearTimeout(clearNavigationSyncTimeoutRef.current);
+    }
+  }, []);
 
   const handleLogout = () => {
     clearApiClientSessionAuth();
@@ -211,6 +358,8 @@ export function Shell() {
           <UserManagementPanel />
         ) : activeView.type === 'dashboard' ? (
           <FleetDashboardPanel />
+        ) : activeView.type === 'runningSessions' ? (
+          <FleetRunningSessionsPanel />
         ) : activeView.type === 'sessions' ? (
           <FleetSessionsPanel />
         ) : (

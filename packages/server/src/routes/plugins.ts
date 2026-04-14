@@ -3,12 +3,66 @@ import { z } from 'zod';
 import { requireProfileAccess } from '../authorize.js';
 import type { FleetInstance } from '../types.js';
 import { validateInstanceId } from '../validate.js';
+import { errorResponseSchema, instanceIdParamsSchema } from '../schemas.js';
 
 const installPluginSchema = z.object({
   spec: z.string().min(1, 'spec is required'),
 });
 
 const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
+
+const pluginSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    description: { type: 'string' },
+    version: { type: 'string' },
+    origin: { type: 'string' },
+    status: { type: 'string' },
+    enabled: { type: 'boolean' },
+    source: { type: 'string' },
+  },
+  required: ['id'],
+} as const;
+
+const pluginListResponseSchema = {
+  type: 'object',
+  properties: {
+    workspaceDir: { type: 'string' },
+    plugins: {
+      type: 'array',
+      items: pluginSchema,
+    },
+  },
+  required: ['plugins'],
+} as const;
+
+const installPluginBodySchema = {
+  type: 'object',
+  properties: {
+    spec: { type: 'string', minLength: 1 },
+  },
+  required: ['spec'],
+} as const;
+
+const pluginIdParamsSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    pluginId: { type: 'string', pattern: PLUGIN_ID_RE.source },
+  },
+  required: ['id', 'pluginId'],
+} as const;
+
+const pluginCommandResponseSchema = {
+  type: 'object',
+  properties: {
+    ok: { type: 'boolean' },
+    output: { type: 'string' },
+  },
+  required: ['ok', 'output'],
+} as const;
 
 function parseCliJson(stdout: string): object {
   const ansiStripped = stdout.replace(/\u001b\[[0-9;]*m/g, '');
@@ -48,7 +102,21 @@ async function requirePluginSupport(app: FastifyInstance, id: string) {
 export async function pluginRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(
     '/api/fleet/:id/plugins',
-    { preHandler: requireProfileAccess },
+    {
+      preHandler: requireProfileAccess,
+      schema: {
+        tags: ['Plugins'],
+        summary: 'List installed plugins for an instance',
+        params: instanceIdParamsSchema,
+        response: {
+          200: pluginListResponseSchema,
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const { id } = request.params;
       if (!validateInstanceId(id)) {
@@ -70,7 +138,22 @@ export async function pluginRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     '/api/fleet/:id/plugins/install',
-    { preHandler: requireProfileAccess },
+    {
+      preHandler: requireProfileAccess,
+      schema: {
+        tags: ['Plugins'],
+        summary: 'Install a plugin into an instance',
+        params: instanceIdParamsSchema,
+        body: installPluginBodySchema,
+        response: {
+          200: pluginCommandResponseSchema,
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const { id } = request.params;
       if (!validateInstanceId(id)) {
@@ -100,7 +183,21 @@ export async function pluginRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string; pluginId: string } }>(
     '/api/fleet/:id/plugins/:pluginId',
-    { preHandler: requireProfileAccess },
+    {
+      preHandler: requireProfileAccess,
+      schema: {
+        tags: ['Plugins'],
+        summary: 'Uninstall a plugin from an instance',
+        params: pluginIdParamsSchema,
+        response: {
+          200: pluginCommandResponseSchema,
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
     async (request, reply) => {
       const { id, pluginId } = request.params;
       if (!validateInstanceId(id)) {

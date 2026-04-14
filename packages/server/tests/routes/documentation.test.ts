@@ -2,10 +2,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
+import fastifyWebsocket from '@fastify/websocket';
 import { configRoutes } from '../../src/routes/config.js';
 import { fleetRoutes } from '../../src/routes/fleet.js';
 import { healthRoutes } from '../../src/routes/health.js';
 import { instanceRoutes } from '../../src/routes/instances.js';
+import { pluginRoutes } from '../../src/routes/plugins.js';
+import { profileRoutes } from '../../src/routes/profiles.js';
+import { proxyRoutes } from '../../src/routes/proxy.js';
 import { userRoutes } from '../../src/routes/users.js';
 
 const mockInstance = {
@@ -47,6 +51,7 @@ describe('OpenAPI documentation', () => {
     app.decorate('fleetConfig', {
       readFleetConfig: vi.fn(),
       readFleetEnvRaw: vi.fn(),
+      readTokens: vi.fn().mockReturnValue({ 1: 'secret-token' }),
       writeFleetConfig: vi.fn(),
       updateBaseDir: vi.fn(),
     });
@@ -82,11 +87,15 @@ describe('OpenAPI documentation', () => {
       routePrefix: '/documentation',
     });
 
+    await app.register(fastifyWebsocket);
     await app.register(healthRoutes);
     await app.register(fleetRoutes);
     await app.register(instanceRoutes);
     await app.register(configRoutes);
     await app.register(userRoutes);
+    await app.register(pluginRoutes);
+    await app.register(profileRoutes);
+    await app.register(proxyRoutes);
     await app.ready();
   });
 
@@ -133,5 +142,29 @@ describe('OpenAPI documentation', () => {
     expect(spec.paths['/api/users'].post.requestBody).toBeDefined();
     expect(spec.paths['/api/users/{username}/password'].put.responses['200']).toBeDefined();
     expect(spec.paths['/api/users/{username}/profiles'].put.responses['200']).toBeDefined();
+  });
+
+  it('documents plugin and profile management routes with explicit metadata', async () => {
+    const spec = (await app.inject({ method: 'GET', url: '/documentation/json' })).json();
+
+    expect(spec.paths['/api/fleet/{id}/plugins'].get.tags).toEqual(['Plugins']);
+    expect(spec.paths['/api/fleet/{id}/plugins'].get.summary).toBe('List installed plugins for an instance');
+    expect(spec.paths['/api/fleet/{id}/plugins/install'].post.requestBody).toBeDefined();
+    expect(spec.paths['/api/fleet/{id}/plugins/{pluginId}'].delete.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'pluginId', in: 'path', required: true })]),
+    );
+
+    expect(spec.paths['/api/fleet/profiles'].get.tags).toEqual(['Profiles']);
+    expect(spec.paths['/api/fleet/profiles'].get.summary).toBe('List managed OpenClaw profile instances');
+    expect(spec.paths['/api/fleet/profiles'].post.requestBody).toBeDefined();
+    expect(spec.paths['/api/fleet/profiles/{name}'].delete.responses['200']).toBeDefined();
+  });
+
+  it('does not expose proxy transport routes in the management OpenAPI spec', async () => {
+    const spec = (await app.inject({ method: 'GET', url: '/documentation/json' })).json();
+
+    expect(spec.paths['/proxy/{id}']).toBeUndefined();
+    expect(spec.paths['/proxy/{*}']).toBeUndefined();
+    expect(spec.paths['/proxy/{id}/{*}']).toBeUndefined();
   });
 });

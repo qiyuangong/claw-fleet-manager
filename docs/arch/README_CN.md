@@ -86,7 +86,7 @@ flowchart LR
 `packages/server/src/index.ts` 的启动顺序如下：
 
 1. 使用 Zod 加载并校验 `server.config.json`
-2. 在 Docker 模式且配置了 `tailscale.hostname` 时，检查本机是否存在 `tailscale` CLI
+2. 如果配置了 `tailscale.hostname`，检查本机是否存在 `tailscale` CLI
 3. 如配置了 TLS，则加载 key/cert 并以 HTTPS 模式启动 Fastify
 4. 创建共享服务：
    - `FleetConfigService`
@@ -97,8 +97,8 @@ flowchart LR
    - OpenClaw profile 的 `ProfileBackend`
    - `HermesDockerBackend`
 7. 用 `HybridBackend` 将它们组合起来，并按 `(runtime, mode)` 路由
-8. 通过 Fastify decorator 注入 `backend`、`deploymentMode`、`fleetConfig`、`fleetDir` 和 `userService`
-9. 注册认证、WebSocket、各类路由以及静态资源托管
+8. 通过 Fastify decorator 注入 `backend`、`fleetConfig`、`fleetDir` 和 `userService`
+9. 注册认证、WebSocket、管理 API、legacy profile 便捷路由以及静态资源托管
 10. 调用 `backend.initialize()` 并监听 `0.0.0.0:{port}`
 
 ## 认证与权限控制
@@ -132,26 +132,23 @@ flowchart LR
 
 ## API 结构
 
+生成的 `/documentation` OpenAPI 主要描述 `/api/*` 下的管理 API。`/proxy/*` 这类反向代理传输路由会被有意排除在该规范之外。
+
 ### 所有模式都存在的路由
 
 | 路由文件 | 端点 | 说明 |
 |---|---|---|
 | `health.ts` | `GET /api/health` | 基础健康检查 |
-| `fleet.ts` | `GET /api/fleet`、`POST /api/fleet/scale` | scale 仅管理员可用，且只支持 Docker 模式 |
+| `fleet.ts` | `GET /api/fleet`、`POST /api/fleet/instances`、`DELETE /api/fleet/instances/:id`、`POST /api/fleet/instances/:id/rename` | 混合 fleet 列表，以及创建/删除/重命名实例 |
 | `config.ts` | `GET/PUT /api/config/fleet`、`GET/PUT /api/fleet/:id/config` | fleet 配置仅管理员可用；实例配置要求具备实例访问权限 |
-| `instances.ts` | 启停重启、token 查看、待审批设备、设备审批、飞书配对列表/审批 | 在调用后端前先校验实例 ID 和配对参数 |
-| `users.ts` | 当前用户、自助改密、管理员用户 CRUD/重置密码/profile 分配 | 用户体系核心都在这里 |
+| `instances.ts` | 启停重启、token 查看、待审批设备、设备审批、飞书配对列表/审批 | 生命周期操作按 capability 控制；device / 飞书 路由仅适用于 OpenClaw |
+| `migrate.ts` | `POST /api/fleet/instances/:id/migrate` | 仅管理员可用，用于在 OpenClaw docker/profile 之间迁移 |
+| `users.ts` | 当前用户、自助改密、管理员用户 CRUD/重置密码/实例分配 | 用户体系核心都在这里 |
+| `sessions.ts` | `GET /api/fleet/sessions` | 仅管理员可用，聚合正在运行且支持 session 的实例活动 |
 | `logs.ts` | `WS /ws/logs/:id`、`WS /ws/logs` | 普通用户看单实例日志，管理员可看全局日志 |
 | `proxy.ts` | `/proxy/:id`、`/proxy/*` 及对应 WS | 嵌入式 Control UI 的反向代理 |
-| `plugins.ts` | `GET /api/fleet/:id/plugins`、`POST /api/fleet/:id/plugins/install`、`DELETE /api/fleet/:id/plugins/:pluginId` | 两种模式都可用；底层统一走 `execInstanceCommand()` |
-
-### 仅 Profile 模式注册的路由
-
-只有在 `deploymentMode === 'profiles'` 时才会注册：
-
-- `GET /api/fleet/profiles`
-- `POST /api/fleet/profiles`
-- `DELETE /api/fleet/profiles/:name`
+| `plugins.ts` | `GET /api/fleet/:id/plugins`、`POST /api/fleet/:id/plugins/install`、`DELETE /api/fleet/:id/plugins/:pluginId` | 仅当 `runtimeCapabilities.plugins` 为 true 时可用 |
+| `profiles.ts` | `GET/POST /api/fleet/profiles`、`DELETE /api/fleet/profiles/:name` | OpenClaw profile 的 legacy 管理便捷路由；始终注册 |
 
 ## DeploymentBackend 抽象
 
@@ -164,8 +161,8 @@ flowchart LR
 [`packages/server/src/services/docker-backend.ts`](../../packages/server/src/services/docker-backend.ts) 负责：
 
 - 每 5 秒轮询 Docker 并缓存 `FleetStatus`
-- 将 `openclaw-3` 这样的容器名映射为实例 ID 和网关端口
-- 启动、停止、重启和扩缩容容器
+- 将受管容器映射为 fleet 实例 ID、网关端口和内部 index
+- 负责容器的启动、停止、重启、创建、重命名和删除
 - 借助 `FleetConfigService` 读取 token 与实例配置
 - 通过 `docker-instance-provisioning` 完成新实例文件自举
 - 通过 `DockerService` 直接创建受管容器
@@ -174,11 +171,10 @@ flowchart LR
 
 运行特性：
 
-- 实例 ID 格式为 `openclaw-N`
-- 扩容/创建以单实例为原语：分配 token、写入文件、创建一个容器
-- 缩容时会优先停止编号更大的容器
-- 不再依赖 `docker-compose.yml` 做状态收敛
-- 为了保持编号连续，`removeInstance()` 目前只允许删除编号最大的实例
+- OpenClaw Docker 实例使用受管名称，例如 `team-alpha`；如果未提供名称，后端会回退到 `openclaw-N`
+- 每个实例仍然会分配一个内部数字 index，用于 token 持久化、端口推导以及可选的 Tailscale 端口分配
+- create/remove 以单实例为粒度：先准备 token 与工作目录，再创建或删除单个容器
+- 没有 fleet 级 scale API，也不依赖 `docker-compose.yml` 做状态收敛
 - 磁盘占用来自文件系统遍历，并辅以 Docker volume 使用量的 best-effort 覆盖
 
 ### ProfileBackend
@@ -197,7 +193,7 @@ flowchart LR
 
 运行特性：
 
-- 实例 ID 是 profile 名，例如 `main`，而不是 `openclaw-N`
+- 实例 ID 就是受管 profile 名，例如 `team-alpha`
 - 每个 profile 都有：
   - `profiles.configBaseDir/<name>/openclaw.json`
   - `profiles.stateBaseDir/<name>`
@@ -230,7 +226,6 @@ flowchart LR
 它还负责：
 
 - 在写入前确保 Docker 模式的 config/workspace 基础目录存在
-- 从 `COUNT` 或持久化的 `TOKEN_N` 数量推导 `count`
 - 将 token 脱敏后返回给前端
 - 通过 `*.tmp` + rename 完成原子写入
 
@@ -245,7 +240,7 @@ flowchart LR
 - 创建/删除用户
 - 重置密码
 - 自助修改密码
-- 分配每个用户可访问的 profile 列表
+- 分配每个用户可访问的实例列表
 
 ### DockerService
 
@@ -274,7 +269,7 @@ flowchart LR
 
 ### TailscaleService
 
-[`packages/server/src/services/tailscale.ts`](../../packages/server/src/services/tailscale.ts) 是可选的，并且只在 Docker 模式下使用。
+[`packages/server/src/services/tailscale.ts`](../../packages/server/src/services/tailscale.ts) 是可选的，并在启用时服务于 OpenClaw Docker 实例。
 
 它会：
 
@@ -342,7 +337,7 @@ flowchart LR
 - 实例详情面板（`instance`）——含各实例 tab
 - 运行中会话面板（`runningSessions`）——实时监控活跃会话
 - 会话管理面板（`sessions`）——含筛选和排序的历史会话表格
-- 用户管理面板（`users`）——用户增删改查及 profile 分配
+- 用户管理面板（`users`）——用户增删改查及实例分配
 - fleet 配置面板（`config`）——全局舰队设置
 - 账户面板（`account`）——非管理员自助主页
 

@@ -16,12 +16,6 @@ const profilesSchema = z.object({
   stopTimeoutMs: z.number().int().positive().default(10000),
 });
 
-const hermesProfilesSchema = z.object({
-  binary: z.string().default('hermes'),
-  baseHomeDir: z.string().default(join(homedir(), '.hermes', 'profiles')),
-  stopTimeoutMs: z.number().int().positive().default(10000),
-});
-
 const hermesDockerSchema = z.object({
   image: z.string().default('ghcr.io/nousresearch/hermes-agent:latest'),
   mountPath: z.string().default('/opt/data'),
@@ -43,7 +37,6 @@ const schema = z.object({
     key: z.string().min(1),
   }).optional(),
   profiles: profilesSchema.optional(),
-  hermesProfiles: hermesProfilesSchema.optional(),
   hermesDocker: hermesDockerSchema.optional(),
 });
 
@@ -64,9 +57,6 @@ export function loadConfig(): ServerConfig {
   if (parsed.profiles) {
     parsed.profiles.stateBaseDir = expandHome(parsed.profiles.stateBaseDir);
     parsed.profiles.configBaseDir = expandHome(parsed.profiles.configBaseDir);
-  }
-  if (parsed.hermesProfiles) {
-    parsed.hermesProfiles.baseHomeDir = expandHome(parsed.hermesProfiles.baseHomeDir);
   }
   if (parsed.baseDir) {
     parsed.baseDir = expandHome(parsed.baseDir);

@@ -94,16 +94,16 @@ export async function fleetRoutes(app: FastifyInstance) {
 
     const { runtime, kind, name, port, config, apiKey, image, cpuLimit, memoryLimit, portStep, enableNpmPackages } = parsed.data;
     if (kind === 'profile') {
+      if (runtime === 'hermes') {
+        return reply.status(400).send({
+          error: 'Hermes profile instances are not supported',
+          code: 'INVALID_BODY',
+        });
+      }
       if (!isValidManagedProfileName(name)) {
         return reply.status(400).send({
           error: getManagedProfileNameError(name),
           code: 'INVALID_NAME',
-        });
-      }
-      if (runtime === 'hermes' && port !== undefined) {
-        return reply.status(400).send({
-          error: 'port is not supported for Hermes profile instances',
-          code: 'INVALID_BODY',
         });
       }
     } else if (!MANAGED_INSTANCE_ID_RE.test(name)) {

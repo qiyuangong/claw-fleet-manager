@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import type { CreateInstanceOpts, DeploymentBackend, LogHandle } from './backend.js';
 import type { DockerBackend } from './docker-backend.js';
 import type { HermesDockerBackend } from './hermes-docker-backend.js';
-import type { HermesProfileBackend } from './hermes-profile-backend.js';
 import type { ProfileBackend } from './profile-backend.js';
 import type { UserService } from './user.js';
 import type { FleetInstance, FleetStatus } from '../types.js';
@@ -17,7 +16,6 @@ type HybridBackends = {
   openclawDocker: DockerBackend;
   openclawProfile: ProfileBackend;
   hermesDocker: HermesDockerBackend;
-  hermesProfile: HermesProfileBackend;
 };
 
 export class HybridBackend implements DeploymentBackend {
@@ -33,7 +31,6 @@ export class HybridBackend implements DeploymentBackend {
       this.backends.openclawDocker.initialize(),
       this.backends.openclawProfile.initialize(),
       this.backends.hermesDocker.initialize(),
-      this.backends.hermesProfile.initialize(),
     ]);
     await this.refresh();
   }
@@ -43,7 +40,6 @@ export class HybridBackend implements DeploymentBackend {
       this.backends.openclawDocker.shutdown(),
       this.backends.openclawProfile.shutdown(),
       this.backends.hermesDocker.shutdown(),
-      this.backends.hermesProfile.shutdown(),
     ]);
   }
 
@@ -52,16 +48,14 @@ export class HybridBackend implements DeploymentBackend {
       this.backends.openclawDocker.getCachedStatus(),
       this.backends.openclawProfile.getCachedStatus(),
       this.backends.hermesDocker.getCachedStatus(),
-      this.backends.hermesProfile.getCachedStatus(),
     ]) ?? this.cache;
   }
 
   async refresh(): Promise<FleetStatus> {
-    const [openclawDockerResult, openclawProfileResult, hermesDockerResult, hermesProfileResult] = await Promise.allSettled([
+    const [openclawDockerResult, openclawProfileResult, hermesDockerResult] = await Promise.allSettled([
       this.backends.openclawDocker.refresh(),
       this.backends.openclawProfile.refresh(),
       this.backends.hermesDocker.refresh(),
-      this.backends.hermesProfile.refresh(),
     ]);
 
     const statuses = [
@@ -74,9 +68,6 @@ export class HybridBackend implements DeploymentBackend {
       hermesDockerResult.status === 'fulfilled'
         ? hermesDockerResult.value
         : this.backends.hermesDocker.getCachedStatus(),
-      hermesProfileResult.status === 'fulfilled'
-        ? hermesProfileResult.value
-        : this.backends.hermesProfile.getCachedStatus(),
     ];
 
     const merged = this.mergeStatuses(statuses);
@@ -85,7 +76,6 @@ export class HybridBackend implements DeploymentBackend {
         openclawDockerResult,
         openclawProfileResult,
         hermesDockerResult,
-        hermesProfileResult,
       ].find((result) => result.status === 'rejected');
       throw (firstError?.status === 'rejected' ? firstError.reason : null)
         ?? new Error('Failed to build hybrid fleet status');
@@ -126,9 +116,6 @@ export class HybridBackend implements DeploymentBackend {
     }
     if (opts.runtime === 'hermes' && opts.kind === 'docker') {
       return this.backends.hermesDocker;
-    }
-    if (opts.runtime === 'hermes' && opts.kind === 'profile') {
-      return this.backends.hermesProfile;
     }
     throw new Error(`Unsupported runtime/kind combination: ${opts.runtime}/${opts.kind}`);
   }
@@ -182,7 +169,6 @@ export class HybridBackend implements DeploymentBackend {
       this.backends.openclawDocker.streamAllLogs(onData),
       this.backends.openclawProfile.streamAllLogs(onData),
       this.backends.hermesDocker.streamAllLogs(onData),
-      this.backends.hermesProfile.streamAllLogs(onData),
     ];
     return {
       stop: () => {
@@ -326,9 +312,6 @@ export class HybridBackend implements DeploymentBackend {
     }
     if (instance.runtime === 'hermes' && instance.mode === 'docker') {
       return this.backends.hermesDocker;
-    }
-    if (instance.runtime === 'hermes' && instance.mode === 'profile') {
-      return this.backends.hermesProfile;
     }
     throw new Error(`Unsupported runtime/mode combination: ${instance.runtime}/${instance.mode}`);
   }

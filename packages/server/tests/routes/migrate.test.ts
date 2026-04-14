@@ -115,7 +115,7 @@ describe('Migrate routes', () => {
     mockBackend.migrate.mockRejectedValueOnce(new Error('Migration is not supported for runtime "hermes"'));
     const res = await app.inject({
       method: 'POST',
-      url: '/api/fleet/instances/research-bot/migrate',
+      url: '/api/fleet/instances/hermes-lab/migrate',
       payload: { targetMode: 'docker' },
     });
     expect(res.statusCode).toBe(409);

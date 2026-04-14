@@ -17,7 +17,6 @@ const fleetInstances = [
   { id: 'openclaw-1', runtime: 'openclaw' as const, mode: 'docker' as const, runtimeCapabilities: configEditorCapabilities },
   { id: 'openclaw-profile', runtime: 'openclaw' as const, mode: 'profile' as const, runtimeCapabilities: configEditorCapabilities },
   { id: 'hermes-lab', runtime: 'hermes' as const, mode: 'docker' as const, runtimeCapabilities: configEditorCapabilities },
-  { id: 'research-bot', runtime: 'hermes' as const, mode: 'profile' as const, runtimeCapabilities: configEditorCapabilities },
 ];
 
 const mockFleetConfig = {
@@ -154,7 +153,7 @@ describe('Config routes — hybrid mode', () => {
   it('PUT /api/config/fleet preserves hidden env values when saving visible fields', async () => {
     mockBackend.getCachedStatus.mockReturnValueOnce({
       mode: 'hybrid',
-      instances: [{ id: 'research-bot', runtime: 'hermes', mode: 'profile', runtimeCapabilities: configEditorCapabilities }],
+      instances: [{ id: 'openclaw-profile', runtime: 'openclaw', mode: 'profile', runtimeCapabilities: configEditorCapabilities }],
       totalRunning: 1,
       updatedAt: Date.now(),
     });
@@ -176,7 +175,7 @@ describe('Config routes — hybrid mode', () => {
   it('PUT /api/config/fleet allows baseDir changes when no docker instances exist', async () => {
     mockBackend.getCachedStatus.mockReturnValueOnce({
       mode: 'hybrid',
-      instances: [{ id: 'research-bot', runtime: 'hermes', mode: 'profile', runtimeCapabilities: configEditorCapabilities }],
+      instances: [{ id: 'openclaw-profile', runtime: 'openclaw', mode: 'profile', runtimeCapabilities: configEditorCapabilities }],
       totalRunning: 1,
       updatedAt: Date.now(),
     });
@@ -236,7 +235,7 @@ describe('Config routes — hybrid mode', () => {
     (app as any).backend.refresh = mockBackend.refresh;
   });
 
-  it.each(['openclaw-1', 'openclaw-profile', 'hermes-lab', 'research-bot'])(
+  it.each(['openclaw-1', 'openclaw-profile', 'hermes-lab'])(
     'GET /api/fleet/:id/config returns instance config for %s',
     async (id) => {
       const res = await app.inject({ method: 'GET', url: `/api/fleet/${id}/config` });
@@ -246,7 +245,7 @@ describe('Config routes — hybrid mode', () => {
     },
   );
 
-  it.each(['openclaw-1', 'openclaw-profile', 'hermes-lab', 'research-bot'])(
+  it.each(['openclaw-1', 'openclaw-profile', 'hermes-lab'])(
     'PUT /api/fleet/:id/config writes instance config for %s',
     async (id) => {
       const res = await app.inject({

@@ -27,7 +27,7 @@ function renderDialog() {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <AddInstanceDialog runtime="hermes" kind="profile" onClose={() => {}} />
+      <AddInstanceDialog runtime="hermes" kind="docker" onClose={() => {}} />
     </QueryClientProvider>,
   );
 }
@@ -38,31 +38,44 @@ describe('AddInstanceDialog', () => {
     invalidateQueriesMock.mockReset();
   });
 
-  it('submits runtime and kind when creating a Hermes profile instance', async () => {
-    createInstanceMock.mockResolvedValue({ id: 'research-bot' });
+  it('submits runtime and kind when creating a Hermes docker instance', async () => {
+    createInstanceMock.mockResolvedValue({ id: 'hermes-lab' });
     const user = userEvent.setup();
 
     renderDialog();
 
-    await user.type(screen.getByPlaceholderText('profileNamePlaceholder'), 'research-bot');
+    await user.type(screen.getByPlaceholderText('dockerInstanceNamePlaceholder'), 'hermes-lab');
     expect(screen.queryByPlaceholderText('gatewayPortPlaceholder')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'createHermesProfileCta' }));
+    await user.click(screen.getByRole('button', { name: 'createHermesDockerInstanceCta' }));
 
     await waitFor(() => {
       expect(createInstanceMock).toHaveBeenCalledWith({
         runtime: 'hermes',
-        kind: 'profile',
-        name: 'research-bot',
+        kind: 'docker',
+        name: 'hermes-lab',
       });
     });
   });
 
-  it('keeps main reserved for managed profiles across runtimes', async () => {
-    renderDialog();
+  it('keeps main reserved for managed OpenClaw profiles', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+
+    vi.spyOn(queryClient, 'invalidateQueries').mockImplementation(invalidateQueriesMock);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AddInstanceDialog runtime="openclaw" kind="profile" onClose={() => {}} />
+      </QueryClientProvider>,
+    );
 
     await userEvent.setup().type(screen.getByPlaceholderText('profileNamePlaceholder'), 'main');
 
     expect(screen.getByText('profileNameReserved')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'createHermesProfileCta' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'createProfileCta' }).hasAttribute('disabled')).toBe(true);
   });
 });

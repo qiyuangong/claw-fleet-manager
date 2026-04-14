@@ -77,15 +77,15 @@ export function AddInstanceDialog({ runtime = 'openclaw', kind, onClose }: Props
   const reservedName = kind === 'profile' && name === 'main';
   const nameValid = /^[a-z0-9][a-z0-9-]{0,62}$/.test(name) && !reservedName;
   const portStepValid = !showAdvanced || !dockerOverrides.portStep || Number.parseInt(dockerOverrides.portStep, 10) > 0;
-  const titleKey = runtime === 'hermes'
-    ? (kind === 'docker' ? 'addHermesDockerInstanceTitle' : 'addHermesProfileTitle')
-    : (kind === 'docker' ? 'addDockerInstanceTitle' : 'addProfileTitle');
-  const helpKey = runtime === 'hermes'
-    ? (kind === 'docker' ? 'addHermesDockerInstanceHelp' : 'addHermesProfileHelp')
-    : (kind === 'docker' ? 'addDockerInstanceHelp' : 'addProfileHelp');
-  const ctaKey = runtime === 'hermes'
-    ? (kind === 'docker' ? 'createHermesDockerInstanceCta' : 'createHermesProfileCta')
-    : (kind === 'docker' ? 'createDockerInstanceCta' : 'createProfileCta');
+  const titleKey = kind === 'docker'
+    ? (runtime === 'hermes' ? 'addHermesDockerInstanceTitle' : 'addDockerInstanceTitle')
+    : 'addProfileTitle';
+  const helpKey = kind === 'docker'
+    ? (runtime === 'hermes' ? 'addHermesDockerInstanceHelp' : 'addDockerInstanceHelp')
+    : 'addProfileHelp';
+  const ctaKey = kind === 'docker'
+    ? (runtime === 'hermes' ? 'createHermesDockerInstanceCta' : 'createDockerInstanceCta')
+    : 'createProfileCta';
 
   return (
     <div className="dialog-overlay" onClick={onClose}>

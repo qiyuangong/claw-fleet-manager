@@ -56,24 +56,14 @@ const hermesDockerInstance = {
   image: 'hermes:local',
 };
 
-const hermesProfileInstance = {
-  ...openclawDockerInstance,
-  id: 'research-bot',
-  runtime: 'hermes' as const,
-  mode: 'profile' as const,
-  runtimeCapabilities: hermesCapabilities,
-  image: 'hermes:local',
-};
-
 const mockFleetStatus = {
   mode: 'hybrid' as const,
   instances: [
     openclawDockerInstance,
     openclawProfileInstance,
     hermesDockerInstance,
-    hermesProfileInstance,
   ],
-  totalRunning: 4,
+  totalRunning: 3,
   updatedAt: Date.now(),
 };
 
@@ -107,7 +97,7 @@ describe('Instance routes — hybrid fleet', () => {
 
   afterAll(() => app.close());
 
-  it.each(['openclaw-1', 'team-alpha', 'hermes-lab', 'research-bot'])(
+  it.each(['openclaw-1', 'team-alpha', 'hermes-lab'])(
     'POST /api/fleet/:id/start calls backend.start for %s',
     async (id) => {
       const res = await app.inject({ method: 'POST', url: `/api/fleet/${id}/start` });
@@ -129,7 +119,7 @@ describe('Instance routes — hybrid fleet', () => {
     expect(mockBackend.restart).toHaveBeenCalledWith('openclaw-1');
   });
 
-  it.each(['openclaw-1', 'team-alpha', 'hermes-lab', 'research-bot'])(
+  it.each(['openclaw-1', 'team-alpha', 'hermes-lab'])(
     'POST /api/fleet/:id/token/reveal returns token for %s',
     async (id) => {
       const res = await app.inject({ method: 'POST', url: `/api/fleet/${id}/token/reveal` });
@@ -179,10 +169,10 @@ describe('Instance routes — hybrid fleet', () => {
   });
 
   it('GET /api/fleet/:id/feishu/pairing rejects Hermes runtime actions', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/fleet/research-bot/feishu/pairing' });
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/hermes-lab/feishu/pairing' });
     expect(res.statusCode).toBe(409);
     expect(res.json()).toEqual({
-      error: 'Instance "research-bot" does not support this action',
+      error: 'Instance "hermes-lab" does not support this action',
       code: 'UNSUPPORTED_RUNTIME_ACTION',
     });
   });

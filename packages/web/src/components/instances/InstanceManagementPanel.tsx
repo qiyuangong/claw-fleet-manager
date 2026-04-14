@@ -56,7 +56,11 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
   const currentUser = useAppStore((state) => state.currentUser);
   const { data: fleet, isLoading } = useFleet();
   const queryClient = useQueryClient();
-  const [createTarget, setCreateTarget] = useState<{ runtime: 'openclaw' | 'hermes'; kind: 'docker' | 'profile' } | null>(null);
+  const [createTarget, setCreateTarget] = useState<
+    | { runtime: 'openclaw'; kind: 'docker' | 'profile' }
+    | { runtime: 'hermes'; kind: 'docker' }
+    | null
+  >(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingRename, setPendingRename] = useState<FleetInstance | null>(null);
@@ -159,16 +163,6 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
                   }}
                 >
                   {t('createHermesDockerInstance')}
-                </button>
-                <button
-                  className="secondary-button"
-                  style={{ width: '100%', justifyContent: 'flex-start' }}
-                  onClick={() => {
-                    setShowCreateMenu(false);
-                    setCreateTarget({ runtime: 'hermes', kind: 'profile' });
-                  }}
-                >
-                  {t('createHermesProfileInstance')}
                 </button>
               </div>
             ) : null}

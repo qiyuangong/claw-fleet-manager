@@ -16,11 +16,10 @@ The server now models the fleet across two axes behind one shared API surface:
 - `runtime`: `openclaw` or `hermes`
 - `mode`: `profile` or `docker`
 
-That yields four managed instance shapes in one fleet list:
+That yields three managed instance shapes in one fleet list:
 
 - OpenClaw profile
 - OpenClaw docker
-- Hermes profile
 - Hermes docker
 
 ## System Topology
@@ -37,7 +36,6 @@ flowchart LR
     OCDocker["DockerBackend<br/>OpenClaw docker"]
     OCProfile["ProfileBackend<br/>OpenClaw profile"]
     HermesDocker["HermesDockerBackend"]
-    HermesProfile["HermesProfileBackend"]
     UserSvc["UserService<br/>users.json"]
     FleetCfg["FleetConfigService<br/>fleet.env .env openclaw.json"]
     Provision["docker-instance-provisioning<br/>openclaw.json + workspace bootstrap"]
@@ -57,7 +55,6 @@ flowchart LR
     Backend --> OCDocker
     Backend --> OCProfile
     Backend --> HermesDocker
-    Backend --> HermesProfile
     OCDocker --> Docker
     OCDocker --> Tail
     OCDocker --> Files
@@ -67,7 +64,6 @@ flowchart LR
     OCProfile --> Files
     HermesDocker --> Docker
     HermesDocker --> Files
-    HermesProfile --> Files
     UserSvc --> Files
     FleetCfg --> Files
     Tail --> Files
@@ -100,7 +96,6 @@ If `packages/web/dist` exists, Fastify serves the built SPA directly with `@fast
    - `DockerBackend` for OpenClaw docker
    - `ProfileBackend` for OpenClaw profile
    - `HermesDockerBackend`
-   - `HermesProfileBackend`
 7. Wrap them in `HybridBackend`, which routes by `(runtime, mode)`.
 8. Decorate Fastify with `backend`, `deploymentMode`, `fleetConfig`, `fleetDir`, and `userService`.
 9. Register auth, WebSocket support, routes, and static file serving.
@@ -211,17 +206,6 @@ Operational characteristics:
 - `autoRestart` only applies in profile mode
 - native processes are left running across server shutdown and re-adopted later
 
-### HermesProfileBackend
-
-[`packages/server/src/services/hermes-profile-backend.ts`](../../packages/server/src/services/hermes-profile-backend.ts) manages Hermes homes under `HERMES_HOME` and starts `hermes gateway run` as a profile-scoped process.
-
-Operational characteristics:
-
-- instance IDs are managed profile names
-- each instance gets an isolated Hermes home with its own `config.yaml`, runtime state, logs, and workspace
-- Hermes profile instances currently expose lifecycle, logs, rename/delete, and config editing
-- Hermes profile instances do **not** expose Control UI proxying, session activity, Feishu flows, or plugin management
-
 ### HermesDockerBackend
 
 [`packages/server/src/services/hermes-docker-backend.ts`](../../packages/server/src/services/hermes-docker-backend.ts) manages Hermes gateway containers with per-instance persistent homes mounted into the container.
@@ -230,7 +214,7 @@ Operational characteristics:
 
 - containers are labeled as Hermes runtime instances and filtered separately from OpenClaw docker instances
 - Hermes docker uses the runtime image configured in `server.config.json`
-- Hermes docker exposes the same gateway-first capabilities as Hermes profile mode: lifecycle, logs, delete/rename, and config editing
+- Hermes docker exposes gateway-first capabilities: lifecycle, logs, delete/rename, and config editing
 - OpenClaw-only capabilities remain gated off in the API and web UI
 
 ## Supporting Services

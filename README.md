@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Manage an OpenClaw and Hermes fleet from the browser.</strong><br/>
-  Start, stop, configure, and monitor profile-based and Docker-based gateway instances from one dashboard.
+  Start, stop, configure, and monitor OpenClaw profile instances plus OpenClaw and Hermes Docker gateway instances from one dashboard.
 </p>
 
 <p align="center">
@@ -36,10 +36,9 @@ It supports a **hybrid fleet** model:
 
 - **OpenClaw profile instances** backed by native `openclaw --profile` processes
 - **OpenClaw Docker instances** backed by managed `openclaw-N` containers
-- **Hermes profile instances** backed by managed `hermes gateway run` homes
 - **Hermes Docker instances** backed by managed Hermes gateway containers
 
-All four can run side by side in the same fleet list, with shared lifecycle actions, logs, config editing, metrics, and access control.
+All three can run side by side in the same fleet list, with shared lifecycle actions, logs, config editing, metrics, and access control.
 
 ## Why this project exists
 
@@ -55,21 +54,21 @@ Use it when you want to:
 
 ## What you can do
 
-| Capability | OpenClaw profile | OpenClaw docker | Hermes profile | Hermes docker |
-|---|:---:|:---:|:---:|:---:|
-| Fleet overview and health metrics | ✓ | ✓ | ✓ | ✓ |
-| Start / stop / restart instances | ✓ | ✓ | ✓ | ✓ |
-| Live log streaming over WebSocket | ✓ | ✓ | ✓ | ✓ |
-| Edit per-instance config | ✓ | ✓ | ✓ | ✓ |
-| Multi-user access with admin / user roles | ✓ | ✓ | ✓ | ✓ |
-| Create / remove / rename instances | ✓ | ✓ | ✓ | ✓ |
-| Embedded Control UI via reverse proxy | ✓ | ✓ | — | — |
-| Device approval and Feishu pairing | ✓ | ✓ | — | — |
-| Install / uninstall plugins | ✓ | ✓ | — | — |
-| Activity/session tab | ✓ | ✓ | — | — |
-| Migrate between profile and Docker | ✓ | ✓ | — | — |
-| Auto-restart on crash | ✓ | — | — | — |
-| Per-instance Tailscale HTTPS URLs | — | ✓ | — | — |
+| Capability | OpenClaw profile | OpenClaw docker | Hermes docker |
+|---|:---:|:---:|:---:|
+| Fleet overview and health metrics | ✓ | ✓ | ✓ |
+| Start / stop / restart instances | ✓ | ✓ | ✓ |
+| Live log streaming over WebSocket | ✓ | ✓ | ✓ |
+| Edit per-instance config | ✓ | ✓ | ✓ |
+| Multi-user access with admin / user roles | ✓ | ✓ | ✓ |
+| Create / remove / rename instances | ✓ | ✓ | ✓ |
+| Embedded Control UI via reverse proxy | ✓ | ✓ | — |
+| Device approval and Feishu pairing | ✓ | ✓ | — |
+| Install / uninstall plugins | ✓ | ✓ | — |
+| Activity/session tab | ✓ | ✓ | — |
+| Migrate between profile and Docker | ✓ | ✓ | — |
+| Auto-restart on crash | ✓ | — | — |
+| Per-instance Tailscale HTTPS URLs | — | ✓ | — |
 
 ## Hermes gateway support
 

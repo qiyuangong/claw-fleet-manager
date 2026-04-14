@@ -81,14 +81,6 @@ const hermesDockerInstance = {
   runtimeCapabilities: hermesCapabilities,
 };
 
-const hermesProfileInstance = {
-  ...openclawDockerInstance,
-  id: 'research-bot',
-  runtime: 'hermes' as const,
-  mode: 'profile' as const,
-  runtimeCapabilities: hermesCapabilities,
-};
-
 const stoppedInstance = { ...openclawDockerInstance, id: 'openclaw-2', status: 'stopped' as const };
 
 const mockBackend = {
@@ -97,10 +89,9 @@ const mockBackend = {
       openclawDockerInstance,
       openclawProfileInstance,
       hermesDockerInstance,
-      hermesProfileInstance,
       stoppedInstance,
     ],
-    totalRunning: 4,
+    totalRunning: 3,
     updatedAt: Date.now(),
   }),
   revealToken: vi.fn().mockResolvedValue('full-gateway-token'),

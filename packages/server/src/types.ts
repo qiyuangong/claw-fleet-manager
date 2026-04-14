@@ -13,7 +13,6 @@ export interface ServerConfig {
   tailscale?: { hostname: string };
   tls?: { cert: string; key: string };
   profiles?: ProfilesConfig;
-  hermesProfiles?: HermesProfilesConfig;
   hermesDocker?: HermesDockerConfig;
 }
 
@@ -38,12 +37,6 @@ export interface ProfilesConfig {
   stateBaseDir: string;
   configBaseDir: string;
   autoRestart: boolean;
-  stopTimeoutMs: number;
-}
-
-export interface HermesProfilesConfig {
-  binary: string;
-  baseHomeDir: string;
   stopTimeoutMs: number;
 }
 

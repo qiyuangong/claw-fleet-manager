@@ -20,7 +20,7 @@ vi.mock('sonner', () => ({
 describe('InstancePanel', () => {
   beforeEach(() => {
     useAppStore.setState({
-      activeView: { type: 'instance', id: 'research-bot' },
+      activeView: { type: 'instance', id: 'hermes-lab' },
       activeTab: 'overview',
       currentUser: { username: 'admin', role: 'admin', assignedProfiles: [] },
     });
@@ -29,9 +29,9 @@ describe('InstancePanel', () => {
       data: {
         instances: [
           {
-            id: 'research-bot',
+            id: 'hermes-lab',
             runtime: 'hermes',
-            mode: 'profile',
+            mode: 'docker',
             runtimeCapabilities: {
               configEditor: true,
               logs: true,
@@ -51,8 +51,7 @@ describe('InstancePanel', () => {
             disk: { config: 1000, workspace: 2000 },
             health: 'healthy',
             image: 'ghcr.io/acme/hermes:latest',
-            profile: 'research-bot',
-            pid: 4242,
+            index: 2,
           },
         ],
       },
@@ -68,8 +67,8 @@ describe('InstancePanel', () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <InstancePanel instanceId="research-bot" />
+        <QueryClientProvider client={queryClient}>
+        <InstancePanel instanceId="hermes-lab" />
       </QueryClientProvider>,
     );
 
@@ -83,7 +82,7 @@ describe('InstancePanel', () => {
 
   it('resets a stale unsupported tab back to overview for Hermes instances', async () => {
     useAppStore.setState({
-      activeView: { type: 'instance', id: 'research-bot' },
+      activeView: { type: 'instance', id: 'hermes-lab' },
       activeTab: 'controlui',
       currentUser: { username: 'admin', role: 'admin', assignedProfiles: [] },
     });
@@ -96,8 +95,8 @@ describe('InstancePanel', () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <InstancePanel instanceId="research-bot" />
+        <QueryClientProvider client={queryClient}>
+        <InstancePanel instanceId="hermes-lab" />
       </QueryClientProvider>,
     );
 

@@ -101,31 +101,16 @@ describe('Fleet routes', () => {
     });
   });
 
-  it('POST /api/fleet/instances passes runtime and kind through to backend.createInstance', async () => {
+  it('POST /api/fleet/instances rejects unsupported Hermes profile instances', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
       payload: { runtime: 'hermes', kind: 'profile', name: 'research-bot' },
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(mockBackend.createInstance).toHaveBeenCalledWith({
-      runtime: 'hermes',
-      kind: 'profile',
-      name: 'research-bot',
-    });
-  });
-
-  it('POST /api/fleet/instances rejects port overrides for Hermes profile instances', async () => {
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/fleet/instances',
-      payload: { runtime: 'hermes', kind: 'profile', name: 'research-bot', port: 19001 },
-    });
-
     expect(res.statusCode).toBe(400);
     expect(res.json()).toEqual({
-      error: 'port is not supported for Hermes profile instances',
+      error: 'Hermes profile instances are not supported',
       code: 'INVALID_BODY',
     });
     expect(mockBackend.createInstance).not.toHaveBeenCalled();

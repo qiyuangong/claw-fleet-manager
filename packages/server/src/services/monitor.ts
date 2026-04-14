@@ -37,7 +37,8 @@ export class MonitorService {
   }
 
   async refresh(): Promise<FleetStatus> {
-    const containers = await this.docker.listFleetContainers();
+    const containers = (await this.docker.listFleetContainers())
+      .filter((container) => container.runtime !== 'hermes');
     const tokens = this.fleetConfig.readTokens();
     const config = this.fleetConfig.readFleetConfig();
     const configBase = this.fleetConfig.getConfigBase();

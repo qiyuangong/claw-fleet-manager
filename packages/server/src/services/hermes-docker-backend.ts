@@ -23,6 +23,10 @@ const HERMES_DOCKER_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
   runtimeAdmin: true,
 };
 
+export function getHermesDockerFleetRoot(baseDir: string): string {
+  return join(baseDir, '.claw-fleet', 'hermes');
+}
+
 export class HermesDockerBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
   private locks = new Map<string, boolean>();

@@ -3,7 +3,13 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as yaml from 'yaml';
-import { HermesDockerBackend } from '../../src/services/hermes-docker-backend.js';
+import { getHermesDockerFleetRoot, HermesDockerBackend } from '../../src/services/hermes-docker-backend.js';
+
+describe('getHermesDockerFleetRoot', () => {
+  it('places Hermes runtime data under a hidden system directory', () => {
+    expect(getHermesDockerFleetRoot('/tmp/managed')).toBe(join('/tmp/managed', '.claw-fleet', 'hermes'));
+  });
+});
 
 describe('HermesDockerBackend', () => {
   let rootDir: string;

@@ -20,7 +20,7 @@ import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
 import { DockerBackend } from './services/docker-backend.js';
-import { HermesDockerBackend } from './services/hermes-docker-backend.js';
+import { getHermesDockerFleetRoot, HermesDockerBackend } from './services/hermes-docker-backend.js';
 import { HybridBackend } from './services/hybrid-backend.js';
 import { ProfileBackend } from './services/profile-backend.js';
 import { DockerService } from './services/docker.js';
@@ -112,7 +112,7 @@ const hermesDockerBackend = new HermesDockerBackend(
     mountPath: '/opt/data',
     env: {},
   },
-  () => join(fleetConfig.getConfigBase(), 'hermes'),
+  () => getHermesDockerFleetRoot(fleetConfig.getConfigBase()),
 );
 const backend = new HybridBackend({
   openclawDocker: dockerBackend,

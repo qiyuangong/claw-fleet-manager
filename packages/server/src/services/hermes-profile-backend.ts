@@ -99,6 +99,7 @@ export class HermesProfileBackend implements DeploymentBackend {
         }
         child.unref();
         writeFileSync(pidPath, `${child.pid}\n`, 'utf-8');
+        await this.awaitGatewayOwnership(homeDir, pidPath);
         await this.writeRuntimeState(statePath, 'running');
       } finally {
         closeSync(logFd);
@@ -462,8 +463,26 @@ export class HermesProfileBackend implements DeploymentBackend {
       return undefined;
     }
     const rawPid = readFileSync(pidPath, 'utf-8').trim();
+    if (!rawPid) {
+      return undefined;
+    }
+
     const parsedPid = Number.parseInt(rawPid, 10);
-    return Number.isFinite(parsedPid) && parsedPid > 0 ? parsedPid : undefined;
+    if (Number.isFinite(parsedPid) && parsedPid > 0) {
+      return parsedPid;
+    }
+
+    try {
+      const parsed = JSON.parse(rawPid) as { pid?: unknown };
+      const jsonPid = typeof parsed.pid === 'number'
+        ? parsed.pid
+        : typeof parsed.pid === 'string'
+          ? Number.parseInt(parsed.pid, 10)
+          : Number.NaN;
+      return Number.isFinite(jsonPid) && jsonPid > 0 ? jsonPid : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private async getValidatedPid(pidPath: string, expectedHome: string): Promise<number | undefined> {
@@ -472,6 +491,18 @@ export class HermesProfileBackend implements DeploymentBackend {
       return undefined;
     }
     return await this.isHermesGatewayProcess(pid, expectedHome) ? pid : undefined;
+  }
+
+  private async awaitGatewayOwnership(homeDir: string, pidPath: string): Promise<number | undefined> {
+    const deadline = Date.now() + Math.min(this.cfg.stopTimeoutMs, 3000);
+    while (Date.now() < deadline) {
+      const pid = await this.getValidatedPid(pidPath, homeDir);
+      if (pid !== undefined) {
+        return pid;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return undefined;
   }
 
   private async startWithoutLock(id: string): Promise<void> {
@@ -504,6 +535,7 @@ export class HermesProfileBackend implements DeploymentBackend {
       }
       child.unref();
       writeFileSync(pidPath, `${child.pid}\n`, 'utf-8');
+      await this.awaitGatewayOwnership(homeDir, pidPath);
       await this.writeRuntimeState(statePath, 'running');
     } finally {
       closeSync(logFd);

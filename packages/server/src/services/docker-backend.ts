@@ -34,7 +34,7 @@ export class DockerBackend implements DeploymentBackend {
 
   async initialize(): Promise<void> {
     if (this.tailscale) {
-      const containers = await this.docker.listFleetContainers().catch(() => []);
+      const containers = await this.listOpenClawContainers().catch(() => []);
       const defaultPortStep = this.fleetConfig.readFleetConfig().portStep;
       const instances = containers
         .filter((container) => container.index !== undefined)
@@ -62,7 +62,7 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async refresh(): Promise<FleetStatus> {
-    const containers = await this.docker.listFleetContainers();
+    const containers = await this.listOpenClawContainers();
     const tokens = this.fleetConfig.readTokens();
     const config = this.fleetConfig.readFleetConfig();
 
@@ -118,7 +118,7 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async createInstance(opts: CreateInstanceOpts): Promise<FleetInstance> {
-    const containers = await this.docker.listFleetContainers();
+    const containers = await this.listOpenClawContainers();
     const usedIndexes = containers
       .map((container) => container.index)
       .filter((index): index is number => index !== undefined)
@@ -230,7 +230,7 @@ export class DockerBackend implements DeploymentBackend {
     this.locks.set(nextName, true);
 
     try {
-      const containers = await this.docker.listFleetContainers();
+      const containers = await this.listOpenClawContainers();
       const source = containers.find((container) => container.name === id);
       if (!source) {
         throw new Error(`Instance "${id}" not found`);
@@ -293,7 +293,7 @@ export class DockerBackend implements DeploymentBackend {
   streamAllLogs(onData: (id: string, line: string) => void): LogHandle {
     const streams: import('node:stream').Readable[] = [];
     (async () => {
-      const containers = await this.docker.listFleetContainers();
+      const containers = await this.listOpenClawContainers();
       for (const container of containers) {
         try {
           const logStream = await this.docker.getContainerLogs(
@@ -357,7 +357,7 @@ export class DockerBackend implements DeploymentBackend {
     workspaceDir: string;
     token: string;
   }): Promise<FleetInstance & { tailscaleWarning?: string }> {
-    const containers = await this.docker.listFleetContainers();
+    const containers = await this.listOpenClawContainers();
     if (containers.some((container) => container.name === opts.name)) {
       throw new Error(`Instance "${opts.name}" already exists`);
     }
@@ -526,8 +526,13 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   private async findContainer(id: string) {
-    const containers = await this.docker.listFleetContainers();
+    const containers = await this.listOpenClawContainers();
     return containers.find((container) => container.name === id);
+  }
+
+  private async listOpenClawContainers() {
+    return (await this.docker.listFleetContainers())
+      .filter((container) => container.runtime !== 'hermes');
   }
 
   private async withInstanceLock<T>(id: string, fn: () => Promise<T>): Promise<T> {

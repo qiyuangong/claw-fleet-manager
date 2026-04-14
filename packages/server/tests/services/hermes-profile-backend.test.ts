@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as yaml from 'yaml';
@@ -97,6 +97,19 @@ describe('HermesProfileBackend', () => {
     return home;
   }
 
+  function writeGatewayPidMetadata(home: string, pid: number): void {
+    writeFileSync(
+      join(home, 'gateway.pid'),
+      JSON.stringify({
+        pid,
+        kind: 'hermes-gateway',
+        argv: ['/tmp/hermes', 'gateway', 'run'],
+        start_time: null,
+      }),
+    );
+    livePids.add(pid);
+  }
+
   it('createInstance adopts an existing Hermes profile home', async () => {
     const profileHome = createProfileHome('research-bot', 'stopped');
 
@@ -140,6 +153,38 @@ describe('HermesProfileBackend', () => {
     expect(() => readFileSync(join(profileHome, 'gateway.pid'), 'utf-8')).toThrow();
   });
 
+  it('start waits for Hermes to replace the launcher pid with gateway metadata before reporting running', async () => {
+    const profileHome = createProfileHome('research-bot', 'stopped');
+    let resolveHandoff!: () => void;
+    const handoff = new Promise<void>((resolve) => {
+      resolveHandoff = resolve;
+    });
+    mockSpawn.mockReset().mockImplementationOnce((_cmd, _args, options) => {
+      const home = options?.env?.HERMES_HOME as string;
+      setTimeout(() => {
+        if (existsSync(home)) {
+          writeGatewayPidMetadata(home, 9999);
+        }
+        resolveHandoff();
+      }, 25);
+      return {
+        pid: 4321,
+        unref: vi.fn(),
+        on: vi.fn(),
+      } as any;
+    });
+
+    await backend.start('research-bot');
+    const status = await backend.refresh();
+    const instance = status.instances.find((item) => item.id === 'research-bot');
+    try {
+      expect(instance?.status).toBe('running');
+      expect(instance?.pid).toBe(9999);
+    } finally {
+      await handoff;
+    }
+  });
+
   it('stale reused pid is not treated as a valid Hermes gateway', async () => {
     createProfileHome('research-bot', 'running', 7777);
 
@@ -148,6 +193,29 @@ describe('HermesProfileBackend', () => {
 
     expect(instance?.status).toBe('stopped');
     expect(instance?.health).toBe('none');
+  });
+
+  it('refresh() recognizes Hermes JSON pid metadata written by the gateway', async () => {
+    const home = createProfileHome('research-bot', 'running');
+    writeGatewayPidMetadata(home, 9999);
+
+    const status = await backend.refresh();
+    const instance = status.instances.find((item) => item.id === 'research-bot');
+
+    expect(instance?.status).toBe('running');
+    expect(instance?.health).toBe('healthy');
+    expect(instance?.pid).toBe(9999);
+  });
+
+  it('stop() terminates a Hermes gateway tracked by JSON pid metadata', async () => {
+    const home = createProfileHome('research-bot', 'running');
+    writeGatewayPidMetadata(home, 9999);
+
+    await backend.stop('research-bot');
+
+    expect(livePids.has(9999)).toBe(false);
+    const state = JSON.parse(readFileSync(join(home, 'gateway_state.json'), 'utf-8'));
+    expect(state.status).toBe('stopped');
   });
 
   it('live Hermes gateway for a different HERMES_HOME is not treated as owned by this profile', async () => {

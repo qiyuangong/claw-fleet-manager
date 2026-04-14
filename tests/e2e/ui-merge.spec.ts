@@ -2,10 +2,24 @@ import { expect, test, type Page } from '@playwright/test';
 
 type Role = 'admin' | 'user';
 type Mode = 'docker' | 'profiles' | 'hybrid';
+type InstanceRuntime = 'openclaw' | 'hermes';
+
+interface RuntimeCapabilities {
+  configEditor: boolean;
+  logs: boolean;
+  rename: boolean;
+  delete: boolean;
+  proxyAccess: boolean;
+  sessions: boolean;
+  plugins: boolean;
+  runtimeAdmin: boolean;
+}
 
 interface FleetInstance {
   id: string;
+  runtime?: InstanceRuntime;
   mode: 'docker' | 'profile';
+  runtimeCapabilities?: RuntimeCapabilities;
   status: 'running' | 'stopped' | 'restarting' | 'unhealthy' | 'unknown';
   port: number;
   token: string;
@@ -91,6 +105,41 @@ const sampleUsers = [
   { username: 'alice', role: 'user', assignedProfiles: ['team-alpha'] },
 ];
 
+const openclawCapabilities: RuntimeCapabilities = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: true,
+  sessions: true,
+  plugins: true,
+  runtimeAdmin: true,
+};
+
+const hermesCapabilities: RuntimeCapabilities = {
+  configEditor: true,
+  logs: true,
+  rename: true,
+  delete: true,
+  proxyAccess: false,
+  sessions: false,
+  plugins: false,
+  runtimeAdmin: true,
+};
+
+function normalizeInstance(instance: FleetInstance): FleetInstance & {
+  runtime: InstanceRuntime;
+  runtimeCapabilities: RuntimeCapabilities;
+} {
+  const runtime = instance.runtime ?? 'openclaw';
+  return {
+    ...instance,
+    runtime,
+    runtimeCapabilities: instance.runtimeCapabilities
+      ?? (runtime === 'hermes' ? hermesCapabilities : openclawCapabilities),
+  };
+}
+
 async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHandles> {
   const {
     role = 'admin',
@@ -99,6 +148,7 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
     instances,
     sessionsData = [],
   } = opts;
+  const normalizedInstances = instances.map(normalizeInstance);
   const createInstancePayloads: unknown[] = [];
   await page.setViewportSize({ width: 1440, height: 1600 });
 
@@ -199,8 +249,8 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
       contentType: 'application/json',
       body: JSON.stringify({
         mode: fleetMode,
-        instances,
-        totalRunning: instances.filter((instance) => instance.status === 'running').length,
+        instances: normalizedInstances,
+        totalRunning: normalizedInstances.filter((instance) => instance.status === 'running').length,
         updatedAt: Date.now(),
       }),
     });
@@ -223,14 +273,14 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(instances[0] ?? null),
+        body: JSON.stringify(normalizedInstances[0] ?? null),
       });
       return;
     }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(instances[0] ?? null),
+      body: JSON.stringify(normalizedInstances[0] ?? null),
     });
   });
 
@@ -314,7 +364,15 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: true, fleet: { mode: fleetMode, instances, totalRunning: instances.length, updatedAt: Date.now() } }),
+      body: JSON.stringify({
+        ok: true,
+        fleet: {
+          mode: fleetMode,
+          instances: normalizedInstances,
+          totalRunning: normalizedInstances.length,
+          updatedAt: Date.now(),
+        },
+      }),
     });
   });
 
@@ -335,13 +393,13 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
   });
 
   await page.route('**/api/fleet/*/start', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, instance: instances[0] }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, instance: normalizedInstances[0] }) });
   });
   await page.route('**/api/fleet/*/stop', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, instance: instances[0] }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, instance: normalizedInstances[0] }) });
   });
   await page.route('**/api/fleet/*/restart', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, instance: instances[0] }) });
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, instance: normalizedInstances[0] }) });
   });
 
   await page.goto('/');
@@ -394,8 +452,9 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   await expect(page.locator('.table-shell').getByRole('button', { name: 'Open' })).toHaveCount(2);
   await expect(page.getByRole('button', { name: '+ Add Instance' })).toBeVisible();
   await page.getByRole('button', { name: '+ Add Instance' }).click();
-  await expect(page.getByRole('button', { name: 'Create Docker Instance' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Create Profile' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create OpenClaw Docker' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create OpenClaw Profile' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create Hermes Docker' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Users' }).click();
   await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible();
@@ -411,7 +470,7 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
 
   await page.getByRole('button', { name: 'Manage Instances' }).click();
   await page.getByRole('button', { name: '+ Add Instance' }).click();
-  await page.getByRole('button', { name: 'Create Docker Instance' }).click();
+  await page.getByRole('button', { name: 'Create OpenClaw Docker' }).click();
   await expect(page.getByRole('heading', { name: 'Add Docker Instance' })).toBeVisible();
   await expect(page.getByText('Docker Image')).toHaveCount(0);
   await page.getByRole('button', { name: 'Advanced Docker Config' }).click();
@@ -430,6 +489,7 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   await page.getByRole('button', { name: 'Create Docker Instance' }).click();
   await expect.poll(() => handles.createInstancePayloads.length).toBe(1);
   expect(handles.createInstancePayloads[0]).toEqual({
+    runtime: 'openclaw',
     kind: 'docker',
     name: 'team-delta',
     image: 'ghcr.io/acme/openclaw:test',
@@ -440,15 +500,28 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   });
 
   await page.getByRole('button', { name: '+ Add Instance' }).click();
-  await page.getByRole('button', { name: 'Create Profile' }).click();
+  await page.getByRole('button', { name: 'Create Hermes Docker' }).click();
+  await expect(page.getByRole('heading', { name: 'Add Hermes Docker Instance' })).toBeVisible();
+  await page.getByPlaceholder('team-alpha').fill('Hermes-Lab');
+  await page.getByRole('button', { name: 'Create Hermes Docker' }).click();
+  await expect.poll(() => handles.createInstancePayloads.length).toBe(2);
+  expect(handles.createInstancePayloads[1]).toEqual({
+    runtime: 'hermes',
+    kind: 'docker',
+    name: 'hermes-lab',
+  });
+
+  await page.getByRole('button', { name: '+ Add Instance' }).click();
+  await page.getByRole('button', { name: 'Create OpenClaw Profile' }).click();
   await expect(page.getByRole('heading', { name: 'Add Profile' })).toBeVisible();
   await expect(page.getByPlaceholder('18789')).toBeVisible();
   await expect(page.getByText('Docker Image')).toHaveCount(0);
   await page.getByPlaceholder('team-alpha').fill('Rescue-Team');
   await page.getByPlaceholder('18789').fill('987');
   await page.getByRole('button', { name: 'Create Profile' }).click();
-  await expect.poll(() => handles.createInstancePayloads.length).toBe(2);
-  expect(handles.createInstancePayloads[1]).toEqual({
+  await expect.poll(() => handles.createInstancePayloads.length).toBe(3);
+  expect(handles.createInstancePayloads[2]).toEqual({
+    runtime: 'openclaw',
     kind: 'profile',
     name: 'rescue-team',
     port: 987,
@@ -486,6 +559,44 @@ test('admin can navigate all admin pages and instance tabs in docker mode', asyn
   await expect(page.getByRole('heading', { name: 'Plugins' })).toBeVisible();
   await expect(page.getByText('Feishu integration')).toBeVisible();
   await expect(page.getByText('/tmp/workspace/openclaw-1')).toBeVisible();
+});
+
+test('Hermes docker instances hide OpenClaw-only tabs', async ({ page }) => {
+  await mountDashboard(page, {
+    fleetMode: 'hybrid',
+    instances: [
+      {
+        id: 'hermes-lab',
+        runtime: 'hermes',
+        mode: 'docker',
+        status: 'running',
+        port: 4101,
+        token: 'masked-token',
+        uptime: 1800,
+        cpu: 6,
+        memory: { used: 1024 * 1024 * 256, limit: 1024 * 1024 * 1024 },
+        disk: { config: 80, workspace: 120 },
+        health: 'healthy',
+        image: 'ghcr.io/nousresearch/hermes-agent:latest',
+      },
+    ],
+  });
+
+  await page.getByRole('button', { name: 'Manage Instances' }).click();
+  await page.locator('.table-shell tr', { hasText: 'hermes-lab' }).getByRole('button', { name: 'Open' }).click();
+  const tabRow = page.locator('.tab-row');
+
+  await expect(page.getByRole('heading', { name: 'Instance Workspace' })).toBeVisible();
+  await expect(page.getByText('Hermes', { exact: true })).toBeVisible();
+  await expect(page.getByText('ghcr.io/nousresearch/hermes-agent:latest')).toBeVisible();
+  await expect(tabRow.getByRole('button', { name: 'logs' })).toBeVisible();
+  await expect(tabRow.getByRole('button', { name: 'config', exact: true })).toBeVisible();
+  await expect(tabRow.getByRole('button', { name: 'metrics' })).toBeVisible();
+  await expect(tabRow.getByRole('button', { name: 'activity' })).toHaveCount(0);
+  await expect(tabRow.getByRole('button', { name: 'control ui' })).toHaveCount(0);
+  await expect(tabRow.getByRole('button', { name: 'feishu' })).toHaveCount(0);
+  await expect(tabRow.getByRole('button', { name: 'plugins' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Migrate' })).toHaveCount(0);
 });
 
 test('browser back and forward restore manager views and instance tabs', async ({ page }) => {

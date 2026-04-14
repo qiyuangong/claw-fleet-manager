@@ -132,7 +132,7 @@ Where `AUTH_USERNAME` is the same value as `auth.username`.
 Optional profile settings:
 
 - add a `profiles` block to customize profile instance defaults such as binary path, ports, and auto-restart
-- add `hermes.profiles` and `hermes.docker` blocks to customize Hermes binary, image, and base directories
+- add a `hermesDocker` block to customize the Hermes Docker image, env, and mount path
 - avoid using `main` as a profile name because OpenClaw reserves it for the standalone default profile
 
 Docker behavior:

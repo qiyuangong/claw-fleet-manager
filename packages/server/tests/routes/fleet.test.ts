@@ -1,7 +1,7 @@
 // packages/server/tests/routes/fleet.test.ts
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
-import { fleetRoutes } from '../../src/routes/fleet.js';
+import { createInstanceSchema, fleetRoutes } from '../../src/routes/fleet.js';
 import { profileRoutes } from '../../src/routes/profiles.js';
 
 const mockStatus = {
@@ -99,6 +99,20 @@ describe('Fleet routes', () => {
       kind: 'docker',
       name: 'team-alpha',
     });
+  });
+
+  it('createInstanceSchema rejects unsupported Hermes profile payloads', () => {
+    expect(createInstanceSchema.safeParse({
+      runtime: 'hermes',
+      kind: 'profile',
+      name: 'research-bot',
+    }).success).toBe(false);
+
+    expect(createInstanceSchema.safeParse({
+      runtime: 'hermes',
+      kind: 'docker',
+      name: 'research-bot',
+    }).success).toBe(true);
   });
 
   it('POST /api/fleet/instances rejects unsupported Hermes profile instances', async () => {

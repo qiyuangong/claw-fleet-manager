@@ -2,6 +2,7 @@ import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CreateInstanceOpts, DeploymentBackend, LogHandle } from './backend.js';
 import type { DockerBackend } from './docker-backend.js';
+import type { HermesDockerBackend } from './hermes-docker-backend.js';
 import type { ProfileBackend } from './profile-backend.js';
 import type { UserService } from './user.js';
 import type { FleetInstance, FleetStatus } from '../types.js';
@@ -11,49 +12,73 @@ export interface MigrateOpts {
   deleteSource?: boolean;
 }
 
+type HybridBackends = {
+  openclawDocker: DockerBackend;
+  openclawProfile: ProfileBackend;
+  hermesDocker: HermesDockerBackend;
+};
+
 export class HybridBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
 
   constructor(
-    private dockerBackend: DockerBackend,
-    private profileBackend: ProfileBackend,
+    private backends: HybridBackends,
     private userService: UserService,
   ) {}
 
   async initialize(): Promise<void> {
-    await Promise.allSettled([this.dockerBackend.initialize(), this.profileBackend.initialize()]);
+    await Promise.allSettled([
+      this.backends.openclawDocker.initialize(),
+      this.backends.openclawProfile.initialize(),
+      this.backends.hermesDocker.initialize(),
+    ]);
     await this.refresh();
   }
 
   async shutdown(): Promise<void> {
-    await Promise.all([this.dockerBackend.shutdown(), this.profileBackend.shutdown()]);
+    await Promise.all([
+      this.backends.openclawDocker.shutdown(),
+      this.backends.openclawProfile.shutdown(),
+      this.backends.hermesDocker.shutdown(),
+    ]);
   }
 
   getCachedStatus(): FleetStatus | null {
-    return this.mergeStatuses(
-      this.dockerBackend.getCachedStatus(),
-      this.profileBackend.getCachedStatus(),
-    ) ?? this.cache;
+    return this.mergeStatuses([
+      this.backends.openclawDocker.getCachedStatus(),
+      this.backends.openclawProfile.getCachedStatus(),
+      this.backends.hermesDocker.getCachedStatus(),
+    ]) ?? this.cache;
   }
 
   async refresh(): Promise<FleetStatus> {
-    const [dockerResult, profileResult] = await Promise.allSettled([
-      this.dockerBackend.refresh(),
-      this.profileBackend.refresh(),
+    const [openclawDockerResult, openclawProfileResult, hermesDockerResult] = await Promise.allSettled([
+      this.backends.openclawDocker.refresh(),
+      this.backends.openclawProfile.refresh(),
+      this.backends.hermesDocker.refresh(),
     ]);
 
-    const dockerStatus = dockerResult.status === 'fulfilled'
-      ? dockerResult.value
-      : this.dockerBackend.getCachedStatus();
-    const profileStatus = profileResult.status === 'fulfilled'
-      ? profileResult.value
-      : this.profileBackend.getCachedStatus();
+    const statuses = [
+      openclawDockerResult.status === 'fulfilled'
+        ? openclawDockerResult.value
+        : this.backends.openclawDocker.getCachedStatus(),
+      openclawProfileResult.status === 'fulfilled'
+        ? openclawProfileResult.value
+        : this.backends.openclawProfile.getCachedStatus(),
+      hermesDockerResult.status === 'fulfilled'
+        ? hermesDockerResult.value
+        : this.backends.hermesDocker.getCachedStatus(),
+    ];
 
-    const merged = this.mergeStatuses(dockerStatus, profileStatus);
+    const merged = this.mergeStatuses(statuses);
     if (!merged) {
-      const dockerError = dockerResult.status === 'rejected' ? dockerResult.reason : null;
-      const profileError = profileResult.status === 'rejected' ? profileResult.reason : null;
-      throw dockerError ?? profileError ?? new Error('Failed to build hybrid fleet status');
+      const firstError = [
+        openclawDockerResult,
+        openclawProfileResult,
+        hermesDockerResult,
+      ].find((result) => result.status === 'rejected');
+      throw (firstError?.status === 'rejected' ? firstError.reason : null)
+        ?? new Error('Failed to build hybrid fleet status');
     }
     this.cache = merged;
     return merged;
@@ -76,17 +101,23 @@ export class HybridBackend implements DeploymentBackend {
       await this.ensureInstanceIdAvailable(opts.name);
     }
 
-    if (opts.kind === 'docker') {
-      const instance = await this.dockerBackend.createInstance(opts);
-      await this.refresh();
-      return this.getCachedStatus()?.instances.find((item) => item.id === instance.id) ?? instance;
+    const backend = this.backendForCreate(opts);
+    const instance = await backend.createInstance(opts);
+    await this.refresh();
+    return this.getCachedStatus()?.instances.find((item) => item.id === instance.id) ?? instance;
+  }
+
+  private backendForCreate(opts: CreateInstanceOpts): DeploymentBackend {
+    if (opts.runtime === 'openclaw' && opts.kind === 'docker') {
+      return this.backends.openclawDocker;
     }
-    if (opts.kind === 'profile') {
-      const instance = await this.profileBackend.createInstance(opts);
-      await this.refresh();
-      return this.getCachedStatus()?.instances.find((item) => item.id === instance.id) ?? instance;
+    if (opts.runtime === 'openclaw' && opts.kind === 'profile') {
+      return this.backends.openclawProfile;
     }
-    throw new Error('kind is required');
+    if (opts.runtime === 'hermes' && opts.kind === 'docker') {
+      return this.backends.hermesDocker;
+    }
+    throw new Error(`Unsupported runtime/kind combination: ${opts.runtime}/${opts.kind}`);
   }
 
   async removeInstance(id: string): Promise<void> {
@@ -135,8 +166,9 @@ export class HybridBackend implements DeploymentBackend {
 
   streamAllLogs(onData: (id: string, line: string) => void): LogHandle {
     const handles = [
-      this.dockerBackend.streamAllLogs(onData),
-      this.profileBackend.streamAllLogs(onData),
+      this.backends.openclawDocker.streamAllLogs(onData),
+      this.backends.openclawProfile.streamAllLogs(onData),
+      this.backends.hermesDocker.streamAllLogs(onData),
     ];
     return {
       stop: () => {
@@ -173,56 +205,63 @@ export class HybridBackend implements DeploymentBackend {
     }
 
     if (opts.targetMode === 'profile') {
-      await this.dockerBackend.stop(id);
-      const token = await this.dockerBackend.revealToken(id);
-      const workspaceDir = this.dockerBackend.getDockerWorkspaceDir(id);
-      const configDir = this.dockerBackend.getDockerConfigDir(id);
+      if (source.runtime !== 'openclaw') {
+        throw new Error(`Migration is not supported for runtime "${source.runtime}"`);
+      }
+      await this.backends.openclawDocker.stop(id);
+      const token = await this.backends.openclawDocker.revealToken(id);
+      const workspaceDir = this.backends.openclawDocker.getDockerWorkspaceDir(id);
+      const configDir = this.backends.openclawDocker.getDockerConfigDir(id);
       const configFile = join(configDir, 'openclaw.json');
       if (existsSync(configFile)) unlinkSync(configFile);
 
-      const instance = await this.profileBackend.createInstanceFromMigration({
+      const instance = await this.backends.openclawProfile.createInstanceFromMigration({
         name: id,
         workspaceDir,
         configDir,
         token,
       });
 
-      if (opts.deleteSource) await this.dockerBackend.removeInstance(id);
+      if (opts.deleteSource) await this.backends.openclawDocker.removeInstance(id);
       await this.refresh();
       return instance;
     }
 
-    await this.profileBackend.stop(id);
-    const token = await this.profileBackend.revealToken(id);
-    const { stateDir } = this.profileBackend.getInstanceDir(id);
+    if (source.runtime !== 'openclaw') {
+      throw new Error(`Migration is not supported for runtime "${source.runtime}"`);
+    }
+
+    await this.backends.openclawProfile.stop(id);
+    const token = await this.backends.openclawProfile.revealToken(id);
+    const { stateDir } = this.backends.openclawProfile.getInstanceDir(id);
     const workspaceDir = join(stateDir, 'workspace');
-    const configDir = this.dockerBackend.getDockerConfigDir(id);
+    const configDir = this.backends.openclawDocker.getDockerConfigDir(id);
     const configFile = join(configDir, 'openclaw.json');
     if (existsSync(configFile)) unlinkSync(configFile);
 
-    const instance = await this.dockerBackend.createInstanceFromMigration({
+    const instance = await this.backends.openclawDocker.createInstanceFromMigration({
       name: id,
       workspaceDir,
       token,
     });
 
-    if (opts.deleteSource) await this.profileBackend.removeInstance(id);
+    if (opts.deleteSource) await this.backends.openclawProfile.removeInstance(id);
     await this.refresh();
     return instance;
   }
 
-  private mergeStatuses(dockerStatus: FleetStatus | null, profileStatus: FleetStatus | null): FleetStatus | null {
-    if (!dockerStatus && !profileStatus) return null;
+  private mergeStatuses(statuses: Array<FleetStatus | null>): FleetStatus | null {
+    const present = statuses.filter((status): status is FleetStatus => status !== null);
+    if (present.length === 0) return null;
 
-    const instances = [
-      ...(dockerStatus?.instances ?? []),
-      ...(profileStatus?.instances ?? []),
-    ].sort((left, right) => left.id.localeCompare(right.id));
+    const instances = present
+      .flatMap((status) => status.instances)
+      .sort((left, right) => left.id.localeCompare(right.id));
 
     return {
       instances,
       totalRunning: instances.filter((instance) => instance.status === 'running').length,
-      updatedAt: Math.max(dockerStatus?.updatedAt ?? 0, profileStatus?.updatedAt ?? 0),
+      updatedAt: Math.max(...present.map((status) => status.updatedAt)),
     };
   }
 
@@ -234,13 +273,13 @@ export class HybridBackend implements DeploymentBackend {
     if (matches.length > 1) {
       throw new Error(`Instance "${id}" is ambiguous across backends`);
     }
-    return matches[0].mode === 'docker' ? this.dockerBackend : this.profileBackend;
+    return this.backendForInstance(matches[0]);
   }
 
   private async backendForId(id: string): Promise<DeploymentBackend> {
     const cachedMatches = this.getCachedStatus()?.instances.filter((item) => item.id === id) ?? [];
     if (cachedMatches.length === 1) {
-      return cachedMatches[0].mode === 'docker' ? this.dockerBackend : this.profileBackend;
+      return this.backendForInstance(cachedMatches[0]);
     }
     if (cachedMatches.length > 1) {
       throw new Error(`Instance "${id}" is ambiguous across backends`);
@@ -254,7 +293,7 @@ export class HybridBackend implements DeploymentBackend {
     if (matches.length > 1) {
       throw new Error(`Instance "${id}" is ambiguous across backends`);
     }
-    return matches[0].mode === 'docker' ? this.dockerBackend : this.profileBackend;
+    return this.backendForInstance(matches[0]);
   }
 
   private async ensureInstanceIdAvailable(id: string): Promise<void> {
@@ -262,5 +301,18 @@ export class HybridBackend implements DeploymentBackend {
     if (status.instances.some((instance) => instance.id === id)) {
       throw new Error(`Instance "${id}" already exists`);
     }
+  }
+
+  private backendForInstance(instance: FleetInstance): DeploymentBackend {
+    if (instance.runtime === 'openclaw' && instance.mode === 'docker') {
+      return this.backends.openclawDocker;
+    }
+    if (instance.runtime === 'openclaw' && instance.mode === 'profile') {
+      return this.backends.openclawProfile;
+    }
+    if (instance.runtime === 'hermes' && instance.mode === 'docker') {
+      return this.backends.hermesDocker;
+    }
+    throw new Error(`Unsupported runtime/mode combination: ${instance.runtime}/${instance.mode}`);
   }
 }

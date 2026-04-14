@@ -114,6 +114,20 @@ function ensureProxyAccess(
   return false;
 }
 
+function ensureRuntimeProxySupport(
+  reply: FastifyReply,
+  instance: { id: string; runtimeCapabilities?: { proxyAccess?: boolean } },
+): boolean {
+  if (instance.runtimeCapabilities?.proxyAccess === false) {
+    reply.status(409).send({
+      error: `Instance "${instance.id}" does not support this action`,
+      code: 'UNSUPPORTED_RUNTIME_ACTION',
+    });
+    return false;
+  }
+  return true;
+}
+
 function buildInjectedScript(token: string, proxyToken: string): string {
   return (
     `<script>(function(){` +
@@ -171,6 +185,9 @@ export async function proxyRoutes(app: FastifyInstance) {
       });
     }
     if (!ensureProxyAccess(request, reply, instance.id)) {
+      return;
+    }
+    if (!ensureRuntimeProxySupport(reply, instance)) {
       return;
     }
 
@@ -271,6 +288,10 @@ export async function proxyRoutes(app: FastifyInstance) {
         socket.close(1008, 'Forbidden');
         return;
       }
+      if (instance.runtimeCapabilities?.proxyAccess === false) {
+        socket.close(1008, 'Unsupported runtime action');
+        return;
+      }
 
       socket._socket?.on('error', () => {
         // Ignore raw socket resets from browser disconnects or failed upgrades.
@@ -351,6 +372,9 @@ export async function proxyRoutes(app: FastifyInstance) {
         });
       }
       if (!ensureProxyAccess(request, reply, instance.id)) {
+        return;
+      }
+      if (!ensureRuntimeProxySupport(reply, instance)) {
         return;
       }
 

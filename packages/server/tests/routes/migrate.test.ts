@@ -4,6 +4,7 @@ import { migrateRoutes } from '../../src/routes/migrate.js';
 
 const migratedInstance = {
   id: 'openclaw-1',
+  runtime: 'openclaw' as const,
   mode: 'profile' as const,
   status: 'running' as const,
   port: 18789,
@@ -14,6 +15,16 @@ const migratedInstance = {
   disk: { config: 0, workspace: 0 },
   health: 'healthy' as const,
   image: 'openclaw',
+  runtimeCapabilities: {
+    configEditor: true,
+    logs: true,
+    rename: true,
+    delete: true,
+    proxyAccess: true,
+    sessions: true,
+    plugins: true,
+    runtimeAdmin: true,
+  },
 };
 
 const mockBackend = {
@@ -98,5 +109,16 @@ describe('Migrate routes', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('ALREADY_TARGET_MODE');
+  });
+
+  it('POST /api/fleet/instances/:id/migrate returns 409 when the runtime does not support migration', async () => {
+    mockBackend.migrate.mockRejectedValueOnce(new Error('Migration is not supported for runtime "hermes"'));
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances/hermes-lab/migrate',
+      payload: { targetMode: 'docker' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('UNSUPPORTED_RUNTIME_ACTION');
   });
 });

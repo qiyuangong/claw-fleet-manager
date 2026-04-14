@@ -6,15 +6,21 @@
 
 ## Overview
 
-Claw Fleet Manager is a Turbo/npm-workspaces monorepo for operating `openclaw` instances from a browser.
+Claw Fleet Manager is a Turbo/npm-workspaces monorepo for operating `openclaw` and `hermes` gateway instances from a browser.
 
 - `packages/server`: Fastify control plane with authentication, authorization, fleet APIs, WebSocket log streaming, and a reverse proxy for the embedded Control UI
 - `packages/web`: React 19 + Vite dashboard backed by React Query and Zustand for fleet operations, config editing, plugin flows, and user administration
 
-The server supports two runtime backends behind one shared API surface:
+The server now models the fleet across two axes behind one shared API surface:
 
-- `docker`: manages `openclaw-N` containers directly through the Docker API, plus per-instance config/workspace provisioning inside the fleet directory
-- `profiles`: manages native `openclaw --profile <name>` gateway processes plus per-profile config/state directories
+- `runtime`: `openclaw` or `hermes`
+- `mode`: `profile` or `docker`
+
+That yields three managed instance shapes in one fleet list:
+
+- OpenClaw profile
+- OpenClaw docker
+- Hermes docker
 
 ## System Topology
 
@@ -26,9 +32,10 @@ flowchart LR
     Server["packages/server<br/>Fastify"]
     Auth["Auth + Authorization<br/>Basic Auth / cookie / proxy token<br/>admin vs assigned profiles"]
     Routes["Routes<br/>fleet · config · instances · users<br/>logs · proxy · profiles"]
-    Backend["DeploymentBackend"]
-    DockerBackend["DockerBackend"]
-    ProfileBackend["ProfileBackend"]
+    Backend["HybridBackend<br/>runtime + mode router"]
+    OCDocker["DockerBackend<br/>OpenClaw docker"]
+    OCProfile["ProfileBackend<br/>OpenClaw profile"]
+    HermesDocker["HermesDockerBackend"]
     UserSvc["UserService<br/>users.json"]
     FleetCfg["FleetConfigService<br/>fleet.env .env openclaw.json"]
     Provision["docker-instance-provisioning<br/>openclaw.json + workspace bootstrap"]
@@ -45,15 +52,18 @@ flowchart LR
     Routes --> UserSvc
     Routes --> FleetCfg
     Routes --> Backend
-    Backend --> DockerBackend
-    Backend --> ProfileBackend
-    DockerBackend --> Docker
-    DockerBackend --> Tail
-    DockerBackend --> Files
-    DockerBackend --> Provision
+    Backend --> OCDocker
+    Backend --> OCProfile
+    Backend --> HermesDocker
+    OCDocker --> Docker
+    OCDocker --> Tail
+    OCDocker --> Files
+    OCDocker --> Provision
     Provision --> Files
-    ProfileBackend --> OpenClaw
-    ProfileBackend --> Files
+    OCProfile --> OpenClaw
+    OCProfile --> Files
+    HermesDocker --> Docker
+    HermesDocker --> Files
     UserSvc --> Files
     FleetCfg --> Files
     Tail --> Files
@@ -82,12 +92,14 @@ If `packages/web/dist` exists, Fastify serves the built SPA directly with `@fast
    - `FleetConfigService`
    - `UserService`
 5. Bootstrap the first admin user from `config.auth` if `users.json` does not exist.
-6. Construct the active backend:
-   - `DockerBackend` in `docker` mode
-   - `ProfileBackend` in `profiles` mode
-7. Decorate Fastify with `backend`, `deploymentMode`, `fleetConfig`, `fleetDir`, and `userService`.
-8. Register auth, WebSocket support, routes, and static file serving.
-9. Call `backend.initialize()` and begin listening on `0.0.0.0:{port}`.
+6. Construct runtime-specific backends:
+   - `DockerBackend` for OpenClaw docker
+   - `ProfileBackend` for OpenClaw profile
+   - `HermesDockerBackend`
+7. Wrap them in `HybridBackend`, which routes by `(runtime, mode)`.
+8. Decorate Fastify with `backend`, `deploymentMode`, `fleetConfig`, `fleetDir`, and `userService`.
+9. Register auth, WebSocket support, routes, and static file serving.
+10. Call `backend.initialize()` and begin listening on `0.0.0.0:{port}`.
 
 ## Authentication And Authorization
 
@@ -145,6 +157,8 @@ Registered only when `deploymentMode === 'profiles'`:
 
 `packages/server/src/services/backend.ts` defines the shared `DeploymentBackend` interface. Routes call this interface rather than speaking directly to Docker or profile-process code.
 
+`packages/server/src/services/hybrid-backend.ts` is now the runtime-aware router. It dispatches create, lifecycle, config, logs, rename, remove, and migration operations to the correct backend based on the instance runtime and mode.
+
 ### DockerBackend
 
 [`packages/server/src/services/docker-backend.ts`](../../packages/server/src/services/docker-backend.ts) is responsible for:
@@ -191,6 +205,17 @@ Operational characteristics:
 - workspace bootstrap seeds `.gitignore`, `CLAUDE.md`, and `MEMORY.md`
 - `autoRestart` only applies in profile mode
 - native processes are left running across server shutdown and re-adopted later
+
+### HermesDockerBackend
+
+[`packages/server/src/services/hermes-docker-backend.ts`](../../packages/server/src/services/hermes-docker-backend.ts) manages Hermes gateway containers with per-instance persistent homes mounted into the container.
+
+Operational characteristics:
+
+- containers are labeled as Hermes runtime instances and filtered separately from OpenClaw docker instances
+- Hermes docker uses the runtime image configured in `server.config.json`
+- Hermes docker exposes gateway-first capabilities: lifecycle, logs, delete/rename, and config editing
+- OpenClaw-only capabilities remain gated off in the API and web UI
 
 ## Supporting Services
 

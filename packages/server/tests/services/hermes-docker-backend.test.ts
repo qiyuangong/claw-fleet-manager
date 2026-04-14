@@ -1,0 +1,199 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import * as yaml from 'yaml';
+import { getHermesDockerFleetRoot, HermesDockerBackend } from '../../src/services/hermes-docker-backend.js';
+
+describe('getHermesDockerFleetRoot', () => {
+  it('places Hermes runtime data under a hidden system directory', () => {
+    expect(getHermesDockerFleetRoot('/tmp/managed')).toBe(join('/tmp/managed', '.claw-fleet', 'hermes'));
+  });
+});
+
+describe('HermesDockerBackend', () => {
+  let rootDir: string;
+  let backend: HermesDockerBackend;
+  let mockDocker: {
+    listFleetContainers: ReturnType<typeof vi.fn>;
+    createManagedContainer: ReturnType<typeof vi.fn>;
+    getContainerStats: ReturnType<typeof vi.fn>;
+    inspectContainer: ReturnType<typeof vi.fn>;
+    startContainer: ReturnType<typeof vi.fn>;
+    stopContainer: ReturnType<typeof vi.fn>;
+    restartContainer: ReturnType<typeof vi.fn>;
+    removeContainer: ReturnType<typeof vi.fn>;
+    renameContainer: ReturnType<typeof vi.fn>;
+    getContainerLogs: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(async () => {
+    rootDir = mkdtempSync(join(tmpdir(), 'hermes-docker-backend-'));
+    mockDocker = {
+      listFleetContainers: vi.fn().mockResolvedValue([]),
+      createManagedContainer: vi.fn().mockResolvedValue(undefined),
+      getContainerStats: vi.fn().mockResolvedValue({
+        cpu: 12.5,
+        memory: { used: 256 * 1024 * 1024, limit: 1024 * 1024 * 1024 },
+      }),
+      inspectContainer: vi.fn().mockResolvedValue({
+        status: 'running',
+        health: 'none',
+        image: 'ghcr.io/nousresearch/hermes-agent:latest',
+        uptime: 42,
+      }),
+      startContainer: vi.fn().mockResolvedValue(undefined),
+      stopContainer: vi.fn().mockResolvedValue(undefined),
+      restartContainer: vi.fn().mockResolvedValue(undefined),
+      removeContainer: vi.fn().mockResolvedValue(undefined),
+      renameContainer: vi.fn().mockResolvedValue(undefined),
+      getContainerLogs: vi.fn().mockResolvedValue({ on: vi.fn(), destroy: vi.fn() }),
+    };
+
+    backend = new HermesDockerBackend(
+      mockDocker as any,
+      {
+        image: 'ghcr.io/nousresearch/hermes-agent:latest',
+        mountPath: '/opt/data',
+        env: { HERMES_LOG_LEVEL: 'debug' },
+      },
+      rootDir,
+    );
+    await backend.initialize();
+  });
+
+  afterEach(async () => {
+    await backend.shutdown();
+    vi.useRealTimers();
+  });
+
+  it('createInstance creates a Hermes container with persistent HERMES_HOME', async () => {
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' }]);
+
+    const instance = await backend.createInstance({ runtime: 'hermes', kind: 'docker', name: 'hermes-lab' });
+
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'hermes-lab',
+      image: 'ghcr.io/nousresearch/hermes-agent:latest',
+      binds: [expect.stringContaining('hermes-lab:/opt/data')],
+      extraEnv: expect.arrayContaining([
+        'HERMES_HOME=/opt/data',
+        'HERMES_LOG_LEVEL=debug',
+      ]),
+      command: ['gateway', 'run'],
+      exposedTcpPorts: [],
+      runtime: 'hermes',
+      healthcheck: null,
+    }));
+
+    expect(readFileSync(join(rootDir, 'hermes-lab', 'config.yaml'), 'utf-8')).toContain('gateway:');
+    expect(instance.runtime).toBe('hermes');
+    expect(instance.mode).toBe('docker');
+  });
+
+  it('builds Hermes fleet instances with hermes runtime metadata', async () => {
+    const homeDir = join(rootDir, 'hermes-lab');
+    mkdirSync(join(homeDir, 'workspace'), { recursive: true });
+    writeFileSync(join(homeDir, 'config.yaml'), yaml.stringify({ agent: {}, gateway: { auth: { token: 'secret-token' } } }));
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'def', state: 'running', index: 2, runtime: 'openclaw' },
+      { name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' },
+    ]);
+
+    const status = await backend.refresh();
+
+    expect(status.instances).toHaveLength(1);
+    expect(status.instances[0]).toEqual(expect.objectContaining({
+      id: 'hermes-lab',
+      runtime: 'hermes',
+      mode: 'docker',
+      status: 'running',
+      health: 'healthy',
+      image: 'ghcr.io/nousresearch/hermes-agent:latest',
+      runtimeCapabilities: expect.objectContaining({
+        configEditor: true,
+        logs: true,
+        proxyAccess: false,
+        sessions: false,
+      }),
+    }));
+  });
+
+  it('refresh ignores non-Hermes managed containers', async () => {
+    const homeDir = join(rootDir, 'hermes-lab');
+    mkdirSync(join(homeDir, 'workspace'), { recursive: true });
+    writeFileSync(join(homeDir, 'config.yaml'), yaml.stringify({ agent: {}, gateway: { auth: { token: 'secret-token' } } }));
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'def', state: 'running', index: 2, runtime: 'openclaw' },
+      { name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' },
+    ]);
+
+    const status = await backend.refresh();
+
+    expect(status.instances).toHaveLength(1);
+    expect(status.instances[0].id).toBe('hermes-lab');
+  });
+
+  it('createInstance uses the current base dir when provided dynamically', async () => {
+    let dynamicBaseDir = rootDir;
+    backend = new HermesDockerBackend(
+      mockDocker as any,
+      {
+        image: 'ghcr.io/nousresearch/hermes-agent:latest',
+        mountPath: '/opt/data',
+        env: { HERMES_LOG_LEVEL: 'debug' },
+      },
+      () => dynamicBaseDir,
+    );
+    await backend.initialize();
+
+    const nextRootDir = mkdtempSync(join(tmpdir(), 'hermes-docker-backend-next-'));
+    dynamicBaseDir = nextRootDir;
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' }]);
+
+    await backend.createInstance({ runtime: 'hermes', kind: 'docker', name: 'hermes-lab' });
+
+    expect(readFileSync(join(nextRootDir, 'hermes-lab', 'config.yaml'), 'utf-8')).toContain('gateway:');
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
+      configDir: join(nextRootDir, 'hermes-lab'),
+      workspaceDir: join(nextRootDir, 'hermes-lab', 'workspace'),
+      binds: [join(nextRootDir, 'hermes-lab') + ':/opt/data'],
+    }));
+  });
+
+  it('refreshes Hermes cache periodically after initialize and stops on shutdown', async () => {
+    vi.useFakeTimers();
+    const setIntervalSpy = vi.spyOn(globalThis, 'setInterval');
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+    const localDocker = {
+      ...mockDocker,
+      listFleetContainers: vi.fn().mockResolvedValue([]),
+    };
+    const localBackend = new HermesDockerBackend(
+      localDocker as any,
+      {
+        image: 'ghcr.io/nousresearch/hermes-agent:latest',
+        mountPath: '/opt/data',
+        env: {},
+      },
+      rootDir,
+    );
+    const refreshSpy = vi.spyOn(localBackend, 'refresh');
+
+    await localBackend.initialize();
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    refreshSpy.mockClear();
+
+    const intervalCallback = setIntervalSpy.mock.calls[0]?.[0];
+    expect(typeof intervalCallback).toBe('function');
+    (intervalCallback as () => void)();
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+    await localBackend.shutdown();
+    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+  });
+});

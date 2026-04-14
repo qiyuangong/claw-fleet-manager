@@ -59,10 +59,10 @@ describe('Profile routes', () => {
     });
     expect(res.statusCode).toBe(200);
     expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'openclaw',
       kind: 'profile',
       name: 'rescue',
       port: 19001,
-      config: undefined,
     });
     expect(res.json().id).toBe('main');
   });

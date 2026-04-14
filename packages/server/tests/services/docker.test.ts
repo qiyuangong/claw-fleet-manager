@@ -58,6 +58,7 @@ describe('DockerService', () => {
     const containers = await svc.listFleetContainers();
     expect(containers).toHaveLength(2);
     expect(containers[0].name).toBe('openclaw-1');
+    expect(containers[0].runtime).toBe('openclaw');
   });
 
   it('starts a container', async () => {
@@ -89,6 +90,7 @@ describe('DockerService', () => {
         Labels: {
           'dev.claw-fleet.managed': 'true',
           'dev.claw-fleet.instance-index': '2',
+          'dev.claw-fleet.runtime': 'openclaw',
         },
         Env: ['HOME=/home/node', 'OPENCLAW_GATEWAY_TOKEN=secret-token', 'TZ=UTC'],
         Cmd: ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'],
@@ -131,6 +133,7 @@ describe('DockerService', () => {
       Labels: expect.objectContaining({
         'dev.claw-fleet.managed': 'true',
         'dev.claw-fleet.instance-index': '2',
+        'dev.claw-fleet.runtime': 'openclaw',
       }),
       HostConfig: expect.objectContaining({
         Binds: [
@@ -172,6 +175,7 @@ describe('DockerService', () => {
       Labels: expect.objectContaining({
         'dev.claw-fleet.managed': 'true',
         'dev.claw-fleet.instance-index': '2',
+        'dev.claw-fleet.runtime': 'openclaw',
       }),
       Env: expect.arrayContaining([
         'HOME=/home/node',
@@ -197,6 +201,45 @@ describe('DockerService', () => {
     expect(createdContainer.start).toHaveBeenCalled();
   });
 
+  it('createManagedContainer can disable the default OpenClaw healthcheck for Hermes containers', async () => {
+    const createdContainer = { start: vi.fn().mockResolvedValue(undefined) };
+    mockDocker.listContainers.mockResolvedValue([]);
+    mockDocker.createContainer = vi.fn().mockResolvedValue(createdContainer);
+
+    await svc.createManagedContainer({
+      name: 'hermes-lab',
+      index: 3,
+      runtime: 'hermes',
+      image: 'ghcr.io/nousresearch/hermes-agent:latest',
+      gatewayPort: 0,
+      token: '',
+      timezone: 'UTC',
+      configDir: '/tmp/hermes-lab',
+      workspaceDir: '/tmp/hermes-lab/workspace',
+      cpuLimit: '1',
+      memLimit: '1G',
+      binds: ['/tmp/hermes-lab:/opt/data'],
+      extraEnv: ['HERMES_HOME=/opt/data'],
+      command: ['gateway', 'run'],
+      exposedTcpPorts: [],
+      healthcheck: null,
+    });
+
+    expect(mockDocker.createContainer).toHaveBeenCalledWith(expect.objectContaining({
+      Labels: expect.objectContaining({
+        'dev.claw-fleet.runtime': 'hermes',
+      }),
+      Cmd: ['gateway', 'run'],
+      ExposedPorts: undefined,
+      Healthcheck: undefined,
+      HostConfig: expect.objectContaining({
+        Binds: ['/tmp/hermes-lab:/opt/data'],
+        PortBindings: undefined,
+      }),
+    }));
+    expect(createdContainer.start).toHaveBeenCalled();
+  });
+
   it('createManagedContainer is a no-op when the container already exists', async () => {
     mockDocker.listContainers.mockResolvedValue([
       { Names: ['/team-alpha'], Id: 'abc123', State: 'running' },
@@ -217,6 +260,34 @@ describe('DockerService', () => {
     });
 
     expect(mockDocker.createContainer).not.toHaveBeenCalled();
+  });
+
+  it('listFleetContainers reads the runtime label and defaults legacy containers to openclaw', async () => {
+    mockDocker.listContainers.mockResolvedValue([
+      {
+        Names: ['/hermes-lab'],
+        Id: 'abc123',
+        State: 'running',
+        Labels: {
+          'dev.claw-fleet.managed': 'true',
+          'dev.claw-fleet.instance-index': '2',
+          'dev.claw-fleet.runtime': 'hermes',
+        },
+      },
+      {
+        Names: ['/openclaw-1'],
+        Id: 'def456',
+        State: 'running',
+        Labels: {},
+      },
+    ]);
+
+    const containers = await svc.listFleetContainers();
+
+    expect(containers).toEqual([
+      expect.objectContaining({ name: 'openclaw-1', runtime: 'openclaw', index: 1 }),
+      expect.objectContaining({ name: 'hermes-lab', runtime: 'hermes', index: 2 }),
+    ]);
   });
 
   it('removes a container with force=true', async () => {

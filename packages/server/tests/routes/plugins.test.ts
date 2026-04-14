@@ -4,10 +4,132 @@ import { pluginRoutes } from '../../src/routes/plugins.js';
 
 const mockBackend = {
   execInstanceCommand: vi.fn(),
+  getCachedStatus: vi.fn().mockReturnValue({
+    instances: [
+      {
+        id: 'openclaw-1',
+        runtime: 'openclaw',
+        mode: 'docker',
+        runtimeCapabilities: {
+          configEditor: true,
+          logs: true,
+          rename: true,
+          delete: true,
+          proxyAccess: true,
+          sessions: true,
+          plugins: true,
+          runtimeAdmin: true,
+        },
+      },
+      {
+        id: 'main',
+        runtime: 'openclaw',
+        mode: 'profile',
+        runtimeCapabilities: {
+          configEditor: true,
+          logs: true,
+          rename: true,
+          delete: true,
+          proxyAccess: true,
+          sessions: true,
+          plugins: true,
+          runtimeAdmin: true,
+        },
+      },
+      {
+        id: 'hermes-lab',
+        runtime: 'hermes',
+        mode: 'docker',
+        runtimeCapabilities: {
+          configEditor: true,
+          logs: true,
+          rename: true,
+          delete: true,
+          proxyAccess: false,
+          sessions: false,
+          plugins: false,
+          runtimeAdmin: true,
+        },
+      },
+    ],
+  }),
+  refresh: vi.fn(),
 };
 
 describe('Plugin routes - hybrid mode', () => {
   const app = Fastify();
+
+  beforeEach(() => {
+    mockBackend.execInstanceCommand.mockReset();
+    mockBackend.getCachedStatus.mockReset();
+    mockBackend.refresh.mockReset();
+    mockBackend.getCachedStatus.mockReturnValue({
+      instances: [
+        {
+          id: 'openclaw-1',
+          runtime: 'openclaw',
+          mode: 'docker',
+          runtimeCapabilities: {
+            configEditor: true,
+            logs: true,
+            rename: true,
+            delete: true,
+            proxyAccess: true,
+            sessions: true,
+            plugins: true,
+            runtimeAdmin: true,
+          },
+        },
+        {
+          id: 'team-alpha',
+          runtime: 'openclaw',
+          mode: 'docker',
+          runtimeCapabilities: {
+            configEditor: true,
+            logs: true,
+            rename: true,
+            delete: true,
+            proxyAccess: true,
+            sessions: true,
+            plugins: true,
+            runtimeAdmin: true,
+          },
+        },
+        {
+          id: 'main',
+          runtime: 'openclaw',
+          mode: 'profile',
+          runtimeCapabilities: {
+            configEditor: true,
+            logs: true,
+            rename: true,
+            delete: true,
+            proxyAccess: true,
+            sessions: true,
+            plugins: true,
+            runtimeAdmin: true,
+          },
+        },
+        {
+          id: 'hermes-lab',
+          runtime: 'hermes',
+          mode: 'docker',
+          runtimeCapabilities: {
+            configEditor: true,
+            logs: true,
+            rename: true,
+            delete: true,
+            proxyAccess: false,
+            sessions: false,
+            plugins: false,
+            runtimeAdmin: true,
+          },
+        },
+      ],
+      totalRunning: 2,
+      updatedAt: Date.now(),
+    });
+  });
 
   beforeAll(async () => {
     app.decorate('backend', mockBackend);
@@ -93,5 +215,31 @@ describe('Plugin routes - hybrid mode', () => {
   it('GET /api/fleet/:id/plugins rejects malformed ids', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/fleet/BAD_ID/plugins' });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /api/fleet/:id/plugins rejects Hermes instances as unsupported', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/hermes-lab/plugins' });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'Instance "hermes-lab" does not support this action',
+      code: 'UNSUPPORTED_RUNTIME_ACTION',
+    });
+    expect(mockBackend.execInstanceCommand).not.toHaveBeenCalled();
+  });
+
+  it('POST /api/fleet/:id/plugins/install rejects Hermes instances as unsupported', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/hermes-lab/plugins/install',
+      payload: { spec: '@openclaw/feishu' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'Instance "hermes-lab" does not support this action',
+      code: 'UNSUPPORTED_RUNTIME_ACTION',
+    });
+    expect(mockBackend.execInstanceCommand).not.toHaveBeenCalled();
   });
 });

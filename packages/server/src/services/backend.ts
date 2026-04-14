@@ -1,12 +1,13 @@
 // packages/server/src/services/backend.ts
-import type { FleetInstance, FleetStatus, InstanceMode } from '../types.js';
+import type { FleetInstance, FleetStatus, InstanceMode, InstanceRuntime } from '../types.js';
 
 export interface LogHandle {
   stop(): void;
 }
 
 export interface CreateInstanceOpts {
-  kind?: InstanceMode;
+  runtime: InstanceRuntime;
+  kind: InstanceMode;
   name?: string;
   port?: number;
   config?: object;

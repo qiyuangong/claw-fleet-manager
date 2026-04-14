@@ -55,6 +55,8 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
     ? Math.max(0, Math.min((instance.memory.used / instance.memory.limit) * 100, 100))
     : 0;
   const memoryLimitLabel = instance.memory.limit > 0 ? formatBytes(instance.memory.limit) : t('noLimit');
+  const runtimeLabel = instance.runtime === 'hermes' ? t('runtimeHermes') : t('runtimeOpenClaw');
+  const canMigrate = currentUser?.role === 'admin' && instance.runtime === 'openclaw';
 
   return (
     <div className="field-grid">
@@ -80,7 +82,7 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
           <button className="secondary-button" onClick={() => restart.mutate()} disabled={instance.status === 'stopped' || restart.isPending}>
             {t('restart')}
           </button>
-          {currentUser?.role === 'admin' ? (
+          {canMigrate ? (
             <button className="secondary-button" onClick={() => setShowMigrate(true)}>
               {t('migrateInstance')}
             </button>
@@ -88,6 +90,10 @@ export function OverviewTab({ instance }: { instance: FleetInstance }) {
         </div>
 
         <div className="section-grid">
+          <div className="metric-card">
+            <p className="metric-label">{t('runtime')}</p>
+            <p className="metric-value">{runtimeLabel}</p>
+          </div>
           <div className="metric-card">
             <p className="metric-label">{t('port')}</p>
             <p className="metric-value mono">:{instance.port}</p>

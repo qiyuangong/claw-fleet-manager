@@ -56,7 +56,11 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
   const currentUser = useAppStore((state) => state.currentUser);
   const { data: fleet, isLoading } = useFleet();
   const queryClient = useQueryClient();
-  const [createKind, setCreateKind] = useState<'docker' | 'profile' | null>(null);
+  const [createTarget, setCreateTarget] = useState<
+    | { runtime: 'openclaw'; kind: 'docker' | 'profile' }
+    | { runtime: 'hermes'; kind: 'docker' }
+    | null
+  >(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [pendingRename, setPendingRename] = useState<FleetInstance | null>(null);
@@ -101,6 +105,7 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
     : fleet.instances.filter((instance) => {
       const haystacks = [
         instance.id,
+        instance.runtime === 'hermes' ? t('runtimeHermes') : t('runtimeOpenClaw'),
         instance.mode === 'docker' ? t('dockerInstanceType') : t('profileInstanceType'),
         instance.status,
         instance.health,
@@ -134,20 +139,30 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
                   style={{ width: '100%', justifyContent: 'flex-start' }}
                   onClick={() => {
                     setShowCreateMenu(false);
-                    setCreateKind('docker');
+                    setCreateTarget({ runtime: 'openclaw', kind: 'docker' });
                   }}
                 >
-                  {t('createDockerInstance')}
+                  {t('createOpenClawDockerInstance')}
                 </button>
                 <button
                   className="secondary-button"
                   style={{ width: '100%', justifyContent: 'flex-start' }}
                   onClick={() => {
                     setShowCreateMenu(false);
-                    setCreateKind('profile');
+                    setCreateTarget({ runtime: 'openclaw', kind: 'profile' });
                   }}
                 >
-                  {t('createProfileInstance')}
+                  {t('createOpenClawProfileInstance')}
+                </button>
+                <button
+                  className="secondary-button"
+                  style={{ width: '100%', justifyContent: 'flex-start' }}
+                  onClick={() => {
+                    setShowCreateMenu(false);
+                    setCreateTarget({ runtime: 'hermes', kind: 'docker' });
+                  }}
+                >
+                  {t('createHermesDockerInstance')}
                 </button>
               </div>
             ) : null}
@@ -191,6 +206,7 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
             <thead>
               <tr>
                 <th>{t('instance')}</th>
+                <th>{t('runtime')}</th>
                 <th>{t('type')}</th>
                 <th>{t('status')}</th>
                 <th>{t('health')}</th>
@@ -203,6 +219,11 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
               {filteredInstances.map((instance) => (
                 <tr key={instance.id}>
                   <td className="mono">{instance.id}</td>
+                  <td>
+                    <span className="pill">
+                      {instance.runtime === 'hermes' ? t('runtimeHermes') : t('runtimeOpenClaw')}
+                    </span>
+                  </td>
                   <td>{instance.mode === 'docker' ? t('dockerInstanceType') : t('profileInstanceType')}</td>
                   <td>{instance.status}</td>
                   <td>{instance.health}</td>
@@ -262,7 +283,13 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
         />
       ) : null}
 
-      {createKind ? <AddInstanceDialog kind={createKind} onClose={() => setCreateKind(null)} /> : null}
+      {createTarget ? (
+        <AddInstanceDialog
+          runtime={createTarget.runtime}
+          kind={createTarget.kind}
+          onClose={() => setCreateTarget(null)}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}

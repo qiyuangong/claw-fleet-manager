@@ -16,6 +16,12 @@ const profilesSchema = z.object({
   stopTimeoutMs: z.number().int().positive().default(10000),
 });
 
+const hermesDockerSchema = z.object({
+  image: z.string().default('ghcr.io/nousresearch/hermes-agent:latest'),
+  mountPath: z.string().default('/opt/data'),
+  env: z.record(z.string(), z.string()).default({}),
+});
+
 const schema = z.object({
   port: z.number().int().positive().default(3001),
   auth: z.object({
@@ -31,6 +37,7 @@ const schema = z.object({
     key: z.string().min(1),
   }).optional(),
   profiles: profilesSchema.optional(),
+  hermesDocker: hermesDockerSchema.optional(),
 });
 
 export function resolveConfigPath(): string {

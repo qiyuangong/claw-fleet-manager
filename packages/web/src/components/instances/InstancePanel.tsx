@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useFleet } from '../../hooks/useFleet';
 import { useAppStore } from '../../store';
@@ -12,9 +12,7 @@ const FeishuTab = lazy(async () => ({ default: (await import('./FeishuTab')).Fei
 const PluginsTab = lazy(async () => ({ default: (await import('./PluginsTab')).PluginsTab }));
 const InstanceActivityTab = lazy(async () => ({ default: (await import('./InstanceActivityTab')).InstanceActivityTab }));
 
-const baseTabs = ['overview', 'activity', 'logs', 'config', 'metrics', 'controlui', 'feishu'] as const;
-
-type Tab = typeof baseTabs[number] | 'plugins';
+type Tab = 'overview' | 'activity' | 'logs' | 'config' | 'metrics' | 'controlui' | 'feishu' | 'plugins';
 
 const tabLabelKey: Record<Tab, string> = {
   overview: 'tabOverview',
@@ -45,6 +43,24 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
     );
   }
 
+  const tabs: Tab[] = [
+    'overview',
+    ...(instance.runtimeCapabilities.sessions ? ['activity'] as const : []),
+    ...(instance.runtimeCapabilities.logs ? ['logs'] as const : []),
+    ...(instance.runtimeCapabilities.configEditor ? ['config'] as const : []),
+    'metrics',
+    ...(instance.runtimeCapabilities.proxyAccess ? ['controlui'] as const : []),
+    ...(instance.runtime === 'openclaw' ? ['feishu'] as const : []),
+    ...(instance.runtimeCapabilities.plugins ? ['plugins'] as const : []),
+  ];
+  const resolvedTab = tabs.includes(activeTab) ? activeTab : 'overview';
+
+  useEffect(() => {
+    if (resolvedTab !== activeTab) {
+      setTab(resolvedTab);
+    }
+  }, [activeTab, resolvedTab, setTab]);
+
   return (
     <section className="panel-card">
       <div className="panel-header">
@@ -56,10 +72,10 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
       </div>
 
       <div className="tab-row">
-        {[...baseTabs, 'plugins' as const].map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab}
-            className={`tab-button ${activeTab === tab ? 'active' : ''}`}
+            className={`tab-button ${resolvedTab === tab ? 'active' : ''}`}
             onClick={() => setTab(tab)}
           >
             {t(tabLabelKey[tab])}
@@ -67,16 +83,16 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
         ))}
       </div>
 
-      {activeTab === 'overview' ? <OverviewTab instance={instance} /> : null}
-      {activeTab !== 'overview' ? (
+      {resolvedTab === 'overview' ? <OverviewTab instance={instance} /> : null}
+      {resolvedTab !== 'overview' ? (
         <Suspense fallback={<div className="panel-card muted">{t('loadingTab')}</div>}>
-          {activeTab === 'activity' ? <InstanceActivityTab instanceId={instanceId} /> : null}
-          {activeTab === 'logs' ? <LogsTab instanceId={instanceId} /> : null}
-          {activeTab === 'config' ? <ConfigTab instanceId={instanceId} /> : null}
-          {activeTab === 'metrics' ? <MetricsTab instance={instance} /> : null}
-          {activeTab === 'controlui' ? <ControlUiTab instance={instance} /> : null}
-          {activeTab === 'feishu' ? <FeishuTab instanceId={instanceId} /> : null}
-          {activeTab === 'plugins' ? <PluginsTab instance={instance} /> : null}
+          {resolvedTab === 'activity' ? <InstanceActivityTab instanceId={instanceId} /> : null}
+          {resolvedTab === 'logs' ? <LogsTab instanceId={instanceId} /> : null}
+          {resolvedTab === 'config' ? <ConfigTab instanceId={instanceId} /> : null}
+          {resolvedTab === 'metrics' ? <MetricsTab instance={instance} /> : null}
+          {resolvedTab === 'controlui' ? <ControlUiTab instance={instance} /> : null}
+          {resolvedTab === 'feishu' ? <FeishuTab instanceId={instanceId} /> : null}
+          {resolvedTab === 'plugins' ? <PluginsTab instance={instance} /> : null}
         </Suspense>
       ) : null}
     </section>

@@ -18,6 +18,18 @@ const mockStatus = {
   instances: [
     {
       id: 'openclaw-1',
+      runtime: 'openclaw',
+      mode: 'docker',
+      runtimeCapabilities: {
+        configEditor: true,
+        logs: true,
+        rename: true,
+        delete: true,
+        proxyAccess: true,
+        sessions: true,
+        plugins: true,
+        runtimeAdmin: true,
+      },
       index: 1,
       port: 18789,
       status: 'running',
@@ -31,6 +43,18 @@ const mockStatus = {
     },
     {
       id: 'openclaw-2',
+      runtime: 'openclaw',
+      mode: 'docker',
+      runtimeCapabilities: {
+        configEditor: true,
+        logs: true,
+        rename: true,
+        delete: true,
+        proxyAccess: true,
+        sessions: true,
+        plugins: true,
+        runtimeAdmin: true,
+      },
       index: 2,
       port: 18809,
       status: 'running',
@@ -41,6 +65,31 @@ const mockStatus = {
       disk: { config: 0, workspace: 0 },
       health: 'healthy',
       image: 'openclaw:local',
+    },
+    {
+      id: 'hermes-lab',
+      runtime: 'hermes',
+      mode: 'docker',
+      runtimeCapabilities: {
+        configEditor: true,
+        logs: true,
+        rename: true,
+        delete: true,
+        proxyAccess: false,
+        sessions: false,
+        plugins: false,
+        runtimeAdmin: true,
+      },
+      index: 3,
+      port: 0,
+      status: 'running',
+      token: '***',
+      uptime: 50,
+      cpu: 1,
+      memory: { used: 100, limit: 2000 },
+      disk: { config: 0, workspace: 0 },
+      health: 'healthy',
+      image: 'hermes:local',
     },
   ],
   totalRunning: 1,
@@ -160,6 +209,17 @@ describe('Proxy routes', () => {
     const res = await app.inject({ method: 'GET', url: '/proxy/openclaw-99/' });
     expect(res.statusCode).toBe(404);
     expect(res.json().error).toContain('not found');
+  });
+
+  it('returns unsupported-runtime error for Hermes proxy requests before dialing upstream', async () => {
+    const res = await app.inject({ method: 'GET', url: '/proxy/hermes-lab/' });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({
+      error: 'Instance "hermes-lab" does not support this action',
+      code: 'UNSUPPORTED_RUNTIME_ACTION',
+    });
+    expect(undiciRequestMock).not.toHaveBeenCalled();
   });
 
   it('forbids non-admin users from proxying unassigned instances', async () => {

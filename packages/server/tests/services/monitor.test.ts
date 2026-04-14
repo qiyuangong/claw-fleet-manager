@@ -45,7 +45,22 @@ describe('MonitorService', () => {
     expect(status.instances[0].status).toBe('running');
     expect(status.instances[0].token).toBe('abc1***f456');
     expect(status.instances[0].port).toBe(18789);
+    expect(status.instances[0].runtime).toBe('openclaw');
+    expect(status.instances[0].runtimeCapabilities.logs).toBe(true);
     expect(status.totalRunning).toBe(1);
+  });
+
+  it('ignores Hermes containers when building OpenClaw monitor status', async () => {
+    mockDocker.listFleetContainers.mockResolvedValueOnce([
+      { name: 'openclaw-1', id: 'abc', state: 'running', runtime: 'openclaw' },
+      { name: 'hermes-lab', id: 'def', state: 'running', runtime: 'hermes' },
+    ]);
+
+    const status = await svc.refresh();
+
+    expect(status.instances).toHaveLength(1);
+    expect(status.instances[0].id).toBe('openclaw-1');
+    expect(status.instances[0].runtime).toBe('openclaw');
   });
 
   it('returns cached status via getStatus()', async () => {

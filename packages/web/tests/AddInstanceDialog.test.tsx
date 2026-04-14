@@ -16,7 +16,7 @@ vi.mock('../src/hooks/useFleetConfig', () => ({
   useFleetConfig: () => useFleetConfigMock(),
 }));
 
-function renderDialog(kind: 'docker' | 'profile') {
+function renderDialog(kind: 'docker' | 'profile', runtime: 'openclaw' | 'hermes' = 'openclaw') {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -27,7 +27,7 @@ function renderDialog(kind: 'docker' | 'profile') {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <AddInstanceDialog kind={kind} onClose={() => {}} />
+      <AddInstanceDialog runtime={runtime} kind={kind} onClose={() => {}} />
     </QueryClientProvider>,
   );
 }
@@ -80,6 +80,7 @@ describe('AddInstanceDialog', () => {
 
     await waitFor(() => {
       expect(createInstanceMock).toHaveBeenCalledWith({
+        runtime: 'openclaw',
         kind: 'docker',
         name: 'team-alpha',
         image: 'ghcr.io/acme/openclaw:latest',
@@ -103,6 +104,7 @@ describe('AddInstanceDialog', () => {
 
     await waitFor(() => {
       expect(createInstanceMock).toHaveBeenCalledWith({
+        runtime: 'openclaw',
         kind: 'profile',
         name: 'rescue-team',
         port: 987,

@@ -5,6 +5,7 @@ export interface ContainerInfo {
   id: string;
   state: string;
   index?: number;
+  runtime: 'openclaw' | 'hermes';
 }
 
 export interface ContainerStats {
@@ -22,6 +23,7 @@ export interface ContainerInspection {
 export interface ManagedContainerSpec {
   name: string;
   index: number;
+  runtime?: 'openclaw' | 'hermes';
   image: string;
   gatewayPort: number;
   token: string;
@@ -31,6 +33,19 @@ export interface ManagedContainerSpec {
   npmDir?: string;
   cpuLimit: string;
   memLimit: string;
+  command?: string[];
+  binds?: string[];
+  extraEnv?: string[];
+  exposedTcpPorts?: number[];
+  healthcheck?: ContainerHealthcheck | null;
+}
+
+export interface ContainerHealthcheck {
+  Test: string[];
+  Interval?: number;
+  Timeout?: number;
+  Retries?: number;
+  StartPeriod?: number;
 }
 
 export interface RecreateManagedContainerSpec {
@@ -39,6 +54,7 @@ export interface RecreateManagedContainerSpec {
   configDir: string;
   workspaceDir: string;
   npmDir?: string;
+  binds?: string[];
 }
 
 export class DockerService {
@@ -57,6 +73,7 @@ export class DockerService {
         id: container.Id,
         state: container.State,
         index: parseContainerIndex(container),
+        runtime: parseContainerRuntime(container),
       }))
       .sort((a, b) => {
         if (a.index !== undefined && b.index !== undefined) return a.index - b.index;
@@ -85,6 +102,7 @@ export class DockerService {
   async recreateStoppedManagedContainer(spec: RecreateManagedContainerSpec): Promise<void> {
     const source = this.docker.getContainer(spec.currentName);
     const inspection = await source.inspect() as any;
+    const recreatedBinds = spec.binds ?? rewriteManagedBinds(inspection.HostConfig.Binds ?? [], spec);
     const replacement = await this.docker.createContainer({
       name: spec.nextName,
       Image: inspection.Config.Image,
@@ -95,7 +113,7 @@ export class DockerService {
       Healthcheck: inspection.Config.Healthcheck,
       HostConfig: {
         AutoRemove: inspection.HostConfig.AutoRemove,
-        Binds: rewriteManagedBinds(inspection.HostConfig.Binds ?? [], spec),
+        Binds: recreatedBinds,
         PortBindings: inspection.HostConfig.PortBindings,
         Init: inspection.HostConfig.Init,
         RestartPolicy: inspection.HostConfig.RestartPolicy,
@@ -122,16 +140,38 @@ export class DockerService {
       return;
     }
 
-    const binds = [
-      `${spec.configDir}:/home/node/.openclaw`,
-      `${spec.workspaceDir}:/home/node/.openclaw/workspace`,
-    ];
-    if (spec.npmDir) {
+    const binds = spec.binds
+      ? [...spec.binds]
+      : [
+          `${spec.configDir}:/home/node/.openclaw`,
+          `${spec.workspaceDir}:/home/node/.openclaw/workspace`,
+        ];
+    if (!spec.binds && spec.npmDir) {
       binds.push(`${spec.npmDir}:/home/node/.npm`);
     }
 
     const cpus = parseCpuLimit(spec.cpuLimit);
     const memory = parseMemoryLimit(spec.memLimit);
+    const exposedTcpPorts = spec.exposedTcpPorts ?? [18789];
+    const exposedPorts = exposedTcpPorts.reduce<Record<string, {}>>((acc, port) => {
+      acc[`${port}/tcp`] = {};
+      return acc;
+    }, {});
+    const portBindings = exposedTcpPorts.reduce<Record<string, { HostPort: string }[]>>((acc, port) => {
+      acc[`${port}/tcp`] = [{ HostPort: String(spec.gatewayPort) }];
+      return acc;
+    }, {});
+    const env = [
+      'HOME=/home/node',
+      'TERM=xterm-256color',
+      `TZ=${spec.timezone}`,
+      ...(spec.extraEnv ?? []),
+    ];
+    if (!spec.extraEnv?.some((entry) => entry.startsWith('OPENCLAW_GATEWAY_TOKEN=')) && spec.token) {
+      env.splice(2, 0, `OPENCLAW_GATEWAY_TOKEN=${spec.token}`);
+    }
+    const cmd = spec.command ?? ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'];
+    const healthcheck = spec.healthcheck === undefined ? defaultOpenClawHealthcheck() : spec.healthcheck;
 
     const container = await this.docker.createContainer({
       name: spec.name,
@@ -139,35 +179,16 @@ export class DockerService {
       Labels: {
         'dev.claw-fleet.managed': 'true',
         'dev.claw-fleet.instance-index': String(spec.index),
+        'dev.claw-fleet.runtime': spec.runtime ?? 'openclaw',
       },
-      Env: [
-        'HOME=/home/node',
-        'TERM=xterm-256color',
-        `OPENCLAW_GATEWAY_TOKEN=${spec.token}`,
-        `TZ=${spec.timezone}`,
-      ],
-      Cmd: ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'],
-      ExposedPorts: {
-        '18789/tcp': {},
-      },
-      Healthcheck: {
-        Test: [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ],
-        Interval: 30 * 1_000_000_000,
-        Timeout: 5 * 1_000_000_000,
-        Retries: 5,
-        StartPeriod: 20 * 1_000_000_000,
-      },
+      Env: env,
+      Cmd: cmd,
+      ExposedPorts: Object.keys(exposedPorts).length > 0 ? exposedPorts : undefined,
+      Healthcheck: healthcheck ?? undefined,
       HostConfig: {
         AutoRemove: false,
         Binds: binds,
-        PortBindings: {
-          '18789/tcp': [{ HostPort: String(spec.gatewayPort) }],
-        },
+        PortBindings: Object.keys(portBindings).length > 0 ? portBindings : undefined,
         Init: true,
         RestartPolicy: { Name: 'unless-stopped' },
         CapDrop: ['ALL'],
@@ -284,6 +305,14 @@ function parseContainerIndex(container: {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+function parseContainerRuntime(container: {
+  Names: string[];
+  Labels?: Record<string, string>;
+}): 'openclaw' | 'hermes' {
+  const runtime = container.Labels?.['dev.claw-fleet.runtime'];
+  return runtime === 'hermes' ? 'hermes' : 'openclaw';
+}
+
 function rewriteManagedBinds(binds: string[], spec: RecreateManagedContainerSpec): string[] {
   return binds.map((bind) => {
     const [source, target, ...rest] = bind.split(':');
@@ -315,4 +344,19 @@ function parseMemoryLimit(value: string): number {
     : unit === 'T' ? 1024 ** 4
     : 1;
   return Math.round(amount * multiplier);
+}
+
+function defaultOpenClawHealthcheck(): ContainerHealthcheck {
+  return {
+    Test: [
+      'CMD',
+      'node',
+      '-e',
+      "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+    ],
+    Interval: 30 * 1_000_000_000,
+    Timeout: 5 * 1_000_000_000,
+    Retries: 5,
+    StartPeriod: 20 * 1_000_000_000,
+  };
 }

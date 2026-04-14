@@ -11,6 +11,7 @@ import { getDirectorySize } from './dir-utils.js';
 import { FleetConfigService } from './fleet-config.js';
 import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
 import type { FleetInstance, FleetStatus, ProfilesConfig } from '../types.js';
+import { OPENCLAW_RUNTIME_CAPABILITIES } from './runtime-capabilities.js';
 
 const execFileAsync = promisify(execFile);
 const WORKSPACE_GITIGNORE = `node_modules/
@@ -602,7 +603,9 @@ export class ProfileBackend implements DeploymentBackend {
 
     return {
       id: entry.name,
+      runtime: 'openclaw',
       mode: 'profile',
+      runtimeCapabilities: OPENCLAW_RUNTIME_CAPABILITIES,
       profile: entry.name,
       pid: entry.pid ?? undefined,
       status,

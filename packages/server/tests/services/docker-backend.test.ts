@@ -209,7 +209,7 @@ describe('DockerBackend', () => {
       { name: 'team-alpha', id: 'def', state: 'running', index: 2 },
     ]);
 
-    const instance = await backend.createInstance({ name: 'team-alpha' });
+    const instance = await backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'team-alpha' });
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       name: 'team-alpha',
       index: 2,
@@ -275,23 +275,38 @@ describe('DockerBackend', () => {
 
   it('refresh() returns FleetStatus', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([
-      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1 },
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1, runtime: 'openclaw' },
     ]);
     const status = await backend.refresh();
     expect(status.instances).toHaveLength(1);
     expect(status.instances[0].id).toBe('openclaw-1');
     expect(status.instances[0].index).toBe(1);
+    expect(status.instances[0].runtime).toBe('openclaw');
+    expect(status.instances[0].runtimeCapabilities.delete).toBe(true);
   });
 
   it('refresh() prefers per-instance portStep metadata when available', async () => {
     mockDocker.listFleetContainers.mockResolvedValue([
-      { name: 'team-beta', id: 'abc', state: 'running', index: 2 },
+      { name: 'team-beta', id: 'abc', state: 'running', index: 2, runtime: 'openclaw' },
     ]);
     mockFleetConfig.readInstanceConfig.mockReturnValue({ clawFleet: { portStep: 25 } });
 
     const status = await backend.refresh();
 
     expect(status.instances[0].port).toBe(18814);
+  });
+
+  it('refresh() ignores Hermes containers owned by the Hermes backend', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1, runtime: 'openclaw' },
+      { name: 'hermes-lab', id: 'def', state: 'running', index: 2, runtime: 'hermes' },
+    ]);
+
+    const status = await backend.refresh();
+
+    expect(status.instances).toHaveLength(1);
+    expect(status.instances[0].id).toBe('openclaw-1');
+    expect(status.instances[0].runtime).toBe('openclaw');
   });
 
   it('getCachedStatus() returns the last refresh result', async () => {
@@ -311,7 +326,7 @@ describe('DockerBackend', () => {
         { name: 'team-alpha', id: 'c', state: 'running', index: 2 },
       ]);
 
-    await backend.createInstance({ name: 'team-alpha' });
+    await backend.createInstance({ runtime: 'openclaw', kind: 'docker', name: 'team-alpha' });
 
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({ index: 2 }));
   });

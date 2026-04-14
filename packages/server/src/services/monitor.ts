@@ -2,6 +2,7 @@ import { stat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { FleetInstance, FleetStatus } from '../types.js';
 import { FleetConfigService } from './fleet-config.js';
+import { OPENCLAW_RUNTIME_CAPABILITIES } from './runtime-capabilities.js';
 import type { DockerService } from './docker.js';
 import type { TailscaleService } from './tailscale.js';
 
@@ -36,7 +37,8 @@ export class MonitorService {
   }
 
   async refresh(): Promise<FleetStatus> {
-    const containers = await this.docker.listFleetContainers();
+    const containers = (await this.docker.listFleetContainers())
+      .filter((container) => container.runtime !== 'hermes');
     const tokens = this.fleetConfig.readTokens();
     const config = this.fleetConfig.readFleetConfig();
     const configBase = this.fleetConfig.getConfigBase();
@@ -59,7 +61,9 @@ export class MonitorService {
 
         return {
           id: container.name,
+          runtime: 'openclaw',
           mode: 'docker',
+          runtimeCapabilities: OPENCLAW_RUNTIME_CAPABILITIES,
           index,
           status: this.mapStatus(inspection.status),
           port: BASE_GW_PORT + (index - 1) * config.portStep,

@@ -7,8 +7,7 @@ import { getManagedProfileNameError, isValidManagedProfileName } from '../profil
 import { errorResponseSchema, fleetInstanceSchema, fleetStatusSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
 import { MANAGED_INSTANCE_ID_RE, validateInstanceId } from '../validate.js';
 
-const createInstanceSchema = z.object({
-  kind: z.enum(['docker', 'profile']),
+const createInstanceFields = {
   name: z.string().min(1),
   port: z.number().int().positive().optional(),
   config: z.record(z.string(), z.unknown()).optional(),
@@ -18,7 +17,37 @@ const createInstanceSchema = z.object({
   memoryLimit: z.string().min(1).optional(),
   portStep: z.number().int().positive().optional(),
   enableNpmPackages: z.boolean().optional(),
-});
+};
+
+export const createInstanceSchema = z.union([
+  z.object({
+    runtime: z.literal('openclaw'),
+    kind: z.literal('docker'),
+    ...createInstanceFields,
+  }),
+  z.object({
+    runtime: z.literal('openclaw'),
+    kind: z.literal('profile'),
+    ...createInstanceFields,
+  }),
+  z.object({
+    runtime: z.literal('hermes'),
+    kind: z.literal('docker'),
+    ...createInstanceFields,
+  }),
+]);
+
+const createInstanceBodyFields = {
+  name: { type: 'string', minLength: 1 },
+  port: { type: 'integer', minimum: 1 },
+  config: { type: 'object', additionalProperties: true },
+  apiKey: { type: 'string', minLength: 1 },
+  image: { type: 'string', minLength: 1 },
+  cpuLimit: { type: 'string', minLength: 1 },
+  memoryLimit: { type: 'string', minLength: 1 },
+  portStep: { type: 'integer', minimum: 1 },
+  enableNpmPackages: { type: 'boolean' },
+} as const;
 
 const renameInstanceSchema = z.object({
   name: z.string(),
@@ -53,20 +82,35 @@ export async function fleetRoutes(app: FastifyInstance) {
       tags: ['Fleet'],
       summary: 'Create a new fleet instance',
       body: {
-        type: 'object',
-        properties: {
-          kind: { type: 'string', enum: ['docker', 'profile'] },
-          name: { type: 'string', minLength: 1 },
-          port: { type: 'integer', minimum: 1 },
-          config: { type: 'object', additionalProperties: true },
-          apiKey: { type: 'string', minLength: 1 },
-          image: { type: 'string', minLength: 1 },
-          cpuLimit: { type: 'string', minLength: 1 },
-          memoryLimit: { type: 'string', minLength: 1 },
-          portStep: { type: 'integer', minimum: 1 },
-          enableNpmPackages: { type: 'boolean' },
-        },
-        required: ['kind', 'name'],
+        oneOf: [
+          {
+            type: 'object',
+            properties: {
+              runtime: { type: 'string', enum: ['openclaw'] },
+              kind: { type: 'string', enum: ['docker'] },
+              ...createInstanceBodyFields,
+            },
+            required: ['runtime', 'kind', 'name'],
+          },
+          {
+            type: 'object',
+            properties: {
+              runtime: { type: 'string', enum: ['openclaw'] },
+              kind: { type: 'string', enum: ['profile'] },
+              ...createInstanceBodyFields,
+            },
+            required: ['runtime', 'kind', 'name'],
+          },
+          {
+            type: 'object',
+            properties: {
+              runtime: { type: 'string', enum: ['hermes'] },
+              kind: { type: 'string', enum: ['docker'] },
+              ...createInstanceBodyFields,
+            },
+            required: ['runtime', 'kind', 'name'],
+          },
+        ],
       },
       response: {
         200: fleetInstanceSchema,
@@ -76,6 +120,14 @@ export async function fleetRoutes(app: FastifyInstance) {
       },
     },
   }, async (request, reply) => {
+    const body = request.body as { runtime?: string; kind?: string } | undefined;
+    if (body?.runtime === 'hermes' && body?.kind === 'profile') {
+      return reply.status(400).send({
+        error: 'Hermes profile instances are not supported',
+        code: 'INVALID_BODY',
+      });
+    }
+
     if (request.validationError) {
       return reply.status(400).send({
         error: request.validationError.message,
@@ -90,7 +142,7 @@ export async function fleetRoutes(app: FastifyInstance) {
       });
     }
 
-    const { kind, name, port, config, apiKey, image, cpuLimit, memoryLimit, portStep, enableNpmPackages } = parsed.data;
+    const { runtime, kind, name, port, config, apiKey, image, cpuLimit, memoryLimit, portStep, enableNpmPackages } = parsed.data;
     if (kind === 'profile') {
       if (!isValidManagedProfileName(name)) {
         return reply.status(400).send({
@@ -107,16 +159,17 @@ export async function fleetRoutes(app: FastifyInstance) {
 
     try {
       const instance = await app.backend.createInstance({
+        runtime,
         kind,
         name,
-        port,
-        config: config as object | undefined,
-        apiKey,
-        image,
-        cpuLimit,
-        memoryLimit,
-        portStep,
-        enableNpmPackages,
+        ...(port !== undefined ? { port } : {}),
+        ...(config !== undefined ? { config: config as object } : {}),
+        ...(apiKey !== undefined ? { apiKey } : {}),
+        ...(image !== undefined ? { image } : {}),
+        ...(cpuLimit !== undefined ? { cpuLimit } : {}),
+        ...(memoryLimit !== undefined ? { memoryLimit } : {}),
+        ...(portStep !== undefined ? { portStep } : {}),
+        ...(enableNpmPackages !== undefined ? { enableNpmPackages } : {}),
       });
       return instance;
     } catch (error: unknown) {

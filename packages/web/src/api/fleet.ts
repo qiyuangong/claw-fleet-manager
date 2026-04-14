@@ -54,6 +54,7 @@ export const approveFeishuPairing = (id: string, code: string) =>
   apiFetch<{ ok: boolean }>(`/api/fleet/${id}/feishu/pairing/${code}/approve`, { method: 'POST' });
 
 export interface CreateInstanceOpts {
+  runtime: 'openclaw' | 'hermes';
   kind: 'docker' | 'profile';
   name: string;
   port?: number;

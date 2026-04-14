@@ -1,13 +1,36 @@
 // packages/server/tests/routes/fleet.test.ts
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
-import { fleetRoutes } from '../../src/routes/fleet.js';
+import { createInstanceSchema, fleetRoutes } from '../../src/routes/fleet.js';
+import { profileRoutes } from '../../src/routes/profiles.js';
 
 const mockStatus = {
   instances: [
-    { id: 'openclaw-1', mode: 'docker' as const, index: 1, status: 'running', port: 18789, token: 'abc1***f456',
-      uptime: 100, cpu: 12, memory: { used: 400, limit: 8000 }, disk: { config: 0, workspace: 0 },
-      health: 'healthy', image: 'openclaw:local' },
+    {
+      id: 'openclaw-1',
+      mode: 'docker' as const,
+      runtime: 'openclaw' as const,
+      index: 1,
+      status: 'running',
+      port: 18789,
+      token: 'abc1***f456',
+      uptime: 100,
+      cpu: 12,
+      memory: { used: 400, limit: 8000 },
+      disk: { config: 0, workspace: 0 },
+      health: 'healthy',
+      image: 'openclaw:local',
+      runtimeCapabilities: {
+        configEditor: true,
+        logs: true,
+        rename: true,
+        delete: true,
+        proxyAccess: true,
+        sessions: true,
+        plugins: true,
+        runtimeAdmin: true,
+      },
+    },
   ],
   totalRunning: 1,
   updatedAt: Date.now(),
@@ -45,6 +68,13 @@ describe('Fleet routes', () => {
     expect(res.json().totalRunning).toBe(1);
   });
 
+  it('GET /api/fleet includes runtime and runtimeCapabilities on each instance', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/fleet' });
+    const [instance] = res.json().instances;
+    expect(instance.runtime).toBe('openclaw');
+    expect(instance.runtimeCapabilities.logs).toBe(true);
+  });
+
   it('GET /api/fleet returns empty status when cache is null', async () => {
     mockBackend.getCachedStatus.mockReturnValue(null);
     const res = await app.inject({ method: 'GET', url: '/api/fleet' });
@@ -61,15 +91,43 @@ describe('Fleet routes', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
-      payload: { kind: 'docker', name: 'team-alpha' },
+      payload: { runtime: 'openclaw', kind: 'docker', name: 'team-alpha' },
     });
     expect(res.statusCode).toBe(200);
     expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'openclaw',
       kind: 'docker',
       name: 'team-alpha',
-      port: undefined,
-      config: undefined,
     });
+  });
+
+  it('createInstanceSchema rejects unsupported Hermes profile payloads', () => {
+    expect(createInstanceSchema.safeParse({
+      runtime: 'hermes',
+      kind: 'profile',
+      name: 'research-bot',
+    }).success).toBe(false);
+
+    expect(createInstanceSchema.safeParse({
+      runtime: 'hermes',
+      kind: 'docker',
+      name: 'research-bot',
+    }).success).toBe(true);
+  });
+
+  it('POST /api/fleet/instances rejects unsupported Hermes profile instances', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: { runtime: 'hermes', kind: 'profile', name: 'research-bot' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: 'Hermes profile instances are not supported',
+      code: 'INVALID_BODY',
+    });
+    expect(mockBackend.createInstance).not.toHaveBeenCalled();
   });
 
   it('POST /api/fleet/instances passes docker overrides through to backend.createInstance', async () => {
@@ -77,6 +135,7 @@ describe('Fleet routes', () => {
       method: 'POST',
       url: '/api/fleet/instances',
       payload: {
+        runtime: 'openclaw',
         kind: 'docker',
         name: 'team-beta',
         apiKey: 'sk-test',
@@ -90,10 +149,9 @@ describe('Fleet routes', () => {
 
     expect(res.statusCode).toBe(200);
     expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'openclaw',
       kind: 'docker',
       name: 'team-beta',
-      port: undefined,
-      config: undefined,
       apiKey: 'sk-test',
       image: 'openclaw:latest',
       cpuLimit: '2',
@@ -107,14 +165,13 @@ describe('Fleet routes', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
-      payload: { kind: 'profile', name: 'rescue-team' },
+      payload: { runtime: 'openclaw', kind: 'profile', name: 'rescue-team' },
     });
     expect(res.statusCode).toBe(200);
     expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'openclaw',
       kind: 'profile',
       name: 'rescue-team',
-      port: undefined,
-      config: undefined,
     });
   });
 
@@ -124,7 +181,7 @@ describe('Fleet routes', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
-      payload: { kind: 'docker', name: 'team-alpha' },
+      payload: { runtime: 'openclaw', kind: 'docker', name: 'team-alpha' },
     });
 
     expect(res.statusCode).toBe(409);
@@ -258,7 +315,7 @@ describe('Fleet routes — hybrid validation', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
-      payload: { kind: 'profile', name: 'main' },
+      payload: { runtime: 'openclaw', kind: 'profile', name: 'main' },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_NAME');
@@ -268,9 +325,47 @@ describe('Fleet routes — hybrid validation', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/fleet/instances',
-      payload: { name: 'team-alpha' },
+      payload: { runtime: 'openclaw', name: 'team-alpha' },
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('INVALID_BODY');
+  });
+});
+
+describe('Fleet routes — profile helper', () => {
+  const app = Fastify();
+  const mockBackend = {
+    getCachedStatus: vi.fn().mockReturnValue(null),
+    createInstance: vi.fn().mockResolvedValue({ id: 'rescue', mode: 'profile' }),
+    removeInstance: vi.fn().mockResolvedValue(undefined),
+    renameInstance: vi.fn().mockResolvedValue({ id: 'rescue-renamed', mode: 'profile' }),
+  };
+
+  beforeAll(async () => {
+    app.decorate('backend', mockBackend);
+    app.decorate('fleetDir', '/tmp');
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
+    await app.register(profileRoutes);
+    await app.ready();
+  });
+
+  afterAll(() => app.close());
+
+  it('POST /api/fleet/profiles passes runtime through to backend.createInstance', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/profiles',
+      payload: { name: 'openclaw-research', port: 18801 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.createInstance).toHaveBeenCalledWith({
+      runtime: 'openclaw',
+      kind: 'profile',
+      name: 'openclaw-research',
+      port: 18801,
+    });
   });
 });

@@ -30,6 +30,7 @@ export async function migrateRoutes(app: FastifyInstance) {
         200: fleetInstanceSchema,
         400: errorResponseSchema,
         404: errorResponseSchema,
+        409: errorResponseSchema,
         500: errorResponseSchema,
       },
     },
@@ -67,6 +68,9 @@ export async function migrateRoutes(app: FastifyInstance) {
       }
       if (message.includes('already in')) {
         return reply.status(400).send({ error: safeError(error), code: 'ALREADY_TARGET_MODE' });
+      }
+      if (message.includes('not supported for runtime')) {
+        return reply.status(409).send({ error: safeError(error), code: 'UNSUPPORTED_RUNTIME_ACTION' });
       }
       return reply.status(500).send({ error: safeError(error), code: 'MIGRATE_FAILED' });
     }

@@ -118,7 +118,7 @@ const hermesDockerBackend = new HermesDockerBackend(
     mountPath: '/opt/data',
     env: {},
   },
-  join(config.baseDir ?? `${process.env.HOME}/openclaw-instances`, 'hermes'),
+  () => join(fleetConfig.getConfigBase(), 'hermes'),
 );
 const backend = new HybridBackend({
   openclawDocker: dockerBackend,

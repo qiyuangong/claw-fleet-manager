@@ -124,4 +124,33 @@ describe('HermesDockerBackend', () => {
     expect(status.instances).toHaveLength(1);
     expect(status.instances[0].id).toBe('hermes-lab');
   });
+
+  it('createInstance uses the current base dir when provided dynamically', async () => {
+    let dynamicBaseDir = rootDir;
+    backend = new HermesDockerBackend(
+      mockDocker as any,
+      {
+        image: 'ghcr.io/nousresearch/hermes-agent:latest',
+        mountPath: '/opt/data',
+        env: { HERMES_LOG_LEVEL: 'debug' },
+      },
+      () => dynamicBaseDir,
+    );
+    await backend.initialize();
+
+    const nextRootDir = mkdtempSync(join(tmpdir(), 'hermes-docker-backend-next-'));
+    dynamicBaseDir = nextRootDir;
+    mockDocker.listFleetContainers
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ name: 'hermes-lab', id: 'abc', state: 'running', index: 1, runtime: 'hermes' }]);
+
+    await backend.createInstance({ runtime: 'hermes', kind: 'docker', name: 'hermes-lab' });
+
+    expect(readFileSync(join(nextRootDir, 'hermes-lab', 'config.yaml'), 'utf-8')).toContain('gateway:');
+    expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
+      configDir: join(nextRootDir, 'hermes-lab'),
+      workspaceDir: join(nextRootDir, 'hermes-lab', 'workspace'),
+      binds: [join(nextRootDir, 'hermes-lab') + ':/opt/data'],
+    }));
+  });
 });

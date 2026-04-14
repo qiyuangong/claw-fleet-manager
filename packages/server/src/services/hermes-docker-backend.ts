@@ -30,11 +30,11 @@ export class HermesDockerBackend implements DeploymentBackend {
   constructor(
     private docker: DockerService,
     private cfg: HermesDockerConfig,
-    private baseDir: string,
+    private baseDir: string | (() => string),
   ) {}
 
   async initialize(): Promise<void> {
-    await mkdir(this.baseDir, { recursive: true });
+    await mkdir(this.resolveBaseDir(), { recursive: true });
     await this.refresh();
   }
 
@@ -47,7 +47,7 @@ export class HermesDockerBackend implements DeploymentBackend {
   }
 
   async refresh(): Promise<FleetStatus> {
-    await mkdir(this.baseDir, { recursive: true });
+    await mkdir(this.resolveBaseDir(), { recursive: true });
     const containers = (await this.docker.listFleetContainers())
       .filter((container) => container.runtime === 'hermes');
     const instances = await Promise.all(
@@ -267,7 +267,11 @@ export class HermesDockerBackend implements DeploymentBackend {
   }
 
   private getInstanceHome(name: string): string {
-    return join(this.baseDir, name);
+    return join(this.resolveBaseDir(), name);
+  }
+
+  private resolveBaseDir(): string {
+    return typeof this.baseDir === 'function' ? this.baseDir() : this.baseDir;
   }
 
   private ensureInstanceHome(name: string): string {

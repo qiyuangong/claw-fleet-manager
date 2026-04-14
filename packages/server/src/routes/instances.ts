@@ -88,26 +88,17 @@ async function findInstance(app: FastifyInstance, id: string): Promise<FleetInst
   return refreshed.instances.find((instance) => instance.id === id);
 }
 
-async function requireRuntimeAdminSupport(app: FastifyInstance, id: string, reply: FastifyReply): Promise<FleetInstance | FastifyReply> {
+async function requireCapability(
+  app: FastifyInstance,
+  id: string,
+  reply: FastifyReply,
+  check: (instance: FleetInstance) => boolean,
+): Promise<FleetInstance | FastifyReply> {
   const instance = await findInstance(app, id);
   if (!instance) {
     return reply.status(404).send({ error: `Instance "${id}" not found`, code: 'INSTANCE_NOT_FOUND' });
   }
-  if (!instance.runtimeCapabilities.runtimeAdmin) {
-    return reply.status(409).send({
-      error: `Instance "${id}" does not support this action`,
-      code: 'UNSUPPORTED_RUNTIME_ACTION',
-    });
-  }
-  return instance;
-}
-
-async function requireOpenClawAdminSupport(app: FastifyInstance, id: string, reply: FastifyReply): Promise<FleetInstance | FastifyReply> {
-  const instance = await findInstance(app, id);
-  if (!instance) {
-    return reply.status(404).send({ error: `Instance "${id}" not found`, code: 'INSTANCE_NOT_FOUND' });
-  }
-  if (instance.runtime !== 'openclaw') {
+  if (!check(instance)) {
     return reply.status(409).send({
       error: `Instance "${id}" does not support this action`,
       code: 'UNSUPPORTED_RUNTIME_ACTION',
@@ -185,7 +176,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    const instance = await requireRuntimeAdminSupport(app, id, reply);
+    const instance = await requireCapability(app, id, reply, (i) => i.runtimeCapabilities.runtimeAdmin);
     if ('statusCode' in instance) return instance;
     return runInstanceAction(reply, id, 'start', () => app.backend.start(id), 'START_FAILED');
   });
@@ -198,7 +189,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    const instance = await requireRuntimeAdminSupport(app, id, reply);
+    const instance = await requireCapability(app, id, reply, (i) => i.runtimeCapabilities.runtimeAdmin);
     if ('statusCode' in instance) return instance;
     return runInstanceAction(reply, id, 'stop', () => app.backend.stop(id), 'STOP_FAILED');
   });
@@ -211,7 +202,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    const instance = await requireRuntimeAdminSupport(app, id, reply);
+    const instance = await requireCapability(app, id, reply, (i) => i.runtimeCapabilities.runtimeAdmin);
     if ('statusCode' in instance) return instance;
     return runInstanceAction(reply, id, 'restart', () => app.backend.restart(id), 'RESTART_FAILED');
   });
@@ -235,7 +226,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    const instance = await requireOpenClawAdminSupport(app, id, reply);
+    const instance = await requireCapability(app, id, reply, (i) => i.runtime === 'openclaw');
     if ('statusCode' in instance) return instance;
     try {
       const stdout = await app.backend.execInstanceCommand(id, ['devices', 'list']);
@@ -267,7 +258,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       if (!validateInstanceId(id)) {
         return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
       }
-      const instance = await requireOpenClawAdminSupport(app, id, reply);
+      const instance = await requireCapability(app, id, reply, (i) => i.runtime === 'openclaw');
       if ('statusCode' in instance) return instance;
       if (!UUID_RE.test(requestId)) {
         return reply.status(400).send({ error: 'Invalid requestId', code: 'INVALID_REQUEST_ID' });
@@ -300,7 +291,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     if (!validateInstanceId(id)) {
       return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
     }
-    const instance = await requireOpenClawAdminSupport(app, id, reply);
+    const instance = await requireCapability(app, id, reply, (i) => i.runtime === 'openclaw');
     if ('statusCode' in instance) return instance;
     try {
       const stdout = await app.backend.execInstanceCommand(id, ['pairing', 'list', 'feishu']);
@@ -332,7 +323,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       if (!validateInstanceId(id)) {
         return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
       }
-      const instance = await requireOpenClawAdminSupport(app, id, reply);
+      const instance = await requireCapability(app, id, reply, (i) => i.runtime === 'openclaw');
       if ('statusCode' in instance) return instance;
       if (!FEISHU_CODE_RE.test(code)) {
         return reply.status(400).send({ error: 'Invalid pairing code', code: 'INVALID_CODE' });

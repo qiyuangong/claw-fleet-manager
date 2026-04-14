@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { closeSync, createReadStream, existsSync, openSync, readFileSync, readdirSync, renameSync, rmSync, watch, writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { promisify } from 'node:util';
 import type { DeploymentBackend, CreateInstanceOpts, LogHandle } from './backend.js';
 import { getDirectorySize } from './dir-utils.js';
@@ -10,6 +10,10 @@ import type { FleetInstance, FleetStatus, HermesProfilesConfig, RuntimeCapabilit
 import * as yaml from 'yaml';
 
 const execFileAsync = promisify(execFile);
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 const HERMES_PROFILE_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
   configEditor: true,
@@ -609,7 +613,13 @@ export class HermesProfileBackend implements DeploymentBackend {
     try {
       const { stdout } = await execFileAsync('ps', ['eww', '-p', String(pid), '-o', 'command=']);
       const command = stdout.trim().replace(/\s+/g, ' ');
-      return /\bhermes\b.*\bgateway\b.*\brun\b/i.test(command)
+      const binaryPath = this.cfg.binary.trim();
+      const binaryName = basename(binaryPath);
+      const binaryPattern = new RegExp(`(?:^|\\s|/)${escapeRegExp(binaryName)}(?=\\s|$)`, 'i');
+      const usesConfiguredBinary = command.includes(binaryPath) || binaryPattern.test(command);
+
+      return usesConfiguredBinary
+        && /\bgateway\b.*\brun\b/i.test(command)
         && command.includes(`HERMES_HOME=${expectedHome}`);
     } catch {
       return false;

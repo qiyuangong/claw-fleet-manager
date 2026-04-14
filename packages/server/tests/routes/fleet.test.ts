@@ -116,6 +116,21 @@ describe('Fleet routes', () => {
     });
   });
 
+  it('POST /api/fleet/instances rejects port overrides for Hermes profile instances', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/instances',
+      payload: { runtime: 'hermes', kind: 'profile', name: 'research-bot', port: 19001 },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      error: 'port is not supported for Hermes profile instances',
+      code: 'INVALID_BODY',
+    });
+    expect(mockBackend.createInstance).not.toHaveBeenCalled();
+  });
+
   it('POST /api/fleet/instances passes docker overrides through to backend.createInstance', async () => {
     const res = await app.inject({
       method: 'POST',

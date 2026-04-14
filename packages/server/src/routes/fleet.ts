@@ -100,6 +100,12 @@ export async function fleetRoutes(app: FastifyInstance) {
           code: 'INVALID_NAME',
         });
       }
+      if (runtime === 'hermes' && port !== undefined) {
+        return reply.status(400).send({
+          error: 'port is not supported for Hermes profile instances',
+          code: 'INVALID_BODY',
+        });
+      }
     } else if (!MANAGED_INSTANCE_ID_RE.test(name)) {
       return reply.status(400).send({
         error: 'name must be lowercase alphanumeric with hyphens',

@@ -218,6 +218,49 @@ describe('HermesProfileBackend', () => {
     expect(state.status).toBe('stopped');
   });
 
+  it('refresh and stop recognize a gateway launched by the configured wrapper binary', async () => {
+    const wrapperRoot = mkdtempSync(join(tmpdir(), 'runtime-check-'));
+    const wrapperBinary = '/tmp/gateway-launcher';
+    const wrapperBackend = new HermesProfileBackend({
+      binary: wrapperBinary,
+      baseHomeDir: join(wrapperRoot, 'profiles'),
+      stopTimeoutMs: 100,
+    });
+    await wrapperBackend.initialize();
+    const home = join(wrapperRoot, 'profiles', 'research-bot');
+    mkdirSync(join(home, 'logs'), { recursive: true });
+    writeFileSync(join(home, 'config.yaml'), yaml.stringify({ agent: { name: 'research-bot' } }));
+    writeFileSync(join(home, 'logs', 'gateway.log'), 'booted\n');
+    writeFileSync(join(home, 'gateway_state.json'), JSON.stringify({ status: 'running' }, null, 2));
+    writeGatewayPidMetadata(home, 9999);
+
+    try {
+      mockExecFile.mockReset().mockImplementation((cmd, args, optionsOrCb, maybeCb) => {
+        const callback = typeof optionsOrCb === 'function' ? optionsOrCb : maybeCb;
+        if (cmd === 'ps') {
+          const pid = String(args?.[2] ?? args?.[1] ?? '');
+          const stdout = pid === '9999'
+            ? `HERMES_HOME=${home} ${wrapperBinary} gateway run`
+            : '';
+          callback?.(null, { stdout, stderr: '' });
+          return {} as any;
+        }
+        callback?.(null, { stdout: '', stderr: '' });
+        return {} as any;
+      });
+
+      const status = await wrapperBackend.refresh();
+      const instance = status.instances.find((item) => item.id === 'research-bot');
+      expect(instance?.status).toBe('running');
+
+      await wrapperBackend.stop('research-bot');
+
+      expect(livePids.has(9999)).toBe(false);
+    } finally {
+      rmSync(wrapperRoot, { recursive: true, force: true });
+    }
+  });
+
   it('live Hermes gateway for a different HERMES_HOME is not treated as owned by this profile', async () => {
     createProfileHome('research-bot', 'running', 8888);
 

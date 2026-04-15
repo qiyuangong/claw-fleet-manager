@@ -90,137 +90,36 @@ Hermes instances share the fleet list with OpenClaw instances; OpenClaw-only fea
 
 ## Quick start
 
-### 1. Install dependencies
-
 ```bash
 npm install
-```
-
-### 2. Create the server config
-
-```bash
 cp packages/server/server.config.example.json packages/server/server.config.json
-```
-
-### 3. Edit `packages/server/server.config.json`
-
-Minimum setup:
-
-- create the `fleetDir` directory first, then point `fleetDir` to it
-- set `auth.username` and `auth.password` to seed the first admin account
-- optional: set `seedTestUser: true` to also seed `testuser` with password `testuser` for local use
-- remove the `tailscale` block unless you want Tailscale integration and have the CLI installed
-
-Production hardening checklist:
-
-- set `auth.password` to a strong value before deployment
-- if you enabled `seedTestUser`, remove that account once the server is running:
-
-```bash
-curl -k -u AUTH_USERNAME:NEW_ADMIN_PASSWORD -X DELETE https://localhost:3001/api/users/testuser
-```
-
-- or delete `testuser` from `${fleetDir}/users.json` and restart
-
-Where `AUTH_USERNAME` is the same value as `auth.username`.
-
-Optional profile settings:
-
-- add a `profiles` block to customize profile instance defaults such as binary path, ports, and auto-restart
-- add a `hermesDocker` block to customize the Hermes Docker image, env, and mount path
-- avoid using `main` as a profile name because OpenClaw reserves it for the standalone default profile
-
-Docker behavior:
-
-- Docker-backed instances work when Docker is available
-- the fleet manager creates `config/fleet.env`, `.env`, per-instance `openclaw.json`, and workspace scaffolding as needed
-
-TLS note:
-
-- TLS is required for the embedded Control UI because device authentication needs a secure context
-- for local development, generate a self-signed certificate:
-
-```bash
-openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
-  -keyout key.pem -out cert.pem \
-  -subj "/CN=localhost" \
-  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
-```
-
-Then set `tls.cert` and `tls.key` in `server.config.json` to those files. Your browser will warn about the self-signed cert once; accept it locally and continue.
-
-### 4. Create the web env file
-
-```bash
 cp packages/web/.env.example packages/web/.env.local
-```
-
-Set these to match the server config:
-
-- `VITE_BASIC_AUTH_USER`
-- `VITE_BASIC_AUTH_PASSWORD`
-
-### 5. Start the app
-
-```bash
 npm run dev
 ```
 
+Edit `packages/server/server.config.json` to set `fleetDir`, `auth.username`, and `auth.password` before starting.
+
 Default local endpoints:
 
-- dashboard: `http://localhost:5173`
+- Dashboard: `http://localhost:5173`
 - API server: `https://localhost:3001`
 
+→ Full setup instructions: [Installation Guide](docs/guides/installation-guide.md)
+
 ## Docker deployment
-
-Use this when you want the fleet manager itself to run in Docker and manage Docker-backed OpenClaw instances through the host Docker daemon.
-
-One command:
 
 ```bash
 chmod +x scripts/docker-deploy.sh
 ./scripts/docker-deploy.sh
 ```
 
-Default result:
+| Default | Value |
+|---|---|
+| Manager URL | `http://localhost:3001` |
+| Admin login | `admin` / `changeme` |
+| Data root | `.docker-data/claw-fleet-manager` |
 
-- manager URL: `http://localhost:3001`
-- admin login: `admin` / `changeme`
-- persistent data root: `.docker-data/claw-fleet-manager`
-
-Important constraints:
-
-- this Docker deployment is for **Docker-backed instances**
-- it mounts `/var/run/docker.sock`, so the manager controls the host Docker daemon
-- the script mounts the data directory at the **same absolute host path** inside the container, which is required for Docker bind mounts created by the manager to work correctly
-- the default OpenClaw image for new managed instances is `openclaw:local`; override with `OPENCLAW_IMAGE=... ./scripts/docker-deploy.sh` if needed
-- if you want embedded Control UI over HTTPS, pass existing cert files with `TLS_CERT=/abs/path/cert.pem TLS_KEY=/abs/path/key.pem ./scripts/docker-deploy.sh`; cert paths outside the data root are mounted read-only automatically
-
-Useful overrides:
-
-```bash
-ADMIN_USER=ops \
-ADMIN_PASSWORD='change-this-now' \
-MANAGER_PORT=3002 \
-OPENCLAW_IMAGE=ghcr.io/your-org/openclaw:latest \
-./scripts/docker-deploy.sh
-```
-
-Optional provider defaults for newly created Docker instances:
-
-```bash
-BASE_URL=https://api.openai.com/v1 \
-MODEL_ID=gpt-5-mini \
-API_KEY=sk-... \
-./scripts/docker-deploy.sh
-```
-
-Stop or replace the deployment with normal Docker commands:
-
-```bash
-docker rm -f claw-fleet-manager
-docker logs -f claw-fleet-manager
-```
+→ Overrides, TLS, and image config: [Docker Deployment Guide](docs/guides/docker-deployment.md)
 
 ## Repo layout
 

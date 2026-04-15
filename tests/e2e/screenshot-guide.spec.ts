@@ -53,8 +53,6 @@ interface FleetSessionsEntry {
 }
 
 const screenshotsDir = path.resolve('docs/guides/screenshots');
-const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5173';
-
 const sampleFleetConfig = {
   baseUrl: 'https://api.example.test',
   apiKey: 'configured',
@@ -504,7 +502,7 @@ async function mountGuideDashboard(page: Page) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, instance: normalizedInstances[0] }) });
   });
 
-  await page.goto(baseUrl);
+  await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 }
 

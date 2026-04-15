@@ -76,6 +76,16 @@ Hermes instances share the fleet list with OpenClaw instances; OpenClaw-only fea
     <td><img src="docs/guides/screenshots/06-metrics-tab.png" alt="CPU and memory metrics" width="260"/></td>
     <td><img src="docs/guides/screenshots/03-users-panel.png" alt="User management panel" width="260"/></td>
   </tr>
+  <tr>
+    <td align="center"><b>Config</b></td>
+    <td align="center"><b>Plugins</b></td>
+    <td align="center"><b>Control UI</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/guides/screenshots/08-config-tab.png" alt="Per-instance config editor" width="260"/></td>
+    <td><img src="docs/guides/screenshots/07-plugins-tab.png" alt="Plugin management" width="260"/></td>
+    <td><img src="docs/guides/screenshots/04-controlui-pending.png" alt="Embedded Control UI" width="260"/></td>
+  </tr>
 </table>
 
 ## Quick start

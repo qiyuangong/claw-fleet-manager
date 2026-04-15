@@ -94,7 +94,7 @@ Use this when you need to add a managed OpenClaw or Hermes instance to the fleet
 
 7. Click the matching create button.
 
-8. The new instance appears in the management table and fleet list. Click **Open** to inspect it.
+8. The new instance appears in the management table. Click **Open** to inspect it.
 
 > **After creating:** The manager starts the new instance automatically when provisioning succeeds. Use [Section 2](#2-start--stop--restart-an-instance) to stop, restart, or verify status from the Overview tab.
 
@@ -106,7 +106,7 @@ Use this to control whether an instance is running.
 
 **Steps:**
 
-1. Click the instance name in the sidebar.
+1. In the sidebar, click **Manage Instances**, then click **Open** in the row for the instance you want.
 
 2. Make sure you are on the **Overview** tab (it is selected by default).
 
@@ -156,7 +156,7 @@ Use this to move an OpenClaw instance between **Profile** and **Docker** mode wh
 
 **Steps:**
 
-1. Open the instance and stay on the **Overview** tab.
+1. In the sidebar, click **Manage Instances**, then click **Open** for the instance you want to migrate. Stay on the **Overview** tab.
 
 2. Click **Migrate**.
 
@@ -237,7 +237,7 @@ Use this when a user's browser or client is waiting for approval to connect to a
 
 **Steps:**
 
-1. Click the instance name in the sidebar.
+1. In the sidebar, click **Manage Instances**, then click **Open** for the instance you want.
 
 2. Click the **Control UI** tab.
 
@@ -263,7 +263,7 @@ Use this to connect an instance to a Feishu (Lark) bot channel and approve user 
 
 You only need to do this once per instance (or when credentials change).
 
-1. Click the instance name in the sidebar → **Feishu** tab.
+1. In the sidebar, click **Manage Instances**, then click **Open** for the instance you want. In the instance panel, click the **Feishu** tab.
 
    ![Feishu tab showing App ID, App Secret, Group Policy, and Save Config button](screenshots/05-feishu-config.png)
 
@@ -286,7 +286,7 @@ You only need to do this once per instance (or when credentials change).
 
 When a Feishu user sends the pairing command to the bot, their code appears here.
 
-1. Click the instance → **Feishu** tab.
+1. Open the instance from **Manage Instances** with **Open**, then click the **Feishu** tab.
 
 2. In the **Pending Pairing Requests** section, find the pairing code for the user.
 
@@ -304,7 +304,7 @@ When a Feishu user sends the pairing command to the bot, their code appears here
 
 Use this to watch what an instance is doing in real time or to investigate a problem.
 
-1. Click the instance name in the sidebar → **Logs** tab.
+1. Open the instance from **Manage Instances** with **Open**, then click the **Logs** tab.
 
    ![Logs tab showing streaming log output in a terminal-style panel](screenshots/06-logs-tab.png)
 
@@ -318,7 +318,7 @@ Use this to watch what an instance is doing in real time or to investigate a pro
 
 Use this to check whether an instance is under load or running low on memory.
 
-1. Click the instance name in the sidebar → **Metrics** tab.
+1. Open the instance from **Manage Instances** with **Open**, then click the **Metrics** tab.
 
    ![Metrics tab showing time-series charts for CPU and memory usage](screenshots/06-metrics-tab.png)
 
@@ -339,7 +339,7 @@ Use this to review the session history for a specific instance — what sessions
 
 **Steps:**
 
-1. Open an instance panel — in the sidebar click **Manage Instances**, then click **Open Instance** in the row for the instance you want. Once the instance panel is open, click the **Activity** tab.
+1. Open an instance panel — in the sidebar click **Manage Instances**, then click **Open** in the row for the instance you want. Once the instance panel is open, click the **Activity** tab.
 
 2. The tab shows a list of sessions with:
    - session title and key
@@ -364,7 +364,7 @@ Use this to add or remove extensions from an instance.
 
 ### 9a. Install a plugin
 
-1. Click the instance name in the sidebar → **Plugins** tab.
+1. Open the instance from **Manage Instances** with **Open**, then click the **Plugins** tab.
 
    ![Plugins tab showing the installed plugins list and Install Plugin button](screenshots/07-plugins-tab.png)
 
@@ -394,7 +394,7 @@ Use this to change an instance's settings — model, API key, provider, or any o
 
 **Steps:**
 
-1. Click the instance name in the sidebar → **Config** tab.
+1. Open the instance from **Manage Instances** with **Open**, then click the **Config** tab.
 
    ![Config tab showing the Monaco JSON editor with openclaw.json content](screenshots/08-config-tab.png)
 

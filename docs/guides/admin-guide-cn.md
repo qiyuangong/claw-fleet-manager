@@ -94,7 +94,7 @@
 
 7. 点击与所选类型对应的创建按钮。
 
-8. 新实例会出现在实例管理表和 fleet 列表中。点击 **Open** 即可检查详情。
+8. 新实例会出现在实例管理表中。点击 **Open** 即可检查详情。
 
 > **创建后：** 只要实例自举成功，管理器就会自动启动它。后续可在[第 2 节](#2-启动--停止--重启实例)中执行停止、重启或状态确认。
 
@@ -106,7 +106,7 @@
 
 **步骤：**
 
-1. 在侧边栏中点击实例名称。
+1. 在侧边栏中点击 **Manage Instances**，然后在目标实例所在行点击 **Open**。
 
 2. 确认当前处于 **Overview** 标签页（默认已选中）。
 
@@ -156,7 +156,7 @@
 
 **步骤：**
 
-1. 打开目标实例，并停留在 **Overview** 标签页。
+1. 在侧边栏中点击 **Manage Instances**，然后在要迁移的实例所在行点击 **Open**。保持停留在 **Overview** 标签页。
 
 2. 点击 **Migrate**。
 
@@ -237,7 +237,7 @@ Users 面板将列出所有账号。
 
 **步骤：**
 
-1. 在侧边栏中点击实例名称。
+1. 在侧边栏中点击 **Manage Instances**，然后在目标实例所在行点击 **Open**。
 
 2. 点击 **Control UI** 标签页。
 
@@ -263,7 +263,7 @@ Users 面板将列出所有账号。
 
 每个实例只需配置一次（或在凭据更改时重新配置）。
 
-1. 点击侧边栏中的实例名称 → **Feishu** 标签页。
+1. 在侧边栏中点击 **Manage Instances**，然后在目标实例所在行点击 **Open**。进入实例面板后，点击 **Feishu** 标签页。
 
    ![Feishu 标签页，显示 App ID、App Secret、Group Policy 和 Save Config 按钮](screenshots/05-feishu-config.png)
 
@@ -286,7 +286,7 @@ Users 面板将列出所有账号。
 
 当飞书用户向机器人发送配对命令后，其配对码将显示在此处。
 
-1. 点击实例 → **Feishu** 标签页。
+1. 先在 **Manage Instances** 中点击目标实例行里的 **Open**，再点击 **Feishu** 标签页。
 
 2. 在 **Pending Pairing Requests** 区域中找到该用户的配对码。
 
@@ -304,7 +304,7 @@ Users 面板将列出所有账号。
 
 使用此功能实时观察实例的运行情况，或排查问题。
 
-1. 点击侧边栏中的实例名称 → **Logs** 标签页。
+1. 先在 **Manage Instances** 中点击目标实例行里的 **Open**，再点击 **Logs** 标签页。
 
    ![Logs 标签页，在终端风格面板中显示流式日志输出](screenshots/06-logs-tab.png)
 
@@ -318,7 +318,7 @@ Users 面板将列出所有账号。
 
 使用此功能检查实例是否处于高负载或内存不足的状态。
 
-1. 点击侧边栏中的实例名称 → **Metrics** 标签页。
+1. 先在 **Manage Instances** 中点击目标实例行里的 **Open**，再点击 **Metrics** 标签页。
 
    ![Metrics 标签页，显示 CPU 和内存使用量的时序图表](screenshots/06-metrics-tab.png)
 
@@ -339,7 +339,7 @@ Users 面板将列出所有账号。
 
 **步骤：**
 
-1. 打开实例面板——在侧边栏点击 **Manage Instances**，然后点击目标实例行中的 **Open Instance**。实例面板打开后，点击 **Activity** 标签页。
+1. 打开实例面板——在侧边栏点击 **Manage Instances**，然后点击目标实例行中的 **Open**。实例面板打开后，点击 **Activity** 标签页。
 
 2. 标签页显示会话列表，包含以下信息：
    - 会话标题和 key
@@ -364,7 +364,7 @@ Users 面板将列出所有账号。
 
 ### 9a. 安装插件
 
-1. 点击侧边栏中的实例名称 → **Plugins** 标签页。
+1. 先在 **Manage Instances** 中点击目标实例行里的 **Open**，再点击 **Plugins** 标签页。
 
    ![Plugins 标签页，显示已安装插件列表和 Install Plugin 按钮](screenshots/07-plugins-tab.png)
 
@@ -394,7 +394,7 @@ Users 面板将列出所有账号。
 
 **步骤：**
 
-1. 点击侧边栏中的实例名称 → **Config** 标签页。
+1. 先在 **Manage Instances** 中点击目标实例行里的 **Open**，再点击 **Config** 标签页。
 
    ![Config 标签页，Monaco JSON 编辑器显示 openclaw.json 内容](screenshots/08-config-tab.png)
 

@@ -97,7 +97,11 @@ cp packages/web/.env.example packages/web/.env.local
 npm run dev
 ```
 
-Edit `packages/server/server.config.json` to set `fleetDir`, `auth.username`, and `auth.password` before starting.
+Edit `packages/server/server.config.json` before starting:
+
+- Set `fleetDir`, `auth.username`, and `auth.password`
+- Remove the `tls` block (or point it to real cert files) — the server reads those files on startup and will crash if the paths are placeholders
+- Remove the `tailscale` block unless you have Tailscale installed and configured
 
 Default local endpoints:
 

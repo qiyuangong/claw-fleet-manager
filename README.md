@@ -20,6 +20,7 @@
   <a href="README_CN.md">简体中文</a> ·
   <a href="docs/arch/README.md">Architecture</a> ·
   <a href="docs/guides/installation-guide.md">Installation Guide</a> ·
+  <a href="docs/guides/docker-deployment.md">Docker Deployment</a> ·
   <a href="docs/guides/admin-guide.md">Admin Guide</a> ·
   <a href="docs/guides/admin-quick-reference.md">Quick Reference</a> ·
   <a href="tests/README.md">Tests</a> ·
@@ -32,17 +33,7 @@
 
 **Claw Fleet Manager** is a web UI and API server for operating multiple OpenClaw and Hermes gateway instances without living in the terminal.
 
-It supports a **hybrid fleet** model:
-
-- **OpenClaw profile instances** backed by native `openclaw --profile` processes
-- **OpenClaw Docker instances** backed by managed `openclaw-N` containers
-- **Hermes Docker instances** backed by managed Hermes gateway containers
-
-All three can run side by side in the same fleet list, with shared lifecycle actions, logs, config editing, metrics, and access control.
-
-## Why this project exists
-
-Running several gateway instances quickly becomes operational work: credentials, per-instance config, logs, health checks, plugin management, and restarts. This project centralizes that work behind a browser-based control plane.
+It supports a **hybrid fleet** model — OpenClaw profile instances, OpenClaw Docker instances, and Hermes Docker instances — all in one dashboard with shared lifecycle actions, logs, config editing, metrics, and access control.
 
 Use it when you want to:
 
@@ -70,13 +61,7 @@ Use it when you want to:
 | Auto-restart on crash | ✓ | — | — |
 | Per-instance Tailscale HTTPS URLs | — | ✓ | — |
 
-## Hermes gateway support
-
-Hermes support is currently **gateway-first**:
-
-- the fleet manager can create, list, start, stop, restart, rename, delete, inspect logs for, and edit config for Hermes instances
-- Hermes instances appear in the same fleet list as OpenClaw instances, with explicit runtime and mode labels
-- OpenClaw-only surfaces such as Control UI, Feishu pairing, plugins, activity/session views, and migration remain hidden for Hermes
+Hermes instances share the fleet list with OpenClaw instances; OpenClaw-only features are hidden automatically.
 
 ## Screenshots
 

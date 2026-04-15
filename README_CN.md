@@ -97,8 +97,9 @@ npm run dev
 
 启动前请编辑 `packages/server/server.config.json`：
 
-- 设置 `fleetDir`、`auth.username` 和 `auth.password`
-- 删除 `tls` 配置块（或将其指向真实的证书文件）—— 服务启动时会直接读取这些文件，路径为占位符则会报错
+- 创建集群数据目录并设置 `fleetDir`：`mkdir -p /path/to/your/fleet`
+- 设置 `auth.username` 和 `auth.password`
+- 将 `tls.cert` 和 `tls.key` 指向真实的证书文件 —— Vite 开发代理固定指向 `https://localhost:3001`，因此 TLS 为必需项。本地自签名证书生成方式见[安装指南](docs/guides/installation-guide-cn.md)。
 - 如未安装并配置 Tailscale，删除 `tailscale` 配置块
 
 默认本地地址：

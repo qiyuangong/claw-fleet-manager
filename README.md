@@ -97,8 +97,9 @@ npm run dev
 
 Edit `packages/server/server.config.json` before starting:
 
-- Set `fleetDir`, `auth.username`, and `auth.password`
-- Remove the `tls` block (or point it to real cert files) — the server reads those files on startup and will crash if the paths are placeholders
+- Create your fleet directory, then set `fleetDir` to it: `mkdir -p /path/to/your/fleet`
+- Set `auth.username` and `auth.password`
+- Set `tls.cert` and `tls.key` to real cert paths — TLS is required because the Vite dev proxy targets `https://localhost:3001`. For a local self-signed cert see the [Installation Guide](docs/guides/installation-guide.md).
 - Remove the `tailscale` block unless you have Tailscale installed and configured
 
 Default local endpoints:

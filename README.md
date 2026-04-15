@@ -160,6 +160,8 @@ For the full architecture walkthrough, see [docs/arch/README.md](docs/arch/READM
 - [docs/guides/admin-guide.md](docs/guides/admin-guide.md)
 - [docs/guides/admin-quick-reference.md](docs/guides/admin-quick-reference.md)
 - [docs/guides/development.md](docs/guides/development.md)
+- [docs/guides/docker-deployment-cn.md](docs/guides/docker-deployment-cn.md)
+- [docs/guides/development-cn.md](docs/guides/development-cn.md)
 - [docs/arch/README.md](docs/arch/README.md)
 
 ## License

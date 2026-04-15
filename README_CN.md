@@ -19,7 +19,7 @@
 <p align="center">
   <a href="docs/arch/README_CN.md">架构文档</a> ·
   <a href="docs/guides/installation-guide-cn.md">安装指南</a> ·
-  <a href="docs/guides/docker-deployment.md">Docker 部署</a> ·
+  <a href="docs/guides/docker-deployment-cn.md">Docker 部署</a> ·
   <a href="docs/guides/admin-guide-cn.md">管理员指南</a> ·
   <a href="docs/guides/admin-quick-reference-cn.md">快速参考</a> ·
   <a href="tests/README_CN.md">测试说明</a>
@@ -121,7 +121,7 @@ chmod +x scripts/docker-deploy.sh
 | 管理员登录 | `admin` / `changeme` |
 | 数据目录 | `.docker-data/claw-fleet-manager` |
 
-→ 环境变量覆盖、TLS 和镜像配置：[Docker 部署指南](docs/guides/docker-deployment.md)
+→ 环境变量覆盖、TLS 和镜像配置：[Docker 部署指南](docs/guides/docker-deployment-cn.md)
 
 ## 架构
 
@@ -155,10 +155,10 @@ openclaw        openclaw-N     hermes
 ## 文档
 
 - [docs/guides/installation-guide-cn.md](docs/guides/installation-guide-cn.md)
-- [docs/guides/docker-deployment.md](docs/guides/docker-deployment.md)
+- [docs/guides/docker-deployment-cn.md](docs/guides/docker-deployment-cn.md)
 - [docs/guides/admin-guide-cn.md](docs/guides/admin-guide-cn.md)
 - [docs/guides/admin-quick-reference-cn.md](docs/guides/admin-quick-reference-cn.md)
-- [docs/guides/development.md](docs/guides/development.md)
+- [docs/guides/development-cn.md](docs/guides/development-cn.md)
 - [docs/arch/README_CN.md](docs/arch/README_CN.md)
 
 ## 许可证

@@ -361,7 +361,7 @@ export class ProfileBackend implements DeploymentBackend {
         }
 
         this.rewriteWorkspacePath(nextConfigPath, join(nextStateDir, 'workspace'));
-        rollbacks.push(() => this.rewriteWorkspacePath(entry.configPath, join(oldStateDir, 'workspace')));
+        rollbacks.push(() => this.rewriteWorkspacePath(nextConfigPath, join(oldStateDir, 'workspace')));
 
         delete this.registry.profiles[id];
         this.registry.profiles[nextName] = nextEntry;

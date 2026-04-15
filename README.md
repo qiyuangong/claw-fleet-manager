@@ -133,19 +133,16 @@ chmod +x scripts/docker-deploy.sh
 
 ## Architecture
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  Browser  →  React Dashboard (Vite)  →  Fastify API Server  │
-│                                           ├─ Auth + Users   │
-│                                           ├─ Fleet config   │
-│                                           └─ Logs / Proxy   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                    HybridBackend (always active)
-              ┌───────────────┴───────────────┐
-      ProfileBackend                    DockerBackend
-  openclaw --profile <name>          openclaw-N containers
-  config / state / workspace         per-instance config / workspace
+```mermaid
+flowchart TD
+    Browser["Browser"] --> Dashboard["React Dashboard (Vite)"]
+    Dashboard --> Server["Fastify API Server"]
+    Server --> Auth["Auth + Users"]
+    Server --> Config["Fleet config"]
+    Server --> Logs["Logs / Proxy"]
+    Server --> Hybrid["HybridBackend"]
+    Hybrid --> Profile["ProfileBackend\nopenclaw --profile"]
+    Hybrid --> Docker["DockerBackend\nopenclaw-N / Hermes containers"]
 ```
 
 For the full architecture walkthrough, see [docs/arch/README.md](docs/arch/README.md).
@@ -165,6 +162,7 @@ For Playwright setup, environment variables, and smoke-test usage, see [tests/RE
 ## Documentation
 
 - [docs/guides/installation-guide.md](docs/guides/installation-guide.md)
+- [docs/guides/docker-deployment.md](docs/guides/docker-deployment.md)
 - [docs/guides/admin-guide.md](docs/guides/admin-guide.md)
 - [docs/guides/admin-quick-reference.md](docs/guides/admin-quick-reference.md)
 - [docs/arch/README.md](docs/arch/README.md)

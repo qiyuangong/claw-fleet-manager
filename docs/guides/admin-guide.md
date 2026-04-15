@@ -13,6 +13,7 @@ Each section is self-contained — jump directly to the task you need.
 - [1. Create a New Instance](#1-create-a-new-instance)
 - [2. Start / Stop / Restart an Instance](#2-start--stop--restart-an-instance)
 - [3. Rename an Instance](#3-rename-an-instance)
+- [3b. Migrate an OpenClaw Instance](#3b-migrate-an-openclaw-instance)
 - [4. Manage Users](#4-manage-users)
 - [5. Approve a Device](#5-approve-a-device)
 - [6. Feishu Pairing](#6-feishu-pairing)
@@ -50,7 +51,10 @@ Shows details for the selected instance or admin panel.
 
 **Tab row (top of main panel)**
 
-When an instance is selected, the tab row gives you: Overview · Activity · Logs · Config · Metrics · Control UI · Feishu · Plugins
+When an instance is selected, the tab row is runtime-dependent:
+
+- OpenClaw instances can expose: Overview · Activity · Logs · Config · Metrics · Control UI · Feishu · Plugins
+- Hermes Docker instances keep the shared surfaces such as Overview · Logs · Config · Metrics and hide OpenClaw-only tools
 
 > **Note:** Non-admin users only see the instances assigned to them and do not see the admin navigation items.
 
@@ -58,7 +62,7 @@ When an instance is selected, the tab row gives you: Overview · Activity · Log
 
 ## 1. Create a New Instance
 
-Use this when you need to add a new profile gateway to the fleet.
+Use this when you need to add a managed OpenClaw or Hermes instance to the fleet.
 
 **Steps:**
 
@@ -70,7 +74,13 @@ Use this when you need to add a new profile gateway to the fleet.
 
    ![Instance management panel with Add Instance button](screenshots/01-add-instance-button.png)
 
-3. From the dropdown that appears, click **Create Profile**.
+3. From the dropdown that appears, choose the instance type you want:
+
+   - **Create OpenClaw Docker**
+   - **Create OpenClaw Profile**
+   - **Create Hermes Docker**
+
+   > **Runtime note:** Hermes is Docker-only. There is no Hermes profile option.
 
 4. In the dialog that opens, enter a name for the instance.
 
@@ -78,13 +88,15 @@ Use this when you need to add a new profile gateway to the fleet.
 
    > **Name rules:** lowercase letters, numbers, and hyphens only (e.g. `team-a`, `dev-1`). The name `main` is reserved — do not use it.
 
-5. Optionally enter a **Gateway Port** if you need a specific port. Leave it blank to let the system assign one automatically.
+5. If you selected **Create OpenClaw Profile**, optionally enter a **Gateway Port** if you need a specific port. Leave it blank to let the system assign one automatically.
 
-6. Click **Create Profile**.
+6. If you selected a Docker-backed option and need one-off overrides, expand **Advanced Docker Config** and set the per-instance image / CPU / memory / port-step values you want.
 
-7. The new instance appears in the sidebar. Click its name to open it.
+7. Click the matching create button.
 
-> **After creating:** The instance starts in a stopped state. Go to [Section 2](#2-start--stop--restart-an-instance) to start it.
+8. The new instance appears in the management table and fleet list. Click **Open** to inspect it.
+
+> **After creating:** The manager starts the new instance automatically when provisioning succeeds. Use [Section 2](#2-start--stop--restart-an-instance) to stop, restart, or verify status from the Overview tab.
 
 ---
 
@@ -134,7 +146,30 @@ Use this to give an instance a new name. Renaming is only available for **stoppe
 
 5. Click **Rename**. The instance reappears under the new name.
 
-> **After renaming:** User profile assignments that referenced the old name are updated automatically. Use **Start** on the Overview tab to bring the instance back up.
+> **After renaming:** User instance assignments that referenced the old name are updated automatically. Use **Start** on the Overview tab to bring the instance back up.
+
+---
+
+## 3b. Migrate an OpenClaw Instance
+
+Use this to move an OpenClaw instance between **Profile** and **Docker** mode while keeping the same managed instance ID. Hermes instances do not show this action.
+
+**Steps:**
+
+1. Open the instance and stay on the **Overview** tab.
+
+2. Click **Migrate**.
+
+3. Choose the target mode:
+
+   - **Docker** to move a profile-backed OpenClaw instance into a managed container
+   - **Profile** to move a Docker-backed OpenClaw instance into a native `openclaw --profile` process
+
+4. Leave **Remove source instance after migration** enabled. The current server requires removing the source instance as part of a valid migration.
+
+5. Click **Migrate**.
+
+6. After the migration finishes, refresh the instance panel if needed and confirm the **Type** field now shows the new mode.
 
 ---
 
@@ -172,13 +207,13 @@ The Users panel lists all accounts.
 
 ### 4c. Assign Instances to a User
 
-Users with the **User** role can only access instances listed in their profile assignment.
+Users with the **User** role can only access instances listed in their assignment.
 
 1. Find the user in the table and click **Instances** (shown in the Actions column for non-admin users).
-2. Check or uncheck the profile instances this user may access.
+2. Check or uncheck the instances this user may access.
 3. Click **Save**.
 
-> **Important:** Each profile instance can belong to only one user at a time. Assigning an instance here removes it from the previous user's access list.
+> **Important:** Each instance can belong to only one user at a time. Assigning an instance here removes it from the previous user's access list.
 
 ![User management panel](screenshots/03-users-panel.png)
 
@@ -197,6 +232,8 @@ Users with the **User** role can only access instances listed in their profile a
 ## 5. Approve a Device
 
 Use this when a user's browser or client is waiting for approval to connect to an instance's Control UI.
+
+> **Applies to:** OpenClaw instances that expose the Control UI.
 
 **Steps:**
 
@@ -219,6 +256,8 @@ Use this when a user's browser or client is waiting for approval to connect to a
 ## 6. Feishu Pairing
 
 Use this to connect an instance to a Feishu (Lark) bot channel and approve user pairing requests.
+
+> **Applies to:** OpenClaw instances.
 
 ### 6a. Configure Feishu credentials
 
@@ -296,6 +335,8 @@ Use this to check whether an instance is under load or running low on memory.
 
 Use this to review the session history for a specific instance — what sessions have run, their status, token usage, and cost.
 
+> **Applies to:** OpenClaw instances with session support. Hermes instances do not show the **Activity** tab.
+
 **Steps:**
 
 1. Open an instance panel — in the sidebar click **Manage Instances**, then click **Open Instance** in the row for the instance you want. Once the instance panel is open, click the **Activity** tab.
@@ -318,6 +359,8 @@ Use this to review the session history for a specific instance — what sessions
 ## 9. Install or Remove a Plugin
 
 Use this to add or remove extensions from an instance.
+
+> **Applies to:** instances that expose plugin support. Today that means OpenClaw instances.
 
 ### 9a. Install a plugin
 

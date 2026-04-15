@@ -363,6 +363,7 @@ export async function proxyRoutes(app: FastifyInstance) {
   app.route<{ Params: { id: string } }>({
     method: 'GET',
     url: '/proxy/:id',
+    schema: { hide: true },
     handler: async (request, reply) => {
       const instance = findInstance(app, request.params.id);
       if (!instance) {
@@ -386,6 +387,7 @@ export async function proxyRoutes(app: FastifyInstance) {
   app.route<ProxyWildcardParams>({
     method: 'GET',
     url: '/proxy/*',
+    schema: { hide: true },
     handler: httpWildcardProxy,
     wsHandler: wsProxy,
   });
@@ -394,6 +396,7 @@ export async function proxyRoutes(app: FastifyInstance) {
     app.route<ProxyParams>({
       method: ['POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       url,
+      schema: { hide: true },
       handler: httpProxy,
     });
   }

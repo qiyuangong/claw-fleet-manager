@@ -86,7 +86,7 @@ If `packages/web/dist` exists, Fastify serves the built SPA directly with `@fast
 `packages/server/src/index.ts` wires the runtime in this order:
 
 1. Load `server.config.json` with Zod validation.
-2. Optionally verify the `tailscale` CLI when Docker mode plus `tailscale.hostname` is configured.
+2. Optionally verify the `tailscale` CLI when `tailscale.hostname` is configured.
 3. Optionally load TLS key/cert files and start Fastify in HTTPS mode.
 4. Create shared services:
    - `FleetConfigService`
@@ -97,8 +97,8 @@ If `packages/web/dist` exists, Fastify serves the built SPA directly with `@fast
    - `ProfileBackend` for OpenClaw profile
    - `HermesDockerBackend`
 7. Wrap them in `HybridBackend`, which routes by `(runtime, mode)`.
-8. Decorate Fastify with `backend`, `deploymentMode`, `fleetConfig`, `fleetDir`, and `userService`.
-9. Register auth, WebSocket support, routes, and static file serving.
+8. Decorate Fastify with `backend`, `fleetConfig`, `fleetDir`, and `userService`.
+9. Register auth, WebSocket support, management routes, legacy profile convenience routes, and static file serving.
 10. Call `backend.initialize()` and begin listening on `0.0.0.0:{port}`.
 
 ## Authentication And Authorization
@@ -132,26 +132,23 @@ Authorization is split from authentication in [`packages/server/src/authorize.ts
 
 ## API Surface
 
+The generated `/documentation` OpenAPI focuses on the typed management API under `/api/*`. Reverse-proxy transport routes under `/proxy/*` are intentionally excluded from that spec.
+
 ### Always Available Routes
 
 | Route file | Endpoints | Notes |
 |---|---|---|
 | `health.ts` | `GET /api/health` | Basic liveness payload |
-| `fleet.ts` | `GET /api/fleet`, `POST /api/fleet/scale` | Scale is admin-only and Docker-only |
+| `fleet.ts` | `GET /api/fleet`, `POST /api/fleet/instances`, `DELETE /api/fleet/instances/:id`, `POST /api/fleet/instances/:id/rename` | Hybrid fleet list plus create/remove/rename |
 | `config.ts` | `GET/PUT /api/config/fleet`, `GET/PUT /api/fleet/:id/config` | Fleet config is admin-only; per-instance config requires profile access |
-| `instances.ts` | start/stop/restart, token reveal, pending devices, device approval, Feishu pairing list/approve | Validates IDs and pairing identifiers before backend execution |
-| `users.ts` | current user, self password change, admin user CRUD/reset/profile assignment | User bootstrap and password rotation live here |
+| `instances.ts` | start/stop/restart, token reveal, pending devices, device approval, Feishu pairing list/approve | Lifecycle is capability-gated; device + Feishu routes are OpenClaw-only |
+| `migrate.ts` | `POST /api/fleet/instances/:id/migrate` | Admin-only OpenClaw migration between docker and profile |
+| `users.ts` | current user, self password change, admin user CRUD/reset/instance assignment | User bootstrap and password rotation live here |
+| `sessions.ts` | `GET /api/fleet/sessions` | Admin-only session aggregation across running instances with session support |
 | `logs.ts` | `WS /ws/logs/:id`, `WS /ws/logs` | Per-instance logs for assigned users, all logs for admins |
 | `proxy.ts` | `/proxy/:id`, `/proxy/*`, matching WS upgrade path | Reverse proxy for the embedded Control UI |
-| `plugins.ts` | `GET /api/fleet/:id/plugins`, `POST /api/fleet/:id/plugins/install`, `DELETE /api/fleet/:id/plugins/:pluginId` | Available in both modes; routes shell out through `execInstanceCommand()` |
-
-### Profile-Mode-Only Routes
-
-Registered only when `deploymentMode === 'profiles'`:
-
-- `GET /api/fleet/profiles`
-- `POST /api/fleet/profiles`
-- `DELETE /api/fleet/profiles/:name`
+| `plugins.ts` | `GET /api/fleet/:id/plugins`, `POST /api/fleet/:id/plugins/install`, `DELETE /api/fleet/:id/plugins/:pluginId` | Available only when `runtimeCapabilities.plugins` is true |
+| `profiles.ts` | `GET/POST /api/fleet/profiles`, `DELETE /api/fleet/profiles/:name` | Legacy admin convenience routes for OpenClaw profile create/list/delete; always registered |
 
 ## Deployment Backend Abstraction
 
@@ -164,8 +161,8 @@ Registered only when `deploymentMode === 'profiles'`:
 [`packages/server/src/services/docker-backend.ts`](../../packages/server/src/services/docker-backend.ts) is responsible for:
 
 - polling Docker every 5 seconds and caching `FleetStatus`
-- mapping container names like `openclaw-3` to instance IDs and gateway ports
-- starting, stopping, restarting, and scaling containers
+- mapping managed containers onto fleet instance IDs, gateway ports, and internal indexes
+- starting, stopping, restarting, creating, renaming, and removing containers
 - reading tokens and instance config via `FleetConfigService`
 - provisioning new instances through `docker-instance-provisioning`
 - creating managed containers directly through `DockerService`
@@ -174,11 +171,10 @@ Registered only when `deploymentMode === 'profiles'`:
 
 Operational characteristics:
 
-- instance IDs are `openclaw-N`
-- create/scale-up is instance-centric: allocate token, provision files, create one container
-- scale-down stops higher-numbered containers first
-- there is no `docker-compose.yml` reconciliation layer
-- `removeInstance()` currently allows removing only the highest-numbered instance to keep numbering contiguous
+- OpenClaw Docker instances use managed names such as `team-alpha`; if no name is supplied, the backend falls back to `openclaw-N`
+- each instance still gets an internal numeric index used for token storage, port derivation, and optional Tailscale port allocation
+- create/remove is instance-centric: allocate token + workspace state, then create or delete one container
+- there is no fleet-wide scale API and no `docker-compose.yml` reconciliation layer
 - disk figures come from both filesystem traversal and best-effort Docker volume usage
 
 ### ProfileBackend
@@ -197,7 +193,7 @@ Operational characteristics:
 
 Operational characteristics:
 
-- instance IDs are profile names like `main` rather than `openclaw-N`
+- instance IDs are managed profile names such as `team-alpha`
 - each profile has:
   - a config file under `profiles.configBaseDir/<name>/openclaw.json`
   - a state directory under `profiles.stateBaseDir/<name>`
@@ -230,7 +226,6 @@ Operational characteristics:
 It also:
 
 - ensures Docker config/workspace base directories exist before writes
-- derives `count` from `COUNT` or the number of persisted `TOKEN_N` entries
 - masks tokens before returning them to the UI
 - performs atomic writes via `*.tmp` + rename
 
@@ -245,7 +240,7 @@ Capabilities:
 - create/delete users
 - reset passwords
 - self-service password change
-- assign per-profile access lists
+- assign per-instance access lists
 
 ### DockerService
 
@@ -274,7 +269,7 @@ It:
 
 ### TailscaleService
 
-[`packages/server/src/services/tailscale.ts`](../../packages/server/src/services/tailscale.ts) is optional and Docker-only.
+[`packages/server/src/services/tailscale.ts`](../../packages/server/src/services/tailscale.ts) is optional and used by OpenClaw Docker instances when configured.
 
 It:
 
@@ -342,7 +337,7 @@ Main views:
 - instance panel (`instance`) — per-instance tabs
 - running sessions panel (`runningSessions`) — live monitor of active sessions
 - sessions panel (`sessions`) — historical session table with filtering and sorting
-- user management panel (`users`) — user CRUD and profile assignment
+- user management panel (`users`) — user CRUD and instance assignment
 - fleet config panel (`config`) — global fleet settings
 - account panel (`account`) — non-admin self-service home
 

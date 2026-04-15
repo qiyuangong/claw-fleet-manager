@@ -195,6 +195,20 @@ describe('Plugin routes - hybrid mode', () => {
     expect(res.json().ok).toBe(true);
   });
 
+  it('DELETE /api/fleet/:id/plugins/:pluginId accepts uppercase plugin ids', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce('Removed plugin: FeiShu');
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/fleet/openclaw-1/plugins/FeiShu',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith(
+      'openclaw-1',
+      ['plugins', 'uninstall', '--force', 'FeiShu'],
+    );
+    expect(res.json().ok).toBe(true);
+  });
+
   it('GET tolerates CLI log lines before JSON output', async () => {
     mockBackend.execInstanceCommand.mockResolvedValueOnce(
       '\u001b[35m[plugins]\u001b[0m feishu: Registered\n'

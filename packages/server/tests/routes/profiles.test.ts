@@ -5,6 +5,7 @@ import { profileRoutes } from '../../src/routes/profiles.js';
 
 const mockInstance = {
   id: 'main',
+  runtime: 'openclaw' as const,
   profile: 'main',
   status: 'running',
   port: 18789,
@@ -14,7 +15,17 @@ const mockInstance = {
   cpu: 0,
   memory: { used: 0, limit: 0 },
   disk: { config: 0, workspace: 0 },
-  health: 'healthy',
+  runtimeCapabilities: {
+    configEditor: true,
+    logs: true,
+    rename: true,
+    delete: true,
+    proxyAccess: true,
+    sessions: true,
+    plugins: true,
+    runtimeAdmin: true,
+  },
+  health: 'healthy' as const,
   image: '/usr/local/bin/openclaw',
 };
 

@@ -336,7 +336,31 @@ describe('Fleet routes — profile helper', () => {
   const app = Fastify();
   const mockBackend = {
     getCachedStatus: vi.fn().mockReturnValue(null),
-    createInstance: vi.fn().mockResolvedValue({ id: 'rescue', mode: 'profile' }),
+    createInstance: vi.fn().mockResolvedValue({
+      id: 'rescue',
+      runtime: 'openclaw',
+      mode: 'profile',
+      profile: 'rescue',
+      status: 'running',
+      port: 18801,
+      token: 'abc1***f456',
+      uptime: 0,
+      cpu: 0,
+      memory: { used: 0, limit: 0 },
+      disk: { config: 0, workspace: 0 },
+      runtimeCapabilities: {
+        configEditor: true,
+        logs: true,
+        rename: true,
+        delete: true,
+        proxyAccess: true,
+        sessions: true,
+        plugins: true,
+        runtimeAdmin: true,
+      },
+      health: 'healthy',
+      image: '/usr/local/bin/openclaw',
+    }),
     removeInstance: vi.fn().mockResolvedValue(undefined),
     renameInstance: vi.fn().mockResolvedValue({ id: 'rescue-renamed', mode: 'profile' }),
   };

@@ -9,7 +9,8 @@ const installPluginSchema = z.object({
   spec: z.string().min(1, 'spec is required'),
 });
 
-const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{0,127}$/i;
+const PLUGIN_ID_PATTERN = '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$';
+const PLUGIN_ID_RE = new RegExp(PLUGIN_ID_PATTERN);
 
 const pluginSchema = {
   type: 'object',
@@ -50,7 +51,7 @@ const pluginIdParamsSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
-    pluginId: { type: 'string', pattern: PLUGIN_ID_RE.source },
+    pluginId: { type: 'string', pattern: PLUGIN_ID_PATTERN },
   },
   required: ['id', 'pluginId'],
 } as const;

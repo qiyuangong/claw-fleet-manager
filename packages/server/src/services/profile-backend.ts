@@ -367,7 +367,6 @@ export class ProfileBackend implements DeploymentBackend {
         this.registry.profiles[nextName] = nextEntry;
         this.renameInstanceState(id, nextName);
         lockId = nextName;
-        this.saveRegistry();
         rollbacks.push(() => {
           delete this.registry.profiles[nextName];
           this.registry.profiles[id] = entry;
@@ -375,6 +374,7 @@ export class ProfileBackend implements DeploymentBackend {
           lockId = id;
           this.saveRegistry();
         });
+        this.saveRegistry();
 
         if (existsSync(oldLogFile)) {
           renameSync(oldLogFile, nextLogFile);

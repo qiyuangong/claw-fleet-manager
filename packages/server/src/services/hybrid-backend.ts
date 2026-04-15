@@ -1,5 +1,6 @@
 import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import type { FastifyBaseLogger } from 'fastify';
 import type { CreateInstanceOpts, DeploymentBackend, LogHandle } from './backend.js';
 import type { DockerBackend } from './docker-backend.js';
 import type { HermesDockerBackend } from './hermes-docker-backend.js';
@@ -24,6 +25,7 @@ export class HybridBackend implements DeploymentBackend {
   constructor(
     private backends: HybridBackends,
     private userService: UserService,
+    private log?: FastifyBaseLogger,
   ) {}
 
   async initialize(): Promise<void> {
@@ -164,7 +166,9 @@ export class HybridBackend implements DeploymentBackend {
     let stopped = false;
     this.backendForId(id).then((backend) => {
       if (!stopped) inner = backend.streamLogs(id, onData);
-    }).catch(() => {});
+    }).catch((err: unknown) => {
+      this.log?.error({ err, id }, 'streamLogs: failed to resolve backend for instance');
+    });
     return {
       stop: () => {
         stopped = true;

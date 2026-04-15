@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { createServer } from 'node:net';
 import type { FastifyBaseLogger } from 'fastify';
 import type { DeploymentBackend, LogHandle, CreateInstanceOpts } from './backend.js';
+import { upsertCachedInstance } from './backend.js';
 import { getDirectorySize } from './dir-utils.js';
 import { FleetConfigService } from './fleet-config.js';
 import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
@@ -149,9 +150,7 @@ export class ProfileBackend implements DeploymentBackend {
   }
 
   async start(id: string): Promise<void> {
-    if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
-    this.locks.set(id, true);
-    try {
+    await this.withInstanceLock(id, async () => {
       this.stopping.delete(id);
       const entry = this.registry.profiles[id];
       if (!entry) throw new Error(`Profile "${id}" not found`);
@@ -226,15 +225,11 @@ export class ProfileBackend implements DeploymentBackend {
           }, 2000);
         });
       }
-    } finally {
-      this.locks.set(id, false);
-    }
+    });
   }
 
   async stop(id: string): Promise<void> {
-    if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
-    this.locks.set(id, true);
-    try {
+    await this.withInstanceLock(id, async () => {
       const entry = this.registry.profiles[id];
       if (!entry) throw new Error(`Profile "${id}" not found`);
       if (entry.pid === null) return;
@@ -244,9 +239,7 @@ export class ProfileBackend implements DeploymentBackend {
       entry.pid = null;
       this.instanceStatus.set(id, 'stopped');
       this.saveRegistry();
-    } finally {
-      this.locks.set(id, false);
-    }
+    });
   }
 
   async restart(id: string): Promise<void> {
@@ -633,7 +626,7 @@ export class ProfileBackend implements DeploymentBackend {
     }
 
     const fallback = await this.buildInstance(entry);
-    this.upsertCachedInstance(previousId, fallback);
+    this.cache = upsertCachedInstance(this.cache, previousId, fallback);
     return fallback;
   }
 
@@ -869,17 +862,13 @@ export class ProfileBackend implements DeploymentBackend {
     map.set(to, value);
   }
 
-  private upsertCachedInstance(previousId: string, instance: FleetInstance): void {
-    if (!this.cache) return;
-    const instances = this.cache.instances
-      .filter((item) => item.id !== previousId && item.id !== instance.id)
-      .concat(instance)
-      .sort((left, right) => left.id.localeCompare(right.id));
-
-    this.cache = {
-      instances,
-      totalRunning: instances.filter((item) => item.status === 'running').length,
-      updatedAt: Date.now(),
-    };
+  private async withInstanceLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+    if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
+    this.locks.set(id, true);
+    try {
+      return await fn();
+    } finally {
+      this.locks.set(id, false);
+    }
   }
 }

@@ -1,6 +1,23 @@
 // packages/server/src/services/backend.ts
 import type { FleetInstance, FleetStatus, InstanceMode, InstanceRuntime } from '../types.js';
 
+export function upsertCachedInstance(
+  cache: FleetStatus | null,
+  previousId: string,
+  instance: FleetInstance,
+): FleetStatus | null {
+  if (!cache) return null;
+  const instances = cache.instances
+    .filter((item) => item.id !== previousId && item.id !== instance.id)
+    .concat(instance)
+    .sort((left, right) => left.id.localeCompare(right.id));
+  return {
+    instances,
+    totalRunning: instances.filter((item) => item.status === 'running').length,
+    updatedAt: Date.now(),
+  };
+}
+
 export interface LogHandle {
   stop(): void;
 }

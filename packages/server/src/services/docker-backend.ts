@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { join } from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
 import type { DeploymentBackend, LogHandle, CreateInstanceOpts } from './backend.js';
+import { upsertCachedInstance } from './backend.js';
 import type { DockerService } from './docker.js';
 import { FleetConfigService } from './fleet-config.js';
 import { provisionDockerInstance } from './docker-instance-provisioning.js';
@@ -610,22 +611,8 @@ export class DockerBackend implements DeploymentBackend {
       this.fleetConfig.readFleetConfig(),
       this.fleetConfig.readTokens(),
     );
-    this.upsertCachedInstance(previousId, fallback);
+    this.cache = upsertCachedInstance(this.cache, previousId, fallback);
     return fallback;
-  }
-
-  private upsertCachedInstance(previousId: string, instance: FleetInstance): void {
-    if (!this.cache) return;
-    const instances = this.cache.instances
-      .filter((item) => item.id !== previousId && item.id !== instance.id)
-      .concat(instance)
-      .sort((left, right) => left.id.localeCompare(right.id));
-
-    this.cache = {
-      instances,
-      totalRunning: instances.filter((item) => item.status === 'running').length,
-      updatedAt: Date.now(),
-    };
   }
 }
 

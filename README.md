@@ -1,7 +1,7 @@
 # Claw Fleet Manager
 
 <p align="center">
-  <a href="README_CN.md"><strong>简体中文</strong></a>
+  <strong>English</strong> | <a href="README_CN.md">简体中文</a>
 </p>
 
 <p align="center">
@@ -17,14 +17,12 @@
 </p>
 
 <p align="center">
-  <a href="README_CN.md">简体中文</a> ·
   <a href="docs/arch/README.md">Architecture</a> ·
   <a href="docs/guides/installation-guide.md">Installation Guide</a> ·
   <a href="docs/guides/docker-deployment.md">Docker Deployment</a> ·
   <a href="docs/guides/admin-guide.md">Admin Guide</a> ·
   <a href="docs/guides/admin-quick-reference.md">Quick Reference</a> ·
-  <a href="tests/README.md">Tests</a> ·
-  <a href="tests/README_CN.md">测试说明（中文）</a>
+  <a href="tests/README.md">Tests</a>
 </p>
 
 <p align="center">
@@ -125,28 +123,31 @@ chmod +x scripts/docker-deploy.sh
 
 → Overrides, TLS, and image config: [Docker Deployment Guide](docs/guides/docker-deployment.md)
 
-## Repo layout
-
-```text
-.
-├─ packages/server   Fastify API server, fleet backend, auth, logs, proxying
-├─ packages/web      React + Vite dashboard
-├─ tests/e2e         Playwright end-to-end and smoke tests
-└─ docs              Architecture and operator-facing guides
-```
-
 ## Architecture
 
-```mermaid
-flowchart TD
-    Browser["Browser"] --> Dashboard["React Dashboard (Vite)"]
-    Dashboard --> Server["Fastify API Server"]
-    Server --> Auth["Auth + Users"]
-    Server --> Config["Fleet config"]
-    Server --> Logs["Logs / Proxy"]
-    Server --> Hybrid["HybridBackend"]
-    Hybrid --> Profile["ProfileBackend\nopenclaw --profile"]
-    Hybrid --> Docker["DockerBackend\nopenclaw-N / Hermes containers"]
+```text
+         Browser
+            │
+            ▼
+    ┌───────────────────────────┐
+    │    React Dashboard        │
+    │         (Vite)            │
+    └────────────┬──────────────┘
+                 │
+                 ▼
+    ┌───────────────────────────┐
+    │    Fastify API Server     │
+    │      ├─ Auth + Users      │
+    │      ├─ Fleet config      │
+    │      └─ Logs / Proxy      │
+    └────────────┬──────────────┘
+                 │
+          HybridBackend
+    ┌────────────┼────────────┐
+    │            │             │
+ProfileBackend  DockerBackend  HermesDockerBackend
+openclaw        openclaw-N     hermes
+--profile       containers     containers
 ```
 
 For the full architecture walkthrough, see [docs/arch/README.md](docs/arch/README.md).
@@ -163,7 +164,7 @@ npm run test:e2e # run Playwright end-to-end tests
 
 For Playwright setup, environment variables, and smoke-test usage, see [tests/README.md](tests/README.md).
 
-## Documentation
+## Docs
 
 - [docs/guides/installation-guide.md](docs/guides/installation-guide.md)
 - [docs/guides/docker-deployment.md](docs/guides/docker-deployment.md)

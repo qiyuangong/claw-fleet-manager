@@ -50,7 +50,7 @@ Set default API credentials for newly created Docker instances:
 
 ```bash
 BASE_URL=https://api.openai.com/v1 \
-MODEL_ID=gpt-5-mini \
+MODEL_ID=gpt-4o-mini \
 API_KEY=sk-... \
 ./scripts/docker-deploy.sh
 ```

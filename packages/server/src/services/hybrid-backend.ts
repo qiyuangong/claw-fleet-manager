@@ -1,5 +1,6 @@
 import { existsSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import type { FastifyBaseLogger } from 'fastify';
 import type { CreateInstanceOpts, DeploymentBackend, LogHandle } from './backend.js';
 import type { DockerBackend } from './docker-backend.js';
 import type { HermesDockerBackend } from './hermes-docker-backend.js';
@@ -24,6 +25,7 @@ export class HybridBackend implements DeploymentBackend {
   constructor(
     private backends: HybridBackends,
     private userService: UserService,
+    private log?: FastifyBaseLogger,
   ) {}
 
   async initialize(): Promise<void> {
@@ -160,8 +162,19 @@ export class HybridBackend implements DeploymentBackend {
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
-    const backend = this.backendForIdSync(id);
-    return backend.streamLogs(id, onData);
+    let inner: LogHandle | null = null;
+    let stopped = false;
+    this.backendForId(id).then((backend) => {
+      if (!stopped) inner = backend.streamLogs(id, onData);
+    }).catch((err: unknown) => {
+      this.log?.error({ err, id }, 'streamLogs: failed to resolve backend for instance');
+    });
+    return {
+      stop: () => {
+        stopped = true;
+        inner?.stop();
+      },
+    };
   }
 
   streamAllLogs(onData: (id: string, line: string) => void): LogHandle {
@@ -263,17 +276,6 @@ export class HybridBackend implements DeploymentBackend {
       totalRunning: instances.filter((instance) => instance.status === 'running').length,
       updatedAt: Math.max(...present.map((status) => status.updatedAt)),
     };
-  }
-
-  private backendForIdSync(id: string): DeploymentBackend {
-    const matches = this.getCachedStatus()?.instances.filter((item) => item.id === id) ?? [];
-    if (matches.length === 0) {
-      throw new Error(`Instance "${id}" not found`);
-    }
-    if (matches.length > 1) {
-      throw new Error(`Instance "${id}" is ambiguous across backends`);
-    }
-    return this.backendForInstance(matches[0]);
   }
 
   private async backendForId(id: string): Promise<DeploymentBackend> {

@@ -118,7 +118,7 @@ const backend = new HybridBackend({
   openclawDocker: dockerBackend,
   openclawProfile: profileBackend,
   hermesDocker: hermesDockerBackend,
-}, userService);
+}, userService, app.log);
 
 // ── Decorators ───────────────────────────────────────────────────────────────
 app.decorate('backend', backend as DeploymentBackend);

@@ -350,62 +350,42 @@ export class ProfileBackend implements DeploymentBackend {
         configPath: nextConfigPath,
       };
 
-      let movedStateDir = false;
-      let movedConfigDir = false;
-      let rewroteConfig = false;
-      let movedRegistry = false;
-      let movedLogFile = false;
-
+      const rollbacks: Array<() => void> = [];
       try {
         renameSync(oldStateDir, nextStateDir);
-        movedStateDir = true;
+        rollbacks.push(() => renameSync(nextStateDir, oldStateDir));
+
         if (oldConfigDir !== oldStateDir) {
           renameSync(oldConfigDir, nextConfigDir);
-          movedConfigDir = true;
+          rollbacks.push(() => renameSync(nextConfigDir, oldConfigDir));
         }
 
         this.rewriteWorkspacePath(nextConfigPath, join(nextStateDir, 'workspace'));
-        rewroteConfig = true;
+        rollbacks.push(() => this.rewriteWorkspacePath(nextConfigPath, join(oldStateDir, 'workspace')));
 
         delete this.registry.profiles[id];
         this.registry.profiles[nextName] = nextEntry;
         this.renameInstanceState(id, nextName);
-        movedRegistry = true;
         lockId = nextName;
-        this.saveRegistry();
-
-        if (existsSync(oldLogFile)) {
-          renameSync(oldLogFile, nextLogFile);
-          movedLogFile = true;
-        }
-      } catch (error) {
-        if (movedRegistry) {
+        rollbacks.push(() => {
           delete this.registry.profiles[nextName];
           this.registry.profiles[id] = entry;
           this.renameInstanceState(nextName, id);
           lockId = id;
-        }
+          this.saveRegistry();
+        });
+        this.saveRegistry();
 
-        try {
-          if (movedLogFile && existsSync(nextLogFile)) {
-            renameSync(nextLogFile, oldLogFile);
-          }
-          if (movedConfigDir) {
-            renameSync(nextConfigDir, oldConfigDir);
-          }
-          if (movedStateDir) {
-            renameSync(nextStateDir, oldStateDir);
-          }
-          if (rewroteConfig || movedConfigDir || movedStateDir) {
-            this.rewriteWorkspacePath(entry.configPath, join(oldStateDir, 'workspace'));
-          }
-          if (movedRegistry) {
-            this.saveRegistry();
-          }
-        } catch (rollbackError) {
-          this.log?.error({ err: rollbackError, profile: id, nextName }, 'Failed to roll back profile rename');
+        if (existsSync(oldLogFile)) {
+          renameSync(oldLogFile, nextLogFile);
+          rollbacks.push(() => { if (existsSync(nextLogFile)) renameSync(nextLogFile, oldLogFile); });
         }
-
+      } catch (error) {
+        for (const fn of rollbacks.reverse()) {
+          try { fn(); } catch (rollbackError) {
+            this.log?.error({ err: rollbackError, profile: id, nextName }, 'Failed to roll back profile rename');
+          }
+        }
         const cause = error instanceof Error ? error.message : String(error);
         throw new Error(`Failed to rename profile "${id}" to "${nextName}": ${cause}`);
       }

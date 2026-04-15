@@ -71,25 +71,6 @@ export class DockerBackend implements DeploymentBackend {
       containers.map((container) => this.buildInstanceFromContainer(container, config, tokens)),
     );
 
-    // Override disk from Docker volume usage (best effort)
-    try {
-      const diskUsage = await this.docker.getDiskUsage();
-      for (const instance of instances) {
-        for (const [name, size] of Object.entries(diskUsage)) {
-          if (instance.index !== undefined) {
-            if (name.includes(`instances/${instance.index}`) || name.includes(`config/${instance.index}`)) {
-              instance.disk.config = size;
-            }
-            if (name.includes(`workspaces/${instance.index}`)) {
-              instance.disk.workspace = size;
-            }
-          }
-        }
-      }
-    } catch {
-      // best effort
-    }
-
     const status: FleetStatus = {
       instances,
       totalRunning: instances.filter((i) => i.status === 'running').length,

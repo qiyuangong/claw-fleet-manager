@@ -160,6 +160,13 @@ For the full architecture walkthrough, see [docs/arch/README.md](docs/arch/READM
 - [docs/guides/development-cn.md](docs/guides/development-cn.md)
 - [docs/arch/README.md](docs/arch/README.md)
 
+## Related Projects
+
+- [bfzli/clawhost](https://github.com/bfzli/clawhost) — OpenClaw hosting utilities
+- [gluk-w/claworc](https://github.com/gluk-w/claworc) — OpenClaw orchestration tooling
+- [abhi1693/openclaw-mission-control](https://github.com/abhi1693/openclaw-mission-control) — alternative mission control for OpenClaw
+- [builderz-labs/mission-control](https://github.com/builderz-labs/mission-control) — mission control dashboard by Builderz Labs
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).

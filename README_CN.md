@@ -157,6 +157,13 @@ openclaw        openclaw-N     hermes
 - [docs/guides/development-cn.md](docs/guides/development-cn.md)
 - [docs/arch/README_CN.md](docs/arch/README_CN.md)
 
+## 相关项目
+
+- [bfzli/clawhost](https://github.com/bfzli/clawhost) — OpenClaw 托管工具
+- [gluk-w/claworc](https://github.com/gluk-w/claworc) — OpenClaw 编排工具
+- [abhi1693/openclaw-mission-control](https://github.com/abhi1693/openclaw-mission-control) — OpenClaw 的另一款任务控制台
+- [builderz-labs/mission-control](https://github.com/builderz-labs/mission-control) — Builderz Labs 出品的任务控制面板
+
 ## 许可证
 
 Apache 2.0。见 [LICENSE](LICENSE)。

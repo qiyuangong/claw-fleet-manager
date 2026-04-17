@@ -22,6 +22,13 @@ const hermesDockerSchema = z.object({
   env: z.record(z.string(), z.string()).default({}),
 });
 
+const sessionHistorySchema = z.object({
+  enabled: z.boolean().default(true),
+  retentionDays: z.number().int().positive().default(30),
+  collectIntervalMs: z.number().int().positive().default(30_000),
+  activeMinutes: z.number().int().positive().default(180),
+});
+
 const schema = z.object({
   port: z.number().int().positive().default(3001),
   auth: z.object({
@@ -38,6 +45,7 @@ const schema = z.object({
   }).optional(),
   profiles: profilesSchema.optional(),
   hermesDocker: hermesDockerSchema.optional(),
+  sessionHistory: sessionHistorySchema.default({}),
 });
 
 export function resolveConfigPath(): string {

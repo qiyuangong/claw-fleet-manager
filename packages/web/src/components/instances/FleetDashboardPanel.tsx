@@ -38,7 +38,7 @@ function dashboardStatusBucket(status: FlatRowSessionStatus): DashboardStatusFoc
 export function FleetDashboardPanel() {
   const { t } = useTranslation();
   const { data: fleet } = useFleet();
-  const { data, isLoading, error, refetch, isFetching } = useFleetSessions();
+  const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useFleetSessions();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('24h');
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,6 +170,7 @@ export function FleetDashboardPanel() {
               rows={filteredRows}
               throughputRows={dashboardRows}
               instances={fleet?.instances ?? []}
+              dataUpdatedAt={dataUpdatedAt}
               statusFocus={statusFocus}
               onStatusFocusChange={setStatusFocus}
               onSearchQueryChange={setSearchQuery}

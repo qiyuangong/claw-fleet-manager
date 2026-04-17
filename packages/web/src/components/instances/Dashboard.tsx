@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FleetInstance } from '../../types';
 import {
@@ -55,6 +55,10 @@ function dayLabel(timestamp: number): string {
   });
 }
 
+function fallbackThroughputAnchor(): number {
+  return Date.now();
+}
+
 function RankPanel({ items }: { items: RankItem[] }) {
   const maxValue = Math.max(...items.map((item) => item.value), 1);
 
@@ -95,6 +99,7 @@ export function Dashboard({
   rows,
   throughputRows,
   instances,
+  dataUpdatedAt,
   statusFocus,
   onStatusFocusChange,
   onSearchQueryChange,
@@ -102,21 +107,13 @@ export function Dashboard({
   rows: FlatRow[];
   throughputRows: FlatRow[];
   instances: FleetInstance[];
+  dataUpdatedAt: number;
   statusFocus: DashboardStatusFocus;
   onStatusFocusChange: (focus: DashboardStatusFocus) => void;
   onSearchQueryChange: (query: string) => void;
 }) {
   const { t } = useTranslation();
   const [trendWindow, setTrendWindow] = useState<'24h' | '7d'>('24h');
-  const [throughputNow, setThroughputNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setThroughputNow(Date.now());
-    }, 60_000);
-
-    return () => window.clearInterval(intervalId);
-  }, []);
 
   const totalSessions = rows.length;
   const runningSessions = rows.filter((row) => row.session.status === 'running').length;
@@ -143,7 +140,8 @@ export function Dashboard({
   const bucketCount = trendWindow === '24h' ? 12 : 7;
   const bucketMs = trendWindow === '24h' ? 2 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
   const { throughputBuckets, throughputMax } = useMemo(() => {
-    const rangeStart = throughputNow - bucketCount * bucketMs;
+    const throughputAnchor = dataUpdatedAt || fallbackThroughputAnchor();
+    const rangeStart = throughputAnchor - bucketCount * bucketMs;
     const nextThroughputBuckets = Array.from({ length: bucketCount }, (_, index) => {
       const bucketStart = rangeStart + index * bucketMs;
       const bucketEnd = bucketStart + bucketMs;
@@ -162,7 +160,7 @@ export function Dashboard({
       throughputBuckets: nextThroughputBuckets,
       throughputMax: Math.max(...nextThroughputBuckets.map((bucket) => bucket.count), 1),
     };
-  }, [bucketCount, bucketMs, throughputNow, throughputRows, trendWindow]);
+  }, [bucketCount, bucketMs, dataUpdatedAt, throughputRows, trendWindow]);
 
   const runtimeBuckets = [
     { key: 'live', label: t('dashboardRuntimeLive'), count: 0 },
@@ -322,7 +320,6 @@ export function Dashboard({
                   onClick={() => {
                     if (trendWindow !== '24h') {
                       setTrendWindow('24h');
-                      setThroughputNow(Date.now());
                     }
                   }}
                 >
@@ -334,7 +331,6 @@ export function Dashboard({
                   onClick={() => {
                     if (trendWindow !== '7d') {
                       setTrendWindow('7d');
-                      setThroughputNow(Date.now());
                     }
                   }}
                 >

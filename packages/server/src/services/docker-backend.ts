@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { join } from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
 import type { DeploymentBackend, LogHandle, CreateInstanceOpts } from './backend.js';
-import { upsertCachedInstance } from './backend.js';
+import { LockManager, upsertCachedInstance } from './backend.js';
 import type { DockerService } from './docker.js';
 import { FleetConfigService } from './fleet-config.js';
 import { provisionDockerInstance } from './docker-instance-provisioning.js';
@@ -22,7 +22,7 @@ export const BASE_GW_PORT = 18789;
 export class DockerBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
   private interval: ReturnType<typeof setInterval> | null = null;
-  private locks = new Map<string, boolean>();
+  private locks = new LockManager();
 
   constructor(
     private docker: DockerService,
@@ -201,17 +201,8 @@ export class DockerBackend implements DeploymentBackend {
     if (!MANAGED_INSTANCE_ID_RE.test(nextName)) {
       throw new Error('name must be lowercase alphanumeric with hyphens');
     }
-    if (this.locks.get(id)) {
-      throw new Error(`Instance "${id}" is locked`);
-    }
-    if (this.locks.get(nextName)) {
-      throw new Error(`Instance "${nextName}" is locked`);
-    }
 
-    this.locks.set(id, true);
-    this.locks.set(nextName, true);
-
-    try {
+    return this.locks.withLocks([id, nextName], async () => {
       const containers = await this.listOpenClawContainers();
       const source = containers.find((container) => container.name === id);
       if (!source) {
@@ -253,10 +244,7 @@ export class DockerBackend implements DeploymentBackend {
         index: source.index,
         state: inspection.status,
       });
-    } finally {
-      this.locks.set(id, false);
-      this.locks.set(nextName, false);
-    }
+    });
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
@@ -518,15 +506,7 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   private async withInstanceLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
-    if (this.locks.get(id)) {
-      throw new Error(`Instance "${id}" is locked`);
-    }
-    this.locks.set(id, true);
-    try {
-      return await fn();
-    } finally {
-      this.locks.set(id, false);
-    }
+    return this.locks.withLock(id, fn);
   }
 
   private async buildInstanceFromContainer(

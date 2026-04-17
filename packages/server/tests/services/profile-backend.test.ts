@@ -388,10 +388,16 @@ describe('ProfileBackend — renameInstance', () => {
       },
       nextPort: 18809,
     };
-    (backend as any).locks.set('rescue', true);
+    let releaseLock: (() => void) | undefined;
+    const heldLock = (backend as any).locks.withLock('rescue', async () => new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    }));
 
     await expect(backend.renameInstance('rescue', 'team-renamed')).rejects.toThrow(/locked/i);
     expect(fs.renameSync).not.toHaveBeenCalledWith('/tmp/managed/rescue', '/tmp/managed/team-renamed');
+
+    releaseLock?.();
+    await heldLock;
   });
 
   it('renameInstance() renames split state/config roots and rewrites the config path', async () => {

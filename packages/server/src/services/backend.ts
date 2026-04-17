@@ -18,6 +18,49 @@ export function upsertCachedInstance(
   };
 }
 
+export class LockManager {
+  private locks = new Map<string, boolean>();
+  private renamedIds = new Map<string, string>();
+
+  async withLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+    return this.withLocks([id], fn);
+  }
+
+  async withLocks<T>(ids: string[], fn: () => Promise<T>): Promise<T> {
+    const uniqueIds = [...new Set(ids)];
+    for (const id of uniqueIds) {
+      if (this.locks.get(id)) {
+        throw new Error(`Instance "${id}" is locked`);
+      }
+    }
+    for (const id of uniqueIds) {
+      this.locks.set(id, true);
+      this.renamedIds.set(id, id);
+    }
+    try {
+      return await fn();
+    } finally {
+      for (const id of uniqueIds) {
+        const currentId = this.renamedIds.get(id) ?? id;
+        this.locks.set(currentId, false);
+        this.renamedIds.delete(id);
+      }
+    }
+  }
+
+  rename(oldId: string, newId: string): void {
+    if (!this.locks.has(oldId)) return;
+    const value = this.locks.get(oldId) ?? false;
+    this.locks.delete(oldId);
+    this.locks.set(newId, value);
+    for (const [id, currentId] of this.renamedIds) {
+      if (currentId === oldId) {
+        this.renamedIds.set(id, newId);
+      }
+    }
+  }
+}
+
 export interface LogHandle {
   stop(): void;
 }

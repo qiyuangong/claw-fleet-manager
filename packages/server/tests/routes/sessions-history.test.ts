@@ -127,6 +127,19 @@ describe('GET /api/fleet/sessions/history', () => {
 
     expect(res.statusCode).toBe(400);
   });
+
+  it('returns 400 INVALID_QUERY for malformed cursor values', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/fleet/sessions/history?cursor=definitely-not-a-cursor',
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({
+      code: 'INVALID_QUERY',
+      error: 'Invalid cursor',
+    });
+  });
 });
 
 describe('GET /api/fleet/sessions/history auth and disabled cases', () => {

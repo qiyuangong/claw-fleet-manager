@@ -19,7 +19,7 @@ export class SessionCollector {
   private timer: ReturnType<typeof setInterval> | null = null;
   private runningTick: Promise<void> | null = null;
   private lastVacuumAt: number | null = null;
-  private readonly terminalKeys = new Set<string>();
+  private readonly terminalKeys = new Map<string, number>();
 
   constructor(private readonly options: {
     backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'>;
@@ -85,7 +85,7 @@ export class SessionCollector {
       });
       for (const session of nextSessions) {
         if (session.status && session.status !== 'running') {
-          this.terminalKeys.add(`${instance.id}:${session.key}`);
+          this.terminalKeys.set(`${instance.id}:${session.key}`, now);
         }
       }
       this.options.history.upsertSessions({
@@ -107,6 +107,7 @@ export class SessionCollector {
 
     try {
       this.options.history.pruneOlderThan(now - this.options.retentionDays * DAY_MS);
+      this.pruneTerminalKeys(now);
     } catch (error) {
       this.options.log.warn('Failed to prune session history', error);
     }
@@ -124,6 +125,15 @@ export class SessionCollector {
       this.lastVacuumAt = now;
     } catch (error) {
       this.options.log.warn('Failed to vacuum session history', error);
+    }
+  }
+
+  private pruneTerminalKeys(now: number) {
+    const cutoff = now - this.options.retentionDays * DAY_MS;
+    for (const [key, lastSeenAt] of this.terminalKeys) {
+      if (lastSeenAt < cutoff) {
+        this.terminalKeys.delete(key);
+      }
     }
   }
 }

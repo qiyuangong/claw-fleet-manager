@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { requireAdmin } from '../authorize.js';
 import { errorResponseSchema } from '../schemas.js';
 import {
+  InvalidSessionHistoryCursorError,
   type SessionHistoryListQuery,
   type SessionHistoryService,
 } from '../services/session-history.js';
@@ -107,7 +108,18 @@ export async function sessionHistoryRoutes(
       });
     }
 
-    const page = options.sessionHistory.listSessions(request.query);
+    let page;
+    try {
+      page = options.sessionHistory.listSessions(request.query);
+    } catch (error) {
+      if (error instanceof InvalidSessionHistoryCursorError) {
+        return reply.status(400).send({
+          error: error.message,
+          code: 'INVALID_QUERY',
+        });
+      }
+      throw error;
+    }
     const totalEstimate = options.sessionHistory.countSessions(request.query);
 
     return {

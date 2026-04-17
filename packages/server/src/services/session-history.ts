@@ -56,6 +56,13 @@ type SessionCursor = {
   sessionKey: string;
 };
 
+export class InvalidSessionHistoryCursorError extends Error {
+  constructor(message = 'Invalid cursor') {
+    super(message);
+    this.name = 'InvalidSessionHistoryCursorError';
+  }
+}
+
 type ExistingStatusRow = {
   status: string;
 };
@@ -112,14 +119,14 @@ function decodeCursor(cursor: string): SessionCursor {
   const firstColon = raw.indexOf(':');
   const secondColon = raw.indexOf(':', firstColon + 1);
   if (firstColon <= 0 || secondColon <= firstColon + 1) {
-    throw new Error('Invalid cursor');
+    throw new InvalidSessionHistoryCursorError();
   }
 
   const lastSeenAt = Number(raw.slice(0, firstColon));
   const instanceId = raw.slice(firstColon + 1, secondColon);
   const sessionKey = raw.slice(secondColon + 1);
   if (!Number.isFinite(lastSeenAt) || !instanceId || !sessionKey) {
-    throw new Error('Invalid cursor');
+    throw new InvalidSessionHistoryCursorError();
   }
 
   return { lastSeenAt, instanceId, sessionKey };

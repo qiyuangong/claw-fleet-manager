@@ -67,6 +67,10 @@ export function useUrlFilters<T extends Record<string, unknown>>(definitions: Fi
 
   useEffect(() => {
     const handlePopstate = () => {
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
       setValues(readFilters(definitionsRef.current));
     };
 

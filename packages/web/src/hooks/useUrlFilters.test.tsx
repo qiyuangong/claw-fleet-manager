@@ -95,4 +95,28 @@ describe('useUrlFilters', () => {
       instance: 'gamma',
     });
   });
+
+  it('cancels pending debounced writes when popstate fires', async () => {
+    const { result } = renderHook(() => useUrlFilters<TestFilters>(definitions));
+
+    act(() => {
+      result.current.setFilter('q', 'stale');
+    });
+
+    act(() => {
+      window.history.replaceState({}, '', '/?view=dashboard&status=all&q=fresh');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(window.location.search).toBe('?view=dashboard&status=all&q=fresh');
+    expect(result.current.values).toEqual({
+      status: 'all',
+      q: 'fresh',
+      instance: undefined,
+    });
+  });
 });

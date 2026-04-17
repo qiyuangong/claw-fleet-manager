@@ -1,7 +1,6 @@
 import { mkdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import type { InstanceSessionRow } from './openclaw-client.js';
 
 const CURRENT_USER_VERSION = 1;
@@ -95,20 +94,6 @@ export type SessionHistoryEntry = {
 type ListResult = {
   instances: SessionHistoryEntry[];
   nextCursor?: string;
-};
-
-type DatabaseLike = {
-  close(): void;
-  exec(sql: string): void;
-  prepare(sql: string): StatementLike;
-  pragma?(source: string, options?: { simple?: boolean }): unknown;
-  transaction<T extends (...args: any[]) => unknown>(fn: T): T;
-};
-
-type StatementLike = {
-  all(...params: unknown[]): unknown[];
-  get(...params: unknown[]): unknown;
-  run(...params: unknown[]): { changes: number };
 };
 
 function isTerminalStatus(status: string | undefined): status is 'done' | 'failed' | 'killed' | 'timeout' {
@@ -238,70 +223,17 @@ function mapRow(row: SessionHistoryRow): InstanceSessionRow {
   };
 }
 
-function createNodeSqliteCompat(dbPath: string): DatabaseLike {
-  const db = new DatabaseSync(dbPath);
-
-  return {
-    close: () => db.close(),
-    exec: (sql) => db.exec(sql),
-    prepare: (sql) => {
-      const statement = db.prepare(sql);
-      return {
-        all: (...params) => statement.all(...params as Parameters<typeof statement.all>),
-        get: (...params) => statement.get(...params as Parameters<typeof statement.get>),
-        run: (...params) => {
-          const result = statement.run(...params as Parameters<typeof statement.run>);
-          return { changes: Number(result.changes ?? 0) };
-        },
-      };
-    },
-    pragma: (source, options) => {
-      const pragmaSql = source.trim().toUpperCase().startsWith('PRAGMA ')
-        ? source.trim()
-        : `PRAGMA ${source.trim()}`;
-      const rows = db.prepare(pragmaSql).all();
-      if (options?.simple) {
-        const firstRow = rows[0] as Record<string, unknown> | undefined;
-        if (!firstRow) return undefined;
-        return Object.values(firstRow)[0];
-      }
-      return rows;
-    },
-    transaction: (fn) => ((...args: unknown[]) => {
-      db.exec('BEGIN');
-      try {
-        const result = fn(...args);
-        db.exec('COMMIT');
-        return result;
-      } catch (error) {
-        db.exec('ROLLBACK');
-        throw error;
-      }
-    }) as typeof fn,
-  };
-}
-
-function openDatabase(dbPath: string): DatabaseLike {
-  const require = createRequire(import.meta.url);
-  try {
-    const BetterSqlite3 = require('better-sqlite3') as new (path: string) => DatabaseLike;
-    return new BetterSqlite3(dbPath);
-  } catch {
-    return createNodeSqliteCompat(dbPath);
-  }
-}
-
 export class SessionHistoryService {
-  private readonly db: DatabaseLike;
-  private readonly selectExisting: StatementLike;
-  private readonly insertRow: StatementLike;
-  private readonly updateRow: StatementLike;
-  private readonly pruneStatement: StatementLike;
+  private readonly db: DatabaseType;
+  private readonly selectExisting: Statement;
+  private readonly insertRow: Statement;
+  private readonly updateRow: Statement;
+  private readonly pruneStatement: Statement;
 
   constructor(options: { dbPath: string }) {
     mkdirSync(dirname(options.dbPath), { recursive: true });
-    this.db = openDatabase(options.dbPath);
-    this.db.exec('PRAGMA journal_mode = WAL');
+    this.db = new Database(options.dbPath);
+    this.db.pragma('journal_mode = WAL');
     this.runMigrations();
     this.selectExisting = this.db.prepare(
       'SELECT status FROM sessions WHERE instance_id = ? AND session_key = ?',
@@ -506,7 +438,7 @@ export class SessionHistoryService {
   }
 
   private runMigrations() {
-    const userVersion = Number(this.db.pragma?.('user_version', { simple: true }) ?? 0);
+    const userVersion = Number(this.db.pragma('user_version', { simple: true }) ?? 0);
     if (userVersion >= CURRENT_USER_VERSION) {
       return;
     }

@@ -1,5 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
+import Database from 'better-sqlite3';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -53,8 +53,8 @@ describe('SessionHistoryService', () => {
     const { dbPath, dir, service } = createService();
     service.close();
 
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    const row = Number(db.prepare('PRAGMA user_version').get()?.user_version ?? 0);
+    const db = new Database(dbPath, { readonly: true });
+    const row = Number(db.pragma('user_version', { simple: true }) ?? 0);
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sessions'").all();
 
     db.close();

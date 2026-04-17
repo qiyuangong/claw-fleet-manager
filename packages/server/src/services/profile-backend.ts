@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 import { createServer } from 'node:net';
 import type { FastifyBaseLogger } from 'fastify';
 import type { DeploymentBackend, LogHandle, CreateInstanceOpts } from './backend.js';
-import { upsertCachedInstance } from './backend.js';
+import { LockManager, upsertCachedInstance } from './backend.js';
 import { getDirectorySize } from './dir-utils.js';
 import { FleetConfigService } from './fleet-config.js';
 import { getManagedProfileNameError, isValidManagedProfileName } from '../profile-names.js';
@@ -71,7 +71,7 @@ export class ProfileBackend implements DeploymentBackend {
   private registry: ProfileRegistry = { profiles: {}, nextPort: 0 };
   private processStartTimes = new Map<string, number>();
   private instanceStatus = new Map<string, FleetInstance['status']>();
-  private locks = new Map<string, boolean>();
+  private locks = new LockManager();
   private stopping = new Set<string>();
   private cache: FleetStatus | null = null;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -315,12 +315,9 @@ export class ProfileBackend implements DeploymentBackend {
   }
 
   async renameInstance(id: string, nextName: string): Promise<FleetInstance> {
-    if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
-    this.locks.set(id, true);
-
-    let lockId = id;
     const entry = this.registry.profiles[id];
-    try {
+
+    return this.locks.withLock(id, async () => {
       if (!entry) throw new Error(`Profile "${id}" not found`);
       if (id === nextName) {
         throw new Error('Cannot rename a profile to the same name');
@@ -366,12 +363,10 @@ export class ProfileBackend implements DeploymentBackend {
         delete this.registry.profiles[id];
         this.registry.profiles[nextName] = nextEntry;
         this.renameInstanceState(id, nextName);
-        lockId = nextName;
         rollbacks.push(() => {
           delete this.registry.profiles[nextName];
           this.registry.profiles[id] = entry;
           this.renameInstanceState(nextName, id);
-          lockId = id;
           this.saveRegistry();
         });
         this.saveRegistry();
@@ -391,9 +386,7 @@ export class ProfileBackend implements DeploymentBackend {
       }
 
       return await this.resolveRenamedProfile(id, nextEntry);
-    } finally {
-      this.locks.set(lockId, false);
-    }
+    });
   }
 
   streamLogs(id: string, onData: (line: string) => void): LogHandle {
@@ -829,7 +822,7 @@ export class ProfileBackend implements DeploymentBackend {
   private renameInstanceState(oldId: string, nextName: string): void {
     this.moveMapValue(this.processStartTimes, oldId, nextName);
     this.moveMapValue(this.instanceStatus, oldId, nextName);
-    this.moveMapValue(this.locks, oldId, nextName);
+    this.locks.rename(oldId, nextName);
     if (this.stopping.delete(oldId)) {
       this.stopping.add(nextName);
     }
@@ -843,12 +836,6 @@ export class ProfileBackend implements DeploymentBackend {
   }
 
   private async withInstanceLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
-    if (this.locks.get(id)) throw new Error(`Instance "${id}" is locked`);
-    this.locks.set(id, true);
-    try {
-      return await fn();
-    } finally {
-      this.locks.set(id, false);
-    }
+    return this.locks.withLock(id, fn);
   }
 }

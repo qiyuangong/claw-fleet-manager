@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import * as yaml from 'yaml';
+import { LockManager } from './backend.js';
 import type { DeploymentBackend, CreateInstanceOpts, LogHandle } from './backend.js';
 import type { DockerService } from './docker.js';
 import { getDirectorySize } from './dir-utils.js';
@@ -30,7 +31,7 @@ export function getHermesDockerFleetRoot(baseDir: string): string {
 export class HermesDockerBackend implements DeploymentBackend {
   private cache: FleetStatus | null = null;
   private interval: ReturnType<typeof setInterval> | null = null;
-  private locks = new Map<string, boolean>();
+  private locks = new LockManager();
 
   constructor(
     private docker: DockerService,
@@ -74,21 +75,21 @@ export class HermesDockerBackend implements DeploymentBackend {
   }
 
   async start(id: string): Promise<void> {
-    await this.withLock(id, async () => {
+    await this.locks.withLock(id, async () => {
       this.ensureInstanceHome(id);
       await this.docker.startContainer(id);
     });
   }
 
   async stop(id: string): Promise<void> {
-    await this.withLock(id, async () => {
+    await this.locks.withLock(id, async () => {
       this.ensureInstanceHome(id);
       await this.docker.stopContainer(id);
     });
   }
 
   async restart(id: string): Promise<void> {
-    await this.withLock(id, async () => {
+    await this.locks.withLock(id, async () => {
       this.ensureInstanceHome(id);
       await this.docker.restartContainer(id);
     });
@@ -152,7 +153,7 @@ export class HermesDockerBackend implements DeploymentBackend {
   }
 
   async removeInstance(id: string): Promise<void> {
-    await this.withLock(id, async () => {
+    await this.locks.withLock(id, async () => {
       try {
         await this.docker.removeContainer(id);
       } catch {
@@ -171,7 +172,7 @@ export class HermesDockerBackend implements DeploymentBackend {
       throw new Error('name must be lowercase alphanumeric with hyphens');
     }
 
-    return this.withLocks([id, nextName], async () => {
+    return this.locks.withLocks([id, nextName], async () => {
       const containers = (await this.docker.listFleetContainers())
         .filter((container) => container.runtime === 'hermes');
       const source = containers.find((container) => container.name === id);
@@ -380,28 +381,6 @@ export class HermesDockerBackend implements DeploymentBackend {
     return lines;
   }
 
-  private async withLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
-    return this.withLocks([id], fn);
-  }
-
-  private async withLocks<T>(ids: string[], fn: () => Promise<T>): Promise<T> {
-    const uniqueIds = [...new Set(ids)];
-    for (const id of uniqueIds) {
-      if (this.locks.get(id)) {
-        throw new Error(`Instance "${id}" is locked`);
-      }
-    }
-    for (const id of uniqueIds) {
-      this.locks.set(id, true);
-    }
-    try {
-      return await fn();
-    } finally {
-      for (const id of uniqueIds) {
-        this.locks.set(id, false);
-      }
-    }
-  }
 }
 
 function nextAvailableIndex(usedIndexes: number[]): number {

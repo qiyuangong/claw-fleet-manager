@@ -107,10 +107,10 @@ export class SessionCollector {
 
     try {
       this.options.history.pruneOlderThan(now - this.options.retentionDays * DAY_MS);
-      this.pruneTerminalKeys(now);
     } catch (error) {
       this.options.log.warn('Failed to prune session history', error);
     }
+    this.pruneTerminalKeys(now);
 
     if (this.lastVacuumAt == null) {
       this.lastVacuumAt = now;

@@ -1,5 +1,12 @@
 import { apiFetch } from './client';
-import type { FleetConfig, FleetInstance, FleetSessionsResult, FleetStatus } from '../types';
+import type {
+  FleetConfig,
+  FleetInstance,
+  FleetSessionsHistoryQuery,
+  FleetSessionsHistoryResult,
+  FleetSessionsResult,
+  FleetStatus,
+} from '../types';
 
 export const getFleet = () => apiFetch<FleetStatus>('/api/fleet');
 
@@ -129,4 +136,19 @@ export const getFleetSessions = (query?: FleetSessionsQuery) => {
   if (query?.previewLimit != null) params.set('previewLimit', String(query.previewLimit));
   const search = params.toString();
   return apiFetch<FleetSessionsResult>(search ? `/api/fleet/sessions?${search}` : '/api/fleet/sessions');
+};
+
+export const getFleetSessionsHistory = (query?: FleetSessionsHistoryQuery) => {
+  const params = new URLSearchParams();
+  if (query?.from != null) params.set('from', String(query.from));
+  if (query?.to != null) params.set('to', String(query.to));
+  if (query?.status) params.set('status', query.status);
+  if (query?.instanceId) params.set('instanceId', query.instanceId);
+  if (query?.q) params.set('q', query.q);
+  if (query?.limit != null) params.set('limit', String(query.limit));
+  if (query?.cursor) params.set('cursor', query.cursor);
+  const search = params.toString();
+  return apiFetch<FleetSessionsHistoryResult>(
+    search ? `/api/fleet/sessions/history?${search}` : '/api/fleet/sessions/history',
+  );
 };

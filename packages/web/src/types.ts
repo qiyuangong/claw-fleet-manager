@@ -94,3 +94,27 @@ export type FleetSessionsResult = {
   instances: InstanceSessionsEntry[];
   updatedAt: number;
 };
+
+export type FleetSessionsHistoryStatus =
+  | 'running'
+  | 'done'
+  | 'failed'
+  | 'killed'
+  | 'timeout'
+  | 'active'
+  | 'error';
+
+export type FleetSessionsHistoryQuery = {
+  from?: number;
+  to?: number;
+  status?: FleetSessionsHistoryStatus;
+  instanceId?: string;
+  q?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+export type FleetSessionsHistoryResult = FleetSessionsResult & {
+  nextCursor?: string;
+  totalEstimate?: number;
+};

@@ -54,6 +54,7 @@ export function FleetRunningSessionsPanel() {
   const selectInstance = useAppStore((state) => state.selectInstance);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [prevTotalPages, setPrevTotalPages] = useState(1);
 
   const allRunningRows = useMemo(
     () => filterRows(buildFlatRows(data?.instances ?? []), 'active', 'all'),
@@ -79,11 +80,14 @@ export function FleetRunningSessionsPanel() {
     return sortRows(rows, null, 'desc');
   }, [allRunningRows, searchQuery]);
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const effectiveCurrentPage = Math.min(currentPage, totalPages);
+  if (totalPages !== prevTotalPages) {
+    setPrevTotalPages(totalPages);
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }
   const pagedRows = useMemo(() => {
-    const startIndex = (effectiveCurrentPage - 1) * PAGE_SIZE;
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
     return filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [effectiveCurrentPage, filteredRows]);
+  }, [currentPage, filteredRows]);
   const errorEntries = useMemo(
     () => (data?.instances ?? []).filter((entry) => !!entry.error),
     [data],
@@ -282,8 +286,8 @@ export function FleetRunningSessionsPanel() {
                     <button
                       type="button"
                       className="secondary-button running-sessions-pagination-button"
-                      onClick={() => setCurrentPage(Math.max(1, effectiveCurrentPage - 1))}
-                      disabled={effectiveCurrentPage === 1}
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
                     >
                       {t('runningSessionsPrevious')}
                     </button>
@@ -294,9 +298,9 @@ export function FleetRunningSessionsPanel() {
                           <button
                             key={page}
                             type="button"
-                            className={`running-sessions-page-number${effectiveCurrentPage === page ? ' running-sessions-page-number--active' : ''}`}
+                            className={`running-sessions-page-number${currentPage === page ? ' running-sessions-page-number--active' : ''}`}
                             onClick={() => setCurrentPage(page)}
-                            aria-current={effectiveCurrentPage === page ? 'page' : undefined}
+                            aria-current={currentPage === page ? 'page' : undefined}
                             aria-label={t('runningSessionsPage', { page })}
                           >
                             {page}
@@ -307,8 +311,8 @@ export function FleetRunningSessionsPanel() {
                     <button
                       type="button"
                       className="secondary-button running-sessions-pagination-button"
-                      onClick={() => setCurrentPage(Math.min(totalPages, effectiveCurrentPage + 1))}
-                      disabled={effectiveCurrentPage === totalPages}
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
                     >
                       {t('runningSessionsNext')}
                     </button>

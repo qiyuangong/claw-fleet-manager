@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FleetInstance } from '../../types';
 import {
@@ -109,6 +109,14 @@ export function Dashboard({
   const { t } = useTranslation();
   const [trendWindow, setTrendWindow] = useState<'24h' | '7d'>('24h');
   const [throughputNow, setThroughputNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setThroughputNow(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const totalSessions = rows.length;
   const runningSessions = rows.filter((row) => row.session.status === 'running').length;

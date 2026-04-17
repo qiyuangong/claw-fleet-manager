@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FleetInstance } from '../../types';
 import {
@@ -55,6 +55,10 @@ function dayLabel(timestamp: number): string {
   });
 }
 
+function fallbackThroughputAnchor(): number {
+  return Date.now();
+}
+
 function RankPanel({ items }: { items: RankItem[] }) {
   const maxValue = Math.max(...items.map((item) => item.value), 1);
 
@@ -95,6 +99,7 @@ export function Dashboard({
   rows,
   throughputRows,
   instances,
+  dataUpdatedAt,
   statusFocus,
   onStatusFocusChange,
   onSearchQueryChange,
@@ -102,6 +107,7 @@ export function Dashboard({
   rows: FlatRow[];
   throughputRows: FlatRow[];
   instances: FleetInstance[];
+  dataUpdatedAt: number;
   statusFocus: DashboardStatusFocus;
   onStatusFocusChange: (focus: DashboardStatusFocus) => void;
   onSearchQueryChange: (query: string) => void;
@@ -133,22 +139,28 @@ export function Dashboard({
 
   const bucketCount = trendWindow === '24h' ? 12 : 7;
   const bucketMs = trendWindow === '24h' ? 2 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-  const now = Date.now();
-  const rangeStart = now - bucketCount * bucketMs;
-  const throughputBuckets = Array.from({ length: bucketCount }, (_, index) => {
-    const bucketStart = rangeStart + index * bucketMs;
-    const bucketEnd = bucketStart + bucketMs;
-    const count = throughputRows.filter((row) => {
-      const ts = sessionTimestamp(row.session) ?? 0;
-      return ts >= bucketStart && ts < bucketEnd;
-    }).length;
+  const { throughputBuckets, throughputMax } = useMemo(() => {
+    const throughputAnchor = dataUpdatedAt || fallbackThroughputAnchor();
+    const rangeStart = throughputAnchor - bucketCount * bucketMs;
+    const nextThroughputBuckets = Array.from({ length: bucketCount }, (_, index) => {
+      const bucketStart = rangeStart + index * bucketMs;
+      const bucketEnd = bucketStart + bucketMs;
+      const count = throughputRows.filter((row) => {
+        const ts = sessionTimestamp(row.session) ?? 0;
+        return ts >= bucketStart && ts < bucketEnd;
+      }).length;
+
+      return {
+        label: trendWindow === '24h' ? hourLabel(bucketEnd) : dayLabel(bucketEnd),
+        count,
+      };
+    });
 
     return {
-      label: trendWindow === '24h' ? hourLabel(bucketEnd) : dayLabel(bucketEnd),
-      count,
+      throughputBuckets: nextThroughputBuckets,
+      throughputMax: Math.max(...nextThroughputBuckets.map((bucket) => bucket.count), 1),
     };
-  });
-  const throughputMax = Math.max(...throughputBuckets.map((bucket) => bucket.count), 1);
+  }, [bucketCount, bucketMs, dataUpdatedAt, throughputRows, trendWindow]);
 
   const runtimeBuckets = [
     { key: 'live', label: t('dashboardRuntimeLive'), count: 0 },
@@ -305,14 +317,22 @@ export function Dashboard({
                 <button
                   type="button"
                   className={`dashboard-toggle-button${trendWindow === '24h' ? ' dashboard-toggle-button--active' : ''}`}
-                  onClick={() => setTrendWindow('24h')}
+                  onClick={() => {
+                    if (trendWindow !== '24h') {
+                      setTrendWindow('24h');
+                    }
+                  }}
                 >
                   {t('timeFilter24h')}
                 </button>
                 <button
                   type="button"
                   className={`dashboard-toggle-button${trendWindow === '7d' ? ' dashboard-toggle-button--active' : ''}`}
-                  onClick={() => setTrendWindow('7d')}
+                  onClick={() => {
+                    if (trendWindow !== '7d') {
+                      setTrendWindow('7d');
+                    }
+                  }}
                 >
                   {t('timeFilter7d')}
                 </button>

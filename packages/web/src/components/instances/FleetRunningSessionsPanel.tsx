@@ -54,6 +54,7 @@ export function FleetRunningSessionsPanel() {
   const selectInstance = useAppStore((state) => state.selectInstance);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [prevTotalPages, setPrevTotalPages] = useState(1);
 
   const allRunningRows = useMemo(
     () => filterRows(buildFlatRows(data?.instances ?? []), 'active', 'all'),
@@ -79,6 +80,10 @@ export function FleetRunningSessionsPanel() {
     return sortRows(rows, null, 'desc');
   }, [allRunningRows, searchQuery]);
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  if (totalPages !== prevTotalPages) {
+    setPrevTotalPages(totalPages);
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }
   const pagedRows = useMemo(() => {
     const startIndex = (currentPage - 1) * PAGE_SIZE;
     return filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
@@ -87,14 +92,6 @@ export function FleetRunningSessionsPanel() {
     () => (data?.instances ?? []).filter((entry) => !!entry.error),
     [data],
   );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -154,7 +151,10 @@ export function FleetRunningSessionsPanel() {
                   type="search"
                   className="activity-search-input"
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setCurrentPage(1);
+                  }}
                   placeholder={t('activitySearchPlaceholder')}
                   aria-label={t('activitySearchLabel')}
                 />
@@ -162,7 +162,10 @@ export function FleetRunningSessionsPanel() {
                   <button
                     type="button"
                     className="activity-search-clear"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => {
+                      setSearchQuery('');
+                      setCurrentPage(1);
+                    }}
                   >
                     {t('clear')}
                   </button>
@@ -283,7 +286,7 @@ export function FleetRunningSessionsPanel() {
                     <button
                       type="button"
                       className="secondary-button running-sessions-pagination-button"
-                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                       disabled={currentPage === 1}
                     >
                       {t('runningSessionsPrevious')}
@@ -308,7 +311,7 @@ export function FleetRunningSessionsPanel() {
                     <button
                       type="button"
                       className="secondary-button running-sessions-pagination-button"
-                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
                     >
                       {t('runningSessionsNext')}

@@ -31,6 +31,24 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
   const activeTab = useAppStore((state) => state.activeTab);
   const setTab = useAppStore((state) => state.setTab);
   const instance = data?.instances.find((item) => item.id === instanceId);
+  const tabs: Tab[] = [
+    'overview',
+    ...(instance?.runtimeCapabilities.sessions ? ['activity'] as const : []),
+    ...(instance?.runtimeCapabilities.logs ? ['logs'] as const : []),
+    ...(instance?.runtimeCapabilities.configEditor ? ['config'] as const : []),
+    'metrics',
+    ...(instance?.runtimeCapabilities.proxyAccess ? ['controlui'] as const : []),
+    ...(instance?.runtime === 'openclaw' ? ['feishu'] as const : []),
+    ...(instance?.runtimeCapabilities.plugins ? ['plugins'] as const : []),
+  ];
+  const resolvedTab = tabs.includes(activeTab) ? activeTab : 'overview';
+
+  useEffect(() => {
+    if (!instance) return;
+    if (resolvedTab !== activeTab) {
+      setTab(resolvedTab);
+    }
+  }, [activeTab, instance, resolvedTab, setTab]);
 
   if (!instance) {
     return (
@@ -42,24 +60,6 @@ export function InstancePanel({ instanceId }: { instanceId: string }) {
       </section>
     );
   }
-
-  const tabs: Tab[] = [
-    'overview',
-    ...(instance.runtimeCapabilities.sessions ? ['activity'] as const : []),
-    ...(instance.runtimeCapabilities.logs ? ['logs'] as const : []),
-    ...(instance.runtimeCapabilities.configEditor ? ['config'] as const : []),
-    'metrics',
-    ...(instance.runtimeCapabilities.proxyAccess ? ['controlui'] as const : []),
-    ...(instance.runtime === 'openclaw' ? ['feishu'] as const : []),
-    ...(instance.runtimeCapabilities.plugins ? ['plugins'] as const : []),
-  ];
-  const resolvedTab = tabs.includes(activeTab) ? activeTab : 'overview';
-
-  useEffect(() => {
-    if (resolvedTab !== activeTab) {
-      setTab(resolvedTab);
-    }
-  }, [activeTab, resolvedTab, setTab]);
 
   return (
     <section className="panel-card">

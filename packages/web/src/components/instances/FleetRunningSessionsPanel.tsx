@@ -79,22 +79,15 @@ export function FleetRunningSessionsPanel() {
     return sortRows(rows, null, 'desc');
   }, [allRunningRows, searchQuery]);
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+  const effectiveCurrentPage = Math.min(currentPage, totalPages);
   const pagedRows = useMemo(() => {
-    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const startIndex = (effectiveCurrentPage - 1) * PAGE_SIZE;
     return filteredRows.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [currentPage, filteredRows]);
+  }, [effectiveCurrentPage, filteredRows]);
   const errorEntries = useMemo(
     () => (data?.instances ?? []).filter((entry) => !!entry.error),
     [data],
   );
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    setCurrentPage((page) => Math.min(page, totalPages));
-  }, [totalPages]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -154,7 +147,10 @@ export function FleetRunningSessionsPanel() {
                   type="search"
                   className="activity-search-input"
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setCurrentPage(1);
+                  }}
                   placeholder={t('activitySearchPlaceholder')}
                   aria-label={t('activitySearchLabel')}
                 />
@@ -162,7 +158,10 @@ export function FleetRunningSessionsPanel() {
                   <button
                     type="button"
                     className="activity-search-clear"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => {
+                      setSearchQuery('');
+                      setCurrentPage(1);
+                    }}
                   >
                     {t('clear')}
                   </button>
@@ -283,8 +282,8 @@ export function FleetRunningSessionsPanel() {
                     <button
                       type="button"
                       className="secondary-button running-sessions-pagination-button"
-                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(Math.max(1, effectiveCurrentPage - 1))}
+                      disabled={effectiveCurrentPage === 1}
                     >
                       {t('runningSessionsPrevious')}
                     </button>
@@ -295,9 +294,9 @@ export function FleetRunningSessionsPanel() {
                           <button
                             key={page}
                             type="button"
-                            className={`running-sessions-page-number${currentPage === page ? ' running-sessions-page-number--active' : ''}`}
+                            className={`running-sessions-page-number${effectiveCurrentPage === page ? ' running-sessions-page-number--active' : ''}`}
                             onClick={() => setCurrentPage(page)}
-                            aria-current={currentPage === page ? 'page' : undefined}
+                            aria-current={effectiveCurrentPage === page ? 'page' : undefined}
                             aria-label={t('runningSessionsPage', { page })}
                           >
                             {page}
@@ -308,8 +307,8 @@ export function FleetRunningSessionsPanel() {
                     <button
                       type="button"
                       className="secondary-button running-sessions-pagination-button"
-                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage(Math.min(totalPages, effectiveCurrentPage + 1))}
+                      disabled={effectiveCurrentPage === totalPages}
                     >
                       {t('runningSessionsNext')}
                     </button>

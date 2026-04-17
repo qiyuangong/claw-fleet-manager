@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FleetSessionsPanel } from './FleetSessionsPanel';
 import { useAppStore } from '../../store';
 
-const mockUseFleetSessions = vi.fn();
+const mockUseFleetSessionsHistory = vi.fn();
 const translations: Record<string, string> = {
   activityViewBoard: 'Board view',
   activityViewTable: 'Table view',
@@ -16,10 +16,21 @@ const translations: Record<string, string> = {
   activityBoardOther: 'Other',
   activityBoardEmpty: 'No sessions',
   colInstance: 'Instance',
+  activitySearchLabel: 'Search sessions',
+  activitySearchPlaceholder: 'Search sessions',
+  statusFilterAll: 'All',
+  statusFilterActive: 'Active',
+  statusFilterDone: 'Done',
+  statusFilterError: 'Error',
+  timeFilterToday: 'Today',
+  timeFilter24h: '24h',
+  timeFilter7d: '7d',
+  timeFilterAll: 'All time',
+  sessionHistoryDisabled: 'Session history is disabled in server config.',
 };
 
-vi.mock('../../hooks/useFleetSessions', () => ({
-  useFleetSessions: () => mockUseFleetSessions(),
+vi.mock('../../hooks/useFleetSessionsHistory', () => ({
+  useFleetSessionsHistory: (options: unknown) => mockUseFleetSessionsHistory(options),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -49,8 +60,9 @@ describe('FleetSessionsPanel', () => {
       activeTab: 'overview',
       currentUser: { username: 'admin', role: 'admin', assignedProfiles: [] },
     });
+    window.history.replaceState({}, '', '/?view=sessions');
 
-    mockUseFleetSessions.mockReturnValue({
+    mockUseFleetSessionsHistory.mockReturnValue({
       data: {
         instances: [
           {
@@ -86,7 +98,24 @@ describe('FleetSessionsPanel', () => {
       error: null,
       refetch: vi.fn(),
       isFetching: false,
+      historyDisabled: false,
     });
+  });
+
+  it('hydrates URL-backed filters and queries the history endpoint', () => {
+    window.history.replaceState({}, '', '/?view=sessions&status=done&time=7d&q=alpha');
+
+    renderPanel();
+
+    expect((screen.getByRole('searchbox', { name: 'Search sessions' }) as HTMLInputElement).value).toBe('alpha');
+    expect(mockUseFleetSessionsHistory).toHaveBeenCalledWith(expect.objectContaining({
+      query: expect.objectContaining({
+        status: 'done',
+        q: 'alpha',
+        from: expect.any(Number),
+        limit: 1000,
+      }),
+    }));
   });
 
   it('defaults to board mode and renders grouped board content', () => {
@@ -112,7 +141,7 @@ describe('FleetSessionsPanel', () => {
   it('renders per-instance errors when every instance fetch fails with zero sessions', async () => {
     const user = userEvent.setup();
 
-    mockUseFleetSessions.mockReturnValue({
+    mockUseFleetSessionsHistory.mockReturnValue({
       data: {
         instances: [
           {
@@ -131,6 +160,7 @@ describe('FleetSessionsPanel', () => {
       error: null,
       refetch: vi.fn(),
       isFetching: false,
+      historyDisabled: false,
     });
 
     renderPanel();
@@ -176,7 +206,7 @@ describe('FleetSessionsPanel', () => {
   it('disambiguates board card labels when one instance has multiple sessions', async () => {
     const user = userEvent.setup();
 
-    mockUseFleetSessions.mockReturnValue({
+    mockUseFleetSessionsHistory.mockReturnValue({
       data: {
         instances: [
           {
@@ -202,6 +232,7 @@ describe('FleetSessionsPanel', () => {
       error: null,
       refetch: vi.fn(),
       isFetching: false,
+      historyDisabled: false,
     });
 
     renderPanel();
@@ -217,7 +248,7 @@ describe('FleetSessionsPanel', () => {
   it('uses stable unique labels when the same instance has duplicate session titles', async () => {
     const user = userEvent.setup();
 
-    mockUseFleetSessions.mockReturnValue({
+    mockUseFleetSessionsHistory.mockReturnValue({
       data: {
         instances: [
           {
@@ -243,6 +274,7 @@ describe('FleetSessionsPanel', () => {
       error: null,
       refetch: vi.fn(),
       isFetching: false,
+      historyDisabled: false,
     });
 
     renderPanel();
@@ -253,5 +285,29 @@ describe('FleetSessionsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'alpha Repeated task run-2' }));
 
     expect(useAppStore.getState().activeView).toEqual({ type: 'instance', id: 'alpha' });
+  });
+
+  it('updates the URL when a filter chip is clicked', async () => {
+    const user = userEvent.setup();
+
+    renderPanel();
+    await user.click(screen.getByRole('button', { name: 'Active' }));
+
+    expect(window.location.search).toContain('status=active');
+  });
+
+  it('renders the disabled-history notice', () => {
+    mockUseFleetSessionsHistory.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+      isFetching: false,
+      historyDisabled: true,
+    });
+
+    renderPanel();
+
+    expect(screen.queryByText('Session history is disabled in server config.')).not.toBeNull();
   });
 });

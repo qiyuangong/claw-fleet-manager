@@ -120,6 +120,7 @@ const zh = {
   colLastMessage: '最新消息',
   colUpdated: '更新时间',
   noSessionsFilter: '没有符合筛选条件的会话。',
+  sessionHistoryDisabled: '服务器配置中未启用会话历史。',
 
   // Instance Panel
   instanceNotFound: '实例未找到',

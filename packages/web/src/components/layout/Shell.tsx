@@ -87,7 +87,10 @@ export function Shell() {
     }
 
     navigationSyncSourceRef.current = source;
-    navigationSyncExpectedUrlRef.current = serializeNavigationToUrl(navigationState);
+    navigationSyncExpectedUrlRef.current = serializeNavigationToUrl(
+      navigationState,
+      window.location.search,
+    );
     navigationSyncAppliedRef.current = false;
   };
 
@@ -102,7 +105,7 @@ export function Shell() {
 
     beginNavigationSync('hydrate', navigationState);
     applyNavigationState(navigationState);
-    window.history.replaceState({}, '', serializeNavigationToUrl(navigationState));
+    window.history.replaceState({}, '', serializeNavigationToUrl(navigationState, window.location.search));
     hydratedAuthKeyRef.current = authKey;
   }, [applyNavigationState, currentUser]);
 
@@ -134,7 +137,7 @@ export function Shell() {
   useEffect(() => {
     if (!currentUser) return;
 
-    const nextUrl = serializeNavigationToUrl({ activeView, activeTab });
+    const nextUrl = serializeNavigationToUrl({ activeView, activeTab }, window.location.search);
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     const expectedUrl = navigationSyncExpectedUrlRef.current;
 

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
+import { useUrlFilters } from '../../hooks/useUrlFilters';
 import { useTranslation } from 'react-i18next';
 import { useFleet } from '../../hooks/useFleet';
-import { useFleetSessions } from '../../hooks/useFleetSessions';
+import { useFleetSessionsHistory } from '../../hooks/useFleetSessionsHistory';
 import { Dashboard, type DashboardStatusFocus } from './Dashboard';
 import {
   buildFlatRows,
@@ -27,6 +28,17 @@ const TIME_FILTERS: { key: TimeFilter; labelKey: string }[] = [
 
 type FlatRowSessionStatus = ReturnType<typeof buildFlatRows>[number]['session']['status'];
 
+function timeFilterStart(timeFilter: TimeFilter, now: number): number | undefined {
+  if (timeFilter === 'all') return undefined;
+  if (timeFilter === 'today') {
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    return startOfDay.getTime();
+  }
+  if (timeFilter === '24h') return now - 86_400_000;
+  return now - 7 * 86_400_000;
+}
+
 function dashboardStatusBucket(status: FlatRowSessionStatus): DashboardStatusFocus {
   if (status === 'running') return 'running';
   if (status === 'done') return 'done';
@@ -38,11 +50,45 @@ function dashboardStatusBucket(status: FlatRowSessionStatus): DashboardStatusFoc
 export function FleetDashboardPanel() {
   const { t } = useTranslation();
   const { data: fleet } = useFleet();
-  const { data, isLoading, error, refetch, isFetching, dataUpdatedAt } = useFleetSessions();
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('24h');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFocus, setStatusFocus] = useState<DashboardStatusFocus>('all');
+  const { values, setFilter, setFilters } = useUrlFilters({
+    status: { key: 'status', defaultValue: 'all' as StatusFilter },
+    time: { key: 'time', defaultValue: '24h' as TimeFilter },
+    q: { key: 'q', defaultValue: '', debounceMs: 250 },
+    focus: { key: 'focus', defaultValue: 'all' as DashboardStatusFocus },
+    trend: { key: 'trend', defaultValue: '24h' as '24h' | '7d' },
+    instance: {
+      key: 'instance',
+      defaultValue: undefined as string | undefined,
+      parse: (value: string | null) => value ?? undefined,
+      serialize: (value: string | undefined) => value,
+    },
+  });
+  const statusFilter = values.status;
+  const timeFilter = values.time;
+  const searchQuery = values.q;
+  const statusFocus = values.focus;
+  const trendWindow = values.trend;
+  const [timeAnchor, setTimeAnchor] = useState(() => Date.now());
+
+  const query = useMemo(() => {
+    const from = timeFilterStart(timeFilter, timeAnchor);
+    return {
+      ...(from != null ? { from } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+      ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
+      ...(values.instance ? { instanceId: values.instance } : {}),
+      limit: 1000,
+    };
+  }, [searchQuery, statusFilter, timeAnchor, timeFilter, values.instance]);
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+    dataUpdatedAt,
+    historyDisabled,
+  } = useFleetSessionsHistory({ query });
 
   const allRows = useMemo(() => buildFlatRows(data?.instances ?? []), [data]);
   const dashboardRows = useMemo(() => {
@@ -126,7 +172,7 @@ export function FleetDashboardPanel() {
                   type="search"
                   className="activity-search-input"
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => setFilter('q', event.target.value)}
                   placeholder={t('activitySearchPlaceholder')}
                   aria-label={t('activitySearchLabel')}
                 />
@@ -134,7 +180,7 @@ export function FleetDashboardPanel() {
                   <button
                     type="button"
                     className="activity-search-clear"
-                    onClick={() => setSearchQuery('')}
+                    onClick={() => setFilter('q', '')}
                   >
                     {t('clear')}
                   </button>
@@ -146,7 +192,7 @@ export function FleetDashboardPanel() {
                     key={key}
                     type="button"
                     className={`filter-tab${statusFilter === key ? ' filter-tab--active' : ''}`}
-                    onClick={() => setStatusFilter(key)}
+                    onClick={() => setFilter('status', key)}
                   >
                     {t(labelKey as Parameters<typeof t>[0])}
                   </button>
@@ -158,7 +204,10 @@ export function FleetDashboardPanel() {
                     key={key}
                     type="button"
                     className={`filter-tab${timeFilter === key ? ' filter-tab--active' : ''}`}
-                    onClick={() => setTimeFilter(key)}
+                    onClick={() => {
+                      setTimeAnchor(Date.now());
+                      setFilter('time', key);
+                    }}
                   >
                     {t(labelKey as Parameters<typeof t>[0])}
                   </button>
@@ -172,27 +221,34 @@ export function FleetDashboardPanel() {
               instances={fleet?.instances ?? []}
               dataUpdatedAt={dataUpdatedAt}
               statusFocus={statusFocus}
-              onStatusFocusChange={setStatusFocus}
-              onSearchQueryChange={setSearchQuery}
+              onStatusFocusChange={(focus) => setFilter('focus', focus)}
+              onSearchQueryChange={(value) => setFilter('q', value)}
+              trendWindow={trendWindow}
+              onTrendWindowChange={(value) => setFilter('trend', value)}
             />
 
             <div className="activity-board-toolbar">
               <div className="activity-board-results">
                 <span className="activity-board-results-value">{filteredRows.length}</span>
                 <span className="activity-board-results-label">
-                  {t('activityResultsSummary', { shown: filteredRows.length, total: allRows.length })}
+                  {t('activityResultsSummary', {
+                    shown: filteredRows.length,
+                    total: data?.totalEstimate ?? allRows.length,
+                  })}
                 </span>
               </div>
               {hasActiveFilters ? (
                 <button
                   type="button"
                   className="secondary-button activity-board-reset"
-                  onClick={() => {
-                    setStatusFilter('all');
-                    setTimeFilter('24h');
-                    setStatusFocus('all');
-                    setSearchQuery('');
-                  }}
+                  onClick={() => setFilters({
+                    status: 'all',
+                    time: '24h',
+                    focus: 'all',
+                    q: '',
+                    trend: '24h',
+                    instance: undefined,
+                  })}
                 >
                   {t('activityResetFilters')}
                 </button>
@@ -201,7 +257,9 @@ export function FleetDashboardPanel() {
           </>
         )}
 
-        {isLoading ? (
+        {historyDisabled ? (
+          <p className="muted">{t('sessionHistoryDisabled')}</p>
+        ) : isLoading ? (
           <p className="muted">{t('loadingSessions')}</p>
         ) : error ? (
           <p className="error-text">{error instanceof Error ? error.message : String(error)}</p>

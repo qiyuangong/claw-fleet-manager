@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { FleetInstance } from '../../types';
 import {
@@ -103,6 +103,8 @@ export function Dashboard({
   statusFocus,
   onStatusFocusChange,
   onSearchQueryChange,
+  trendWindow,
+  onTrendWindowChange,
 }: {
   rows: FlatRow[];
   throughputRows: FlatRow[];
@@ -111,9 +113,10 @@ export function Dashboard({
   statusFocus: DashboardStatusFocus;
   onStatusFocusChange: (focus: DashboardStatusFocus) => void;
   onSearchQueryChange: (query: string) => void;
+  trendWindow: '24h' | '7d';
+  onTrendWindowChange: (value: '24h' | '7d') => void;
 }) {
   const { t } = useTranslation();
-  const [trendWindow, setTrendWindow] = useState<'24h' | '7d'>('24h');
 
   const totalSessions = rows.length;
   const runningSessions = rows.filter((row) => row.session.status === 'running').length;
@@ -319,7 +322,7 @@ export function Dashboard({
                   className={`dashboard-toggle-button${trendWindow === '24h' ? ' dashboard-toggle-button--active' : ''}`}
                   onClick={() => {
                     if (trendWindow !== '24h') {
-                      setTrendWindow('24h');
+                      onTrendWindowChange('24h');
                     }
                   }}
                 >
@@ -330,7 +333,7 @@ export function Dashboard({
                   className={`dashboard-toggle-button${trendWindow === '7d' ? ' dashboard-toggle-button--active' : ''}`}
                   onClick={() => {
                     if (trendWindow !== '7d') {
-                      setTrendWindow('7d');
+                      onTrendWindowChange('7d');
                     }
                   }}
                 >

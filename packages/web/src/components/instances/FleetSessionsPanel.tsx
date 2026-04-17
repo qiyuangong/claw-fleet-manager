@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store';
-import { useFleetSessions } from '../../hooks/useFleetSessions';
+import { useFleetSessionsHistory } from '../../hooks/useFleetSessionsHistory';
+import { useUrlFilters } from '../../hooks/useUrlFilters';
 import type { InstanceSessionRow } from '../../types';
 import { ActivityBoard } from './ActivityBoard';
 import {
@@ -52,6 +53,17 @@ const TIME_FILTERS: { key: TimeFilter; labelKey: string }[] = [
   { key: '7d', labelKey: 'timeFilter7d' },
   { key: 'all', labelKey: 'timeFilterAll' },
 ];
+
+function timeFilterStart(timeFilter: TimeFilter, now: number): number | undefined {
+  if (timeFilter === 'all') return undefined;
+  if (timeFilter === 'today') {
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    return startOfDay.getTime();
+  }
+  if (timeFilter === '24h') return now - 86_400_000;
+  return now - 7 * 86_400_000;
+}
 
 // ─── SessionRow component ────────────────────────────────────────────────────
 
@@ -203,16 +215,46 @@ function SessionsTable({ rows, errors, onSelectInstance, sortCol, sortDir, onSor
 
 export function FleetSessionsPanel() {
   const { t } = useTranslation();
-  const { data, isLoading, error, refetch, isFetching } = useFleetSessions();
   const selectInstance = useAppStore((state) => state.selectInstance);
+  const { values, setFilter, setFilters } = useUrlFilters({
+    status: { key: 'status', defaultValue: 'all' as StatusFilter },
+    time: { key: 'time', defaultValue: '24h' as TimeFilter },
+    q: { key: 'q', defaultValue: '', debounceMs: 250 },
+    instance: {
+      key: 'instance',
+      defaultValue: undefined as string | undefined,
+      parse: (value: string | null) => value ?? undefined,
+      serialize: (value: string | undefined) => value,
+    },
+  });
 
   const [viewMode, setViewMode] = useState<ActivityViewMode>('board');
   const [densityMode, setDensityMode] = useState<'comfortable' | 'dense'>('comfortable');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
-  const [searchQuery, setSearchQuery] = useState('');
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const statusFilter = values.status;
+  const timeFilter = values.time;
+  const searchQuery = values.q;
+  const [timeAnchor, setTimeAnchor] = useState(() => Date.now());
+
+  const historyQuery = useMemo(() => {
+    const from = timeFilterStart(timeFilter, timeAnchor);
+    return {
+      ...(from != null ? { from } : {}),
+      ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+      ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
+      ...(values.instance ? { instanceId: values.instance } : {}),
+      limit: 1000,
+    };
+  }, [searchQuery, statusFilter, timeAnchor, timeFilter, values.instance]);
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+    historyDisabled,
+  } = useFleetSessionsHistory({ query: historyQuery });
 
   function handleSort(col: SortCol) {
     if (sortCol === col) {
@@ -257,7 +299,7 @@ export function FleetSessionsPanel() {
   const boardColumns = useMemo(() => buildBoardColumns(filteredRows), [filteredRows]);
   const hasActiveFilters =
     statusFilter !== 'all' ||
-    timeFilter !== 'all' ||
+    timeFilter !== '24h' ||
     searchQuery.trim().length > 0;
 
   return (
@@ -339,7 +381,7 @@ export function FleetSessionsPanel() {
                 type="search"
                 className="activity-search-input"
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => setFilter('q', event.target.value)}
                 placeholder={t('activitySearchPlaceholder')}
                 aria-label={t('activitySearchLabel')}
               />
@@ -347,7 +389,7 @@ export function FleetSessionsPanel() {
                 <button
                   type="button"
                   className="activity-search-clear"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setFilter('q', '')}
                 >
                   {t('clear')}
                 </button>
@@ -359,7 +401,7 @@ export function FleetSessionsPanel() {
                   key={key}
                   type="button"
                   className={`filter-tab${statusFilter === key ? ' filter-tab--active' : ''}`}
-                  onClick={() => setStatusFilter(key)}
+                  onClick={() => setFilter('status', key)}
                 >
                   {t(labelKey as Parameters<typeof t>[0])}
                 </button>
@@ -371,7 +413,10 @@ export function FleetSessionsPanel() {
                   key={key}
                   type="button"
                   className={`filter-tab${timeFilter === key ? ' filter-tab--active' : ''}`}
-                  onClick={() => setTimeFilter(key)}
+                  onClick={() => {
+                    setTimeAnchor(Date.now());
+                    setFilter('time', key);
+                  }}
                 >
                   {t(labelKey as Parameters<typeof t>[0])}
                 </button>
@@ -385,7 +430,10 @@ export function FleetSessionsPanel() {
             <div className="activity-board-results">
               <span className="activity-board-results-value">{filteredRows.length}</span>
               <span className="activity-board-results-label">
-                {t('activityResultsSummary', { shown: filteredRows.length, total: allRows.length })}
+                {t('activityResultsSummary', {
+                  shown: filteredRows.length,
+                  total: data?.totalEstimate ?? allRows.length,
+                })}
               </span>
             </div>
             <div className="activity-board-chips" aria-label={t('activityBoardColumnsLabel')}>
@@ -403,11 +451,12 @@ export function FleetSessionsPanel() {
               <button
                 type="button"
                 className="secondary-button activity-board-reset"
-                onClick={() => {
-                  setStatusFilter('all');
-                  setTimeFilter('all');
-                  setSearchQuery('');
-                }}
+                onClick={() => setFilters({
+                  status: 'all',
+                  time: '24h',
+                  q: '',
+                  instance: undefined,
+                })}
               >
                 {t('activityResetFilters')}
               </button>
@@ -416,7 +465,9 @@ export function FleetSessionsPanel() {
         )}
 
         {/* Body */}
-        {isLoading ? (
+        {historyDisabled ? (
+          <p className="muted">{t('sessionHistoryDisabled')}</p>
+        ) : isLoading ? (
           <p className="muted">{t('loadingSessions')}</p>
         ) : error ? (
           <p className="error-text">{error instanceof Error ? error.message : String(error)}</p>

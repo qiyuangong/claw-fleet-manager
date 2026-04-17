@@ -63,4 +63,16 @@ describe('navigation codec', () => {
       }),
     ).toBe('/?view=users');
   });
+
+  it('preserves unrelated search params when updating navigation state', () => {
+    expect(
+      serializeNavigationToUrl(
+        {
+          activeView: { type: 'sessions' },
+          activeTab: 'overview',
+        },
+        '?status=done&q=alpha',
+      ),
+    ).toBe('/?status=done&q=alpha&view=sessions');
+  });
 });

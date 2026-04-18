@@ -191,6 +191,38 @@ describe('GET /api/fleet/sessions/history', () => {
     expect(service.countSessions).not.toHaveBeenCalled();
   });
 
+  it('skips countSessions and omits totalEstimate when a cursor is supplied', async () => {
+    const service = {
+      listSessions: vi.fn().mockReturnValue({
+        instances: [
+          {
+            instanceId: 'alpha',
+            sessions: [{ key: 'run-1', status: 'running', updatedAt: 10_000 }],
+          },
+        ],
+      }),
+      countSessions: vi.fn(),
+    };
+
+    const app = Fastify();
+    apps.push(app);
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
+    await app.register((instance) => sessionHistoryRoutes(instance, { sessionHistory: service as SessionHistoryService }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/fleet/sessions/history?cursor=eyJ0IjoxMDAwMH0%3D',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ totalEstimate?: number }>();
+    expect(body.totalEstimate).toBeUndefined();
+    expect(service.countSessions).not.toHaveBeenCalled();
+  });
+
   it('returns totalEstimate even when the value is zero', async () => {
     const service = {
       listSessions: vi.fn().mockReturnValue({ instances: [] }),

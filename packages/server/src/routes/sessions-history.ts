@@ -110,13 +110,15 @@ export async function sessionHistoryRoutes(
 
     try {
       const page = options.sessionHistory.listSessions(request.query);
-      const totalEstimate = options.sessionHistory.countSessions(request.query);
+      const totalEstimate = request.query.cursor === undefined
+        ? options.sessionHistory.countSessions(request.query)
+        : undefined;
 
       return {
         instances: page.instances,
         updatedAt: Date.now(),
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
-        totalEstimate,
+        ...(totalEstimate !== undefined ? { totalEstimate } : {}),
       };
     } catch (error) {
       if (error instanceof InvalidSessionHistoryCursorError) {

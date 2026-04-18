@@ -11,7 +11,7 @@ import type {
 import { useAppStore } from '../store';
 
 const PAGE_LIMIT_CAP = 1000;
-const MAX_PAGES = 10;
+const MAX_PAGES = 50;
 
 function visibleRefetchInterval(intervalMs: number): number | false {
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {

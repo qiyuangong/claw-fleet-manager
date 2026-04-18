@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError } from '../api/client';
 import { getFleetSessions, getFleetSessionsHistory } from '../api/fleet';
@@ -149,29 +149,38 @@ export function useFleetSessionsHistory(options: UseFleetSessionsHistoryOptions)
 
   const liveQuery = useQuery({
     queryKey: ['fleetSessionsHistoryFallback', liveStatusFromHistoryStatus(options.query.status)],
-    queryFn: async (): Promise<FleetSessionsHistoryResult> => {
-      const live = await getFleetSessions({
-        status: liveStatusFromHistoryStatus(options.query.status),
-        previewLimit: 0,
-      });
-      const instances = applyClientFilters(live.instances, options.query);
-      return {
-        instances,
-        updatedAt: live.updatedAt,
-      };
-    },
+    queryFn: () => getFleetSessions({
+      status: liveStatusFromHistoryStatus(options.query.status),
+      previewLimit: 0,
+    }),
     enabled: isAdmin && enabled && historyUnavailable,
     retry: false,
     refetchInterval: () => visibleRefetchInterval(refetchIntervalMs),
   });
 
-  const active = historyUnavailable ? liveQuery : historyQuery;
+  const filteredLiveData = useMemo<FleetSessionsHistoryResult | undefined>(() => {
+    if (!liveQuery.data) return undefined;
+    return {
+      instances: applyClientFilters(liveQuery.data.instances, options.query),
+      updatedAt: liveQuery.data.updatedAt,
+    };
+  }, [liveQuery.data, options.query]);
+
   const is404 = historyQuery.error instanceof ApiError && historyQuery.error.status === 404;
   const isFallback = historyUnavailable || is404;
 
+  if (isFallback) {
+    return {
+      ...liveQuery,
+      data: filteredLiveData,
+      historyDisabled: liveQuery.isError,
+      isFallback,
+    };
+  }
+
   return {
-    ...active,
-    historyDisabled: isFallback && liveQuery.isError,
+    ...historyQuery,
+    historyDisabled: false,
     isFallback,
   };
 }

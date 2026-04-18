@@ -358,4 +358,43 @@ describe('SessionCollector', () => {
 
     collector.stop();
   });
+
+  it('treats keys at the exact retention cutoff as expired', async () => {
+    const history = createHistoryRecorder();
+    let now = new Date('2026-04-17T00:00:00.000Z').getTime();
+    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
+      getCachedStatus: vi.fn().mockReturnValue({
+        instances: [runningInstance('alpha')],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      }),
+      revealToken: vi.fn().mockResolvedValue('alpha-token'),
+    };
+    const fetchSessions = vi
+      .fn()
+      .mockResolvedValue([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow]);
+    const collector = new SessionCollector({
+      backend,
+      history,
+      collectIntervalMs: 999_999,
+      activeMinutes: 180,
+      retentionDays: 0,
+      fetchSessions,
+      log: { warn: vi.fn() } as { warn: () => void },
+      now: () => now,
+    });
+
+    await collector.start();
+    expect(history.upsertCalls).toHaveLength(1);
+
+    await collector.tick();
+    expect(history.upsertCalls).toHaveLength(2);
+    expect(history.upsertCalls[1]).toEqual({
+      instanceId: 'alpha',
+      seenAt: now,
+      sessions: [{ key: 'done-1', status: 'done' }],
+    });
+
+    collector.stop();
+  });
 });

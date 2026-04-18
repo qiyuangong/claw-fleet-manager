@@ -131,7 +131,7 @@ export class SessionCollector {
   private pruneTerminalKeys(now: number) {
     const cutoff = now - this.options.retentionDays * DAY_MS;
     for (const [key, lastSeenAt] of this.terminalKeys) {
-      if (lastSeenAt < cutoff) {
+      if (lastSeenAt <= cutoff) {
         this.terminalKeys.delete(key);
       }
     }

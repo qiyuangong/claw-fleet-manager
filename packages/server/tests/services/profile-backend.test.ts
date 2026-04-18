@@ -681,11 +681,12 @@ describe('ProfileBackend — runtime env', () => {
 
     expect(childProcess.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/openclaw$/),
-      ['--profile', 'main', 'gateway', '--port', '18789'],
+      ['--profile', 'main', 'gateway', 'run', '--port', '18789'],
       expect.objectContaining({
         env: expect.objectContaining({
           OPENCLAW_CONFIG_PATH: '/custom/configs/main/openclaw.json',
           OPENCLAW_STATE_DIR: '/custom/states/main',
+          OPENCLAW_DISABLE_BONJOUR: '1',
         }),
       }),
     );
@@ -720,7 +721,7 @@ describe('ProfileBackend — runtime env', () => {
     expect(fs.openSync).toHaveBeenCalledWith('/tmp/fleet/logs/main.log', 'a');
     expect(childProcess.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/openclaw$/),
-      ['--profile', 'main', 'gateway', '--port', '18789'],
+      ['--profile', 'main', 'gateway', 'run', '--port', '18789'],
       expect.objectContaining({
         detached: true,
         stdio: ['ignore', 88, 88],
@@ -737,6 +738,7 @@ describe('ProfileBackend — runtime env', () => {
     });
     expect(env.OPENCLAW_CONFIG_PATH).toBe('/custom/configs/main/openclaw.json');
     expect(env.OPENCLAW_STATE_DIR).toBe('/custom/states/main');
+    expect(env.OPENCLAW_DISABLE_BONJOUR).toBe('1');
   });
 
   it('builds gateway command args with the managed profile port and token auth', async () => {

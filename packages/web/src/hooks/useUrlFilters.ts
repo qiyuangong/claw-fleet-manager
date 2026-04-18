@@ -8,6 +8,10 @@ type FilterDefinition<T> = {
   debounceMs?: number;
 };
 
+export function enumParser<T extends string>(allowed: readonly T[], fallback: T): (value: string | null) => T {
+  return (value) => (value != null && (allowed as readonly string[]).includes(value) ? (value as T) : fallback);
+}
+
 type FilterDefinitions<T extends Record<string, unknown>> = {
   [K in keyof T]: FilterDefinition<T[K]>;
 };

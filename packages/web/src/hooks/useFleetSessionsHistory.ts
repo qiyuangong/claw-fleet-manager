@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ApiError } from '../api/client';
 import { getFleetSessions, getFleetSessionsHistory } from '../api/fleet';
 import type {
@@ -39,6 +39,7 @@ async function fetchAllHistoryPages(
   query: FleetSessionsHistoryQuery,
 ): Promise<FleetSessionsHistoryResult> {
   const pageLimit = Math.min(query.limit ?? PAGE_LIMIT_CAP, PAGE_LIMIT_CAP);
+  const upperBound = query.to ?? Date.now();
   const merged = new Map<string, InstanceSessionsEntry>();
   let cursor = query.cursor;
   let updatedAt = Date.now();
@@ -48,6 +49,7 @@ async function fetchAllHistoryPages(
   while (pages < MAX_PAGES) {
     const page = await getFleetSessionsHistory({
       ...query,
+      to: upperBound,
       limit: pageLimit,
       ...(cursor ? { cursor } : {}),
     });
@@ -144,6 +146,7 @@ export function useFleetSessionsHistory(options: UseFleetSessionsHistoryOptions)
     },
     enabled: isAdmin && enabled && !historyUnavailable,
     retry: false,
+    placeholderData: keepPreviousData,
     refetchInterval: () => visibleRefetchInterval(refetchIntervalMs),
   });
 
@@ -155,6 +158,7 @@ export function useFleetSessionsHistory(options: UseFleetSessionsHistoryOptions)
     }),
     enabled: isAdmin && enabled && historyUnavailable,
     retry: false,
+    placeholderData: keepPreviousData,
     refetchInterval: () => visibleRefetchInterval(refetchIntervalMs),
   });
 

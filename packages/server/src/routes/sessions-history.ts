@@ -116,7 +116,7 @@ export async function sessionHistoryRoutes(
         instances: page.instances,
         updatedAt: Date.now(),
         ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
-        ...(totalEstimate > 0 ? { totalEstimate } : {}),
+        totalEstimate,
       };
     } catch (error) {
       if (error instanceof InvalidSessionHistoryCursorError) {

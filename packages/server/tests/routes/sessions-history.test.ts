@@ -190,6 +190,33 @@ describe('GET /api/fleet/sessions/history', () => {
     });
     expect(service.countSessions).not.toHaveBeenCalled();
   });
+
+  it('returns totalEstimate even when the value is zero', async () => {
+    const service = {
+      listSessions: vi.fn().mockReturnValue({ instances: [] }),
+      countSessions: vi.fn().mockReturnValue(0),
+    };
+
+    const app = Fastify();
+    apps.push(app);
+    app.addHook('onRequest', async (request) => {
+      (request as any).user = { username: 'admin', role: 'admin', assignedProfiles: [] };
+    });
+    await app.register((instance) => sessionHistoryRoutes(instance, { sessionHistory: service as SessionHistoryService }));
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/fleet/sessions/history',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      instances: [],
+      updatedAt: expect.any(Number),
+      totalEstimate: 0,
+    });
+  });
 });
 
 describe('GET /api/fleet/sessions/history auth and disabled cases', () => {

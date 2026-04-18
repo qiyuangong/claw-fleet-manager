@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useUrlFilters } from '../../hooks/useUrlFilters';
+import { useEffect, useMemo, useState } from 'react';
+import { enumParser, useUrlFilters } from '../../hooks/useUrlFilters';
 import { useTranslation } from 'react-i18next';
 import { useFleet } from '../../hooks/useFleet';
 import { useFleetSessionsHistory } from '../../hooks/useFleetSessionsHistory';
@@ -26,6 +26,11 @@ const TIME_FILTERS: { key: TimeFilter; labelKey: string }[] = [
   { key: 'all', labelKey: 'timeFilterAll' },
 ];
 
+const STATUS_FILTER_VALUES: readonly StatusFilter[] = ['all', 'active', 'done', 'error'];
+const TIME_FILTER_VALUES: readonly TimeFilter[] = ['today', '24h', '7d', 'all'];
+const DASHBOARD_FOCUS_VALUES: readonly DashboardStatusFocus[] = ['all', 'running', 'done', 'failed', 'killedTimeout', 'other'];
+const TREND_WINDOW_VALUES: readonly ('24h' | '7d')[] = ['24h', '7d'];
+
 type FlatRowSessionStatus = ReturnType<typeof buildFlatRows>[number]['session']['status'];
 
 function timeFilterStart(timeFilter: TimeFilter, now: number): number | undefined {
@@ -37,6 +42,10 @@ function timeFilterStart(timeFilter: TimeFilter, now: number): number | undefine
   }
   if (timeFilter === '24h') return now - 86_400_000;
   return now - 7 * 86_400_000;
+}
+
+function trendWindowStart(trend: '24h' | '7d', now: number): number {
+  return trend === '7d' ? now - 7 * 86_400_000 : now - 86_400_000;
 }
 
 function dashboardStatusBucket(status: FlatRowSessionStatus): DashboardStatusFocus {
@@ -51,11 +60,27 @@ export function FleetDashboardPanel() {
   const { t } = useTranslation();
   const { data: fleet } = useFleet();
   const { values, setFilter, setFilters } = useUrlFilters({
-    status: { key: 'status', defaultValue: 'all' as StatusFilter },
-    time: { key: 'time', defaultValue: '24h' as TimeFilter },
+    status: {
+      key: 'status',
+      defaultValue: 'all' as StatusFilter,
+      parse: enumParser(STATUS_FILTER_VALUES, 'all'),
+    },
+    time: {
+      key: 'time',
+      defaultValue: '24h' as TimeFilter,
+      parse: enumParser(TIME_FILTER_VALUES, '24h'),
+    },
     q: { key: 'q', defaultValue: '', debounceMs: 250 },
-    focus: { key: 'focus', defaultValue: 'all' as DashboardStatusFocus },
-    trend: { key: 'trend', defaultValue: '24h' as '24h' | '7d' },
+    focus: {
+      key: 'focus',
+      defaultValue: 'all' as DashboardStatusFocus,
+      parse: enumParser(DASHBOARD_FOCUS_VALUES, 'all'),
+    },
+    trend: {
+      key: 'trend',
+      defaultValue: '24h' as '24h' | '7d',
+      parse: enumParser(TREND_WINDOW_VALUES, '24h'),
+    },
     instance: {
       key: 'instance',
       defaultValue: undefined as string | undefined,
@@ -68,18 +93,32 @@ export function FleetDashboardPanel() {
   const searchQuery = values.q;
   const statusFocus = values.focus;
   const trendWindow = values.trend;
-  const [timeAnchor, setTimeAnchor] = useState(() => Date.now());
+  const [clockSeed, setClockSeed] = useState(() => Date.now());
+  const [debouncedSearch, setDebouncedSearch] = useState(() => values.q);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClockSeed(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedSearch(values.q), 250);
+    return () => window.clearTimeout(id);
+  }, [values.q]);
 
   const query = useMemo(() => {
-    const from = timeFilterStart(timeFilter, timeAnchor);
+    const filterFrom = timeFilterStart(timeFilter, clockSeed);
+    const trendFrom = trendWindowStart(trendWindow, clockSeed);
+    const from = filterFrom === undefined ? undefined : Math.min(filterFrom, trendFrom);
+    const trimmedSearch = debouncedSearch.trim();
     return {
       ...(from != null ? { from } : {}),
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-      ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
+      ...(trimmedSearch ? { q: trimmedSearch } : {}),
       ...(values.instance ? { instanceId: values.instance } : {}),
       limit: 1000,
     };
-  }, [searchQuery, statusFilter, timeAnchor, timeFilter, values.instance]);
+  }, [clockSeed, debouncedSearch, statusFilter, timeFilter, trendWindow, values.instance]);
   const {
     data,
     isLoading,
@@ -205,7 +244,7 @@ export function FleetDashboardPanel() {
                     type="button"
                     className={`filter-tab${timeFilter === key ? ' filter-tab--active' : ''}`}
                     onClick={() => {
-                      setTimeAnchor(Date.now());
+                      setClockSeed(Date.now());
                       setFilter('time', key);
                     }}
                   >

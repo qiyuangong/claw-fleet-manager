@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppStore } from '../../store';
 import { useFleetSessionsHistory } from '../../hooks/useFleetSessionsHistory';
-import { useUrlFilters } from '../../hooks/useUrlFilters';
+import { enumParser, useUrlFilters } from '../../hooks/useUrlFilters';
 import type { InstanceSessionRow } from '../../types';
 import { ActivityBoard } from './ActivityBoard';
 import {
@@ -53,6 +53,9 @@ const TIME_FILTERS: { key: TimeFilter; labelKey: string }[] = [
   { key: '7d', labelKey: 'timeFilter7d' },
   { key: 'all', labelKey: 'timeFilterAll' },
 ];
+
+const STATUS_FILTER_VALUES: readonly StatusFilter[] = ['all', 'active', 'done', 'error'];
+const TIME_FILTER_VALUES: readonly TimeFilter[] = ['today', '24h', '7d', 'all'];
 
 function timeFilterStart(timeFilter: TimeFilter, now: number): number | undefined {
   if (timeFilter === 'all') return undefined;
@@ -217,8 +220,16 @@ export function FleetSessionsPanel() {
   const { t } = useTranslation();
   const selectInstance = useAppStore((state) => state.selectInstance);
   const { values, setFilter, setFilters } = useUrlFilters({
-    status: { key: 'status', defaultValue: 'all' as StatusFilter },
-    time: { key: 'time', defaultValue: '24h' as TimeFilter },
+    status: {
+      key: 'status',
+      defaultValue: 'all' as StatusFilter,
+      parse: enumParser(STATUS_FILTER_VALUES, 'all'),
+    },
+    time: {
+      key: 'time',
+      defaultValue: '24h' as TimeFilter,
+      parse: enumParser(TIME_FILTER_VALUES, '24h'),
+    },
     q: { key: 'q', defaultValue: '', debounceMs: 250 },
     instance: {
       key: 'instance',
@@ -235,18 +246,30 @@ export function FleetSessionsPanel() {
   const statusFilter = values.status;
   const timeFilter = values.time;
   const searchQuery = values.q;
-  const [timeAnchor, setTimeAnchor] = useState(() => Date.now());
+  const [clockSeed, setClockSeed] = useState(() => Date.now());
+  const [debouncedSearch, setDebouncedSearch] = useState(() => values.q);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setClockSeed(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedSearch(values.q), 250);
+    return () => window.clearTimeout(id);
+  }, [values.q]);
 
   const historyQuery = useMemo(() => {
-    const from = timeFilterStart(timeFilter, timeAnchor);
+    const from = timeFilterStart(timeFilter, clockSeed);
+    const trimmedSearch = debouncedSearch.trim();
     return {
       ...(from != null ? { from } : {}),
       ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-      ...(searchQuery.trim() ? { q: searchQuery.trim() } : {}),
+      ...(trimmedSearch ? { q: trimmedSearch } : {}),
       ...(values.instance ? { instanceId: values.instance } : {}),
       limit: 1000,
     };
-  }, [searchQuery, statusFilter, timeAnchor, timeFilter, values.instance]);
+  }, [clockSeed, debouncedSearch, statusFilter, timeFilter, values.instance]);
   const {
     data,
     isLoading,
@@ -414,7 +437,7 @@ export function FleetSessionsPanel() {
                   type="button"
                   className={`filter-tab${timeFilter === key ? ' filter-tab--active' : ''}`}
                   onClick={() => {
-                    setTimeAnchor(Date.now());
+                    setClockSeed(Date.now());
                     setFilter('time', key);
                   }}
                 >

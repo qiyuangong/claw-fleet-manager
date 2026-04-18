@@ -79,6 +79,7 @@ export class SessionCollector {
       const nextSessions = sessions.filter((session) => {
         const key = `${instance.id}:${session.key}`;
         if (this.terminalKeys.has(key)) {
+          this.terminalKeys.set(key, now);
           return false;
         }
         return true;

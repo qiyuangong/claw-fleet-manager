@@ -268,7 +268,7 @@ describe('SessionCollector', () => {
     const fetchSessions = vi
       .fn()
       .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow])
-      .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow]);
     const collector = new SessionCollector({
       backend,
@@ -322,7 +322,7 @@ describe('SessionCollector', () => {
     const fetchSessions = vi
       .fn()
       .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow])
-      .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow]);
     const warn = vi.fn();
     const collector = new SessionCollector({
@@ -355,6 +355,55 @@ describe('SessionCollector', () => {
       sessions: [{ key: 'done-1', status: 'done' }],
     });
     expect(warn).toHaveBeenCalledWith('Failed to prune session history', expect.any(Error));
+
+    collector.stop();
+  });
+
+  it('refreshes terminal key age when terminal sessions are repeatedly observed', async () => {
+    const history = createHistoryRecorder();
+    let now = new Date('2026-04-17T00:00:00.000Z').getTime();
+    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
+      getCachedStatus: vi.fn().mockReturnValue({
+        instances: [runningInstance('alpha')],
+        totalRunning: 1,
+        updatedAt: Date.now(),
+      }),
+      revealToken: vi.fn().mockResolvedValue('alpha-token'),
+    };
+    const fetchSessions = vi
+      .fn()
+      .mockResolvedValue([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow]);
+    const collector = new SessionCollector({
+      backend,
+      history,
+      collectIntervalMs: 999_999,
+      activeMinutes: 180,
+      retentionDays: 1,
+      fetchSessions,
+      log: { warn: vi.fn() } as { warn: () => void },
+      now: () => now,
+    });
+
+    await collector.start();
+    expect(history.upsertCalls).toHaveLength(1);
+
+    now += 24 * 60 * 60 * 1000 + 30_000;
+    await collector.tick();
+    expect(history.upsertCalls).toHaveLength(2);
+    expect(history.upsertCalls[1]).toEqual({
+      instanceId: 'alpha',
+      seenAt: now,
+      sessions: [],
+    });
+
+    now += 30_000;
+    await collector.tick();
+    expect(history.upsertCalls).toHaveLength(3);
+    expect(history.upsertCalls[2]).toEqual({
+      instanceId: 'alpha',
+      seenAt: now,
+      sessions: [],
+    });
 
     collector.stop();
   });

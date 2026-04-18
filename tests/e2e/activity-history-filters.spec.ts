@@ -150,7 +150,7 @@ test('history filters pre-apply from URL and update in place', async ({ page }) 
   await mountHistoryView(page);
 
   await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
-  await expect(page.getByRole('searchbox', { name: 'Search instance, session, model, or preview' })).toHaveValue('alpha');
+  await expect(page.getByRole('searchbox', { name: 'Search activity sessions' })).toHaveValue('alpha');
   await expect(page.getByText('Alpha completed')).toBeVisible();
 
   await page.getByRole('button', { name: 'Active' }).click();

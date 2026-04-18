@@ -254,6 +254,45 @@ describe('SessionHistoryService', () => {
     ]);
   });
 
+  it('matches q against instance_id and label fields', () => {
+    const { dir, service } = createService();
+
+    service.upsertSessions({
+      instanceId: 'customer-acme',
+      seenAt: 10_000,
+      sessions: [
+        makeSession({
+          key: 'run-1',
+          derivedTitle: null as unknown as string,
+          displayName: null as unknown as string,
+          label: 'Quarterly review',
+          lastMessagePreview: 'ignore me',
+        }),
+      ],
+    });
+    service.upsertSessions({
+      instanceId: 'customer-other',
+      seenAt: 20_000,
+      sessions: [
+        makeSession({
+          key: 'run-2',
+          derivedTitle: 'Generic title',
+          label: 'Generic label',
+          lastMessagePreview: 'generic preview',
+        }),
+      ],
+    });
+
+    const byInstance = service.listSessions(collectQuery({ q: 'acme' }));
+    const byLabel = service.listSessions(collectQuery({ q: 'quarterly' }));
+
+    service.close();
+    rmSync(dir, { recursive: true, force: true });
+
+    expect(byInstance.instances.map((entry) => entry.instanceId)).toEqual(['customer-acme']);
+    expect(byLabel.instances.map((entry) => entry.instanceId)).toEqual(['customer-acme']);
+  });
+
   it('prunes rows older than the retention cutoff', () => {
     const { dir, service } = createService();
 

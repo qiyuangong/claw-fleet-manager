@@ -166,7 +166,9 @@ function buildWhereClause(query: SessionHistoryListQuery, includeCursor: boolean
   if (query.q?.trim()) {
     params.search = `%${query.q.trim()}%`;
     clauses.push(`(
-      session_key LIKE @search COLLATE NOCASE
+      instance_id LIKE @search COLLATE NOCASE
+      OR session_key LIKE @search COLLATE NOCASE
+      OR label LIKE @search COLLATE NOCASE
       OR display_name LIKE @search COLLATE NOCASE
       OR derived_title LIKE @search COLLATE NOCASE
       OR model LIKE @search COLLATE NOCASE

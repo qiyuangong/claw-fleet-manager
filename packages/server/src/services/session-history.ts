@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import Database, { type Database as DatabaseType, type Statement } from 'better-sqlite3';
 import type { InstanceSessionRow } from './openclaw-client.js';
+import { InvalidSessionHistoryCursorError } from './session-history-errors.js';
 
 const CURRENT_USER_VERSION = 1;
 const TERMINAL_STATUSES = new Set(['done', 'failed', 'killed', 'timeout']);
@@ -55,13 +56,6 @@ type SessionCursor = {
   instanceId: string;
   sessionKey: string;
 };
-
-export class InvalidSessionHistoryCursorError extends Error {
-  constructor(message = 'Invalid cursor') {
-    super(message);
-    this.name = 'InvalidSessionHistoryCursorError';
-  }
-}
 
 type ExistingStatusRow = {
   status: string;

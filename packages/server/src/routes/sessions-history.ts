@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAdmin } from '../authorize.js';
 import { errorResponseSchema } from '../schemas.js';
+import { InvalidSessionHistoryCursorError } from '../services/session-history-errors.js';
 import {
-  InvalidSessionHistoryCursorError,
   type SessionHistoryListQuery,
   type SessionHistoryService,
 } from '../services/session-history.js';

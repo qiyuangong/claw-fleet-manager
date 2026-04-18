@@ -1,12 +1,8 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('better-sqlite3', () => ({
-  default: class MockDatabase {},
-}), { virtual: true });
-
 import { sessionHistoryRoutes } from '../../src/routes/sessions-history.js';
-import { InvalidSessionHistoryCursorError } from '../../src/services/session-history.js';
+import { InvalidSessionHistoryCursorError } from '../../src/services/session-history-errors.js';
 import type { SessionHistoryService } from '../../src/services/session-history.js';
 
 describe('GET /api/fleet/sessions/history', () => {

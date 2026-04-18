@@ -37,6 +37,7 @@ type SessionPreviewResponse = {
 type FetchInstanceSessionsOptions = {
   status?: InstanceSessionRow['status'];
   previewLimit?: number;
+  activeMinutes?: number;
 };
 
 type ResFrame = { type: 'res'; id: string; ok: boolean; payload?: unknown; error?: { code: string; message: string } };
@@ -216,7 +217,11 @@ export async function fetchInstanceSessions(
             // sessions active within the last hour
             const result = await request<{ sessions?: InstanceSessionRow[] }>(
               'sessions.list',
-              { activeMinutes: 60, includeDerivedTitles: true, includeLastMessage: true },
+              {
+                activeMinutes: options?.activeMinutes ?? 60,
+                includeDerivedTitles: true,
+                includeLastMessage: true,
+              },
             );
             let sessions = result?.sessions ?? [];
 

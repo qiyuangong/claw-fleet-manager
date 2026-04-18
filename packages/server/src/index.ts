@@ -16,6 +16,7 @@ import { logRoutes } from './routes/logs.js';
 import { migrateRoutes } from './routes/migrate.js';
 import { pluginRoutes } from './routes/plugins.js';
 import { sessionRoutes } from './routes/sessions.js';
+import { sessionHistoryRoutes } from './routes/sessions-history.js';
 import { userRoutes } from './routes/users.js';
 import { proxyRoutes } from './routes/proxy.js';
 import type { DeploymentBackend } from './services/backend.js';
@@ -25,6 +26,8 @@ import { HybridBackend } from './services/hybrid-backend.js';
 import { ProfileBackend } from './services/profile-backend.js';
 import { DockerService } from './services/docker.js';
 import { FleetConfigService } from './services/fleet-config.js';
+import { SessionCollector } from './services/session-collector.js';
+import { SessionHistoryService } from './services/session-history.js';
 import { UserService } from './services/user.js';
 import { TailscaleService } from './services/tailscale.js';
 import { execFile } from 'node:child_process';
@@ -162,11 +165,33 @@ if (existsSync(webDist)) {
 app.server.on('connection', (socket) => { socket.on('error', () => {}); });
 
 // ── Startup ──────────────────────────────────────────────────────────────────
+let sessionHistoryService: SessionHistoryService | null = null;
+let sessionCollector: SessionCollector | null = null;
+
 await backend.initialize();
+if (config.sessionHistory.enabled) {
+  sessionHistoryService = new SessionHistoryService({
+    dbPath: join(config.fleetDir, 'sessions.sqlite'),
+  });
+  sessionCollector = new SessionCollector({
+    backend,
+    history: sessionHistoryService,
+    collectIntervalMs: config.sessionHistory.collectIntervalMs,
+    activeMinutes: config.sessionHistory.activeMinutes,
+    retentionDays: config.sessionHistory.retentionDays,
+    log: app.log,
+  });
+  await sessionCollector.start();
+  await app.register((instance) =>
+    sessionHistoryRoutes(instance, { sessionHistory: sessionHistoryService! }),
+  );
+}
 
 async function shutdown(signal: string) {
   console.log(`Received ${signal}, shutting down...`);
+  sessionCollector?.stop();
   await backend.shutdown();
+  sessionHistoryService?.close();
   await app.close();
   process.exit(0);
 }

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { describe, it, expect, afterEach } from 'vitest';
 import { WebSocketServer } from 'ws';
 import { fetchInstanceSessions } from '../../src/services/openclaw-client.js';
@@ -29,6 +30,13 @@ const FIXTURE_PREVIEWS = [
 
 const PORT = 19_999;
 let wss: WebSocketServer | undefined;
+const SUPPORTS_WS_SERVER = spawnSync(process.execPath, ['-e', `
+  const net = require('node:net');
+  const server = net.createServer();
+  server.once('error', () => process.exit(1));
+  server.listen(0, '127.0.0.1', () => server.close(() => process.exit(0)));
+`]).status === 0;
+const networkIt = SUPPORTS_WS_SERVER ? it : it.skip;
 
 afterEach(
   () =>
@@ -48,7 +56,7 @@ function makeServer(
     sessionsListDelayMs?: number;
   } = {},
 ) {
-  const server = new WebSocketServer({ port: PORT });
+  const server = new WebSocketServer({ port: PORT, host: '127.0.0.1' });
   server.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'n' } }));
     if (opts.silentAfterChallenge) return;
@@ -80,7 +88,7 @@ function makeServer(
 }
 
 describe('fetchInstanceSessions', () => {
-  it('returns sessions from a healthy instance', async () => {
+  networkIt('returns sessions from a healthy instance', async () => {
     wss = makeServer();
     const sessions = await fetchInstanceSessions(PORT, 'valid-token');
     expect(sessions).toHaveLength(1);
@@ -88,8 +96,8 @@ describe('fetchInstanceSessions', () => {
     expect(sessions[0].status).toBe('running');
   });
 
-  it('returns empty array when payload has no sessions field', async () => {
-    wss = new WebSocketServer({ port: PORT });
+  networkIt('returns empty array when payload has no sessions field', async () => {
+    wss = new WebSocketServer({ port: PORT, host: '127.0.0.1' });
     wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'event', event: 'connect.challenge' }));
       ws.on('message', (raw: Buffer) => {
@@ -103,7 +111,7 @@ describe('fetchInstanceSessions', () => {
     expect(sessions).toEqual([]);
   });
 
-  it('filters by status and merges bounded preview items when requested', async () => {
+  networkIt('filters by status and merges bounded preview items when requested', async () => {
     wss = makeServer();
     const sessions = await fetchInstanceSessions(PORT, 'valid-token', 5_000, { status: 'running', previewLimit: 2 });
     expect(sessions).toHaveLength(1);
@@ -113,7 +121,7 @@ describe('fetchInstanceSessions', () => {
     ]);
   });
 
-  it('falls back to last-message sessions when preview connect needs admin scope', async () => {
+  networkIt('falls back to last-message sessions when preview connect needs admin scope', async () => {
     wss = makeServer({ rejectPreviewConnect: true });
     const sessions = await fetchInstanceSessions(PORT, 'valid-token', 5_000, { status: 'running', previewLimit: 2 });
     expect(sessions).toHaveLength(1);
@@ -121,7 +129,7 @@ describe('fetchInstanceSessions', () => {
     expect(sessions[0].previewItems).toBeUndefined();
   });
 
-  it('falls back to last-message sessions when preview request times out', async () => {
+  networkIt('falls back to last-message sessions when preview request times out', async () => {
     wss = makeServer({ silentPreview: true });
     const sessions = await fetchInstanceSessions(PORT, 'valid-token', 300, { status: 'running', previewLimit: 2 });
     expect(sessions).toHaveLength(1);
@@ -129,7 +137,7 @@ describe('fetchInstanceSessions', () => {
     expect(sessions[0].previewItems).toBeUndefined();
   });
 
-  it('does not let preview fallback trip the base fetch timeout after sessions list succeeds', async () => {
+  networkIt('does not let preview fallback trip the base fetch timeout after sessions list succeeds', async () => {
     wss = makeServer({ sessionsListDelayMs: 220, silentPreview: true });
     const sessions = await fetchInstanceSessions(PORT, 'valid-token', 300, { status: 'running', previewLimit: 2 });
     expect(sessions).toHaveLength(1);
@@ -137,12 +145,12 @@ describe('fetchInstanceSessions', () => {
     expect(sessions[0].previewItems).toBeUndefined();
   });
 
-  it('rejects when connect is refused', async () => {
+  networkIt('rejects when connect is refused', async () => {
     wss = makeServer({ rejectConnect: true });
     await expect(fetchInstanceSessions(PORT, 'bad-token')).rejects.toThrow('bad token');
   });
 
-  it('rejects on timeout', async () => {
+  networkIt('rejects on timeout', async () => {
     wss = makeServer({ silentAfterChallenge: true });
     await expect(fetchInstanceSessions(PORT, 'any', 300)).rejects.toThrow('did not respond');
   });

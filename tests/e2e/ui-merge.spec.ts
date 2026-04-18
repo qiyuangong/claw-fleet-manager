@@ -267,6 +267,18 @@ async function mountDashboard(page: Page, opts: MountOptions): Promise<MountHand
     });
   });
 
+  await page.route('**/api/fleet/sessions/history**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        instances: sessionsData,
+        updatedAt: Date.now(),
+        totalEstimate: sessionsData.reduce((sum, entry) => sum + entry.sessions.length, 0),
+      }),
+    });
+  });
+
   await page.route('**/api/fleet/instances', async (route) => {
     if (route.request().method() === 'POST') {
       createInstancePayloads.push(route.request().postDataJSON());

@@ -17,6 +17,14 @@
     "stopTimeoutMs": 10000
   },
 
+  "_comment_sessionHistory": "Optional — persist fleet session snapshots for Dashboard and Activity history",
+  "_sessionHistory": {
+    "enabled": true,
+    "retentionDays": 30,
+    "collectIntervalMs": 30000,
+    "activeMinutes": 180
+  },
+
   "tailscale": { "hostname": "your-machine.tailnet.ts.net" },
   "tls": { "cert": "/path/to/cert.pem", "key": "/path/to/key.pem" }
 }

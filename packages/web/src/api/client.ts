@@ -2,6 +2,16 @@ const AUTH_DISABLED_KEY = 'fleet_manager_auth_disabled';
 const AUTH_SESSION_KEY = 'fleet_manager_session_auth';
 const AUTH_MODE_KEY = 'fleet_manager_auth_mode';
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 type AuthMode = 'default' | 'manual';
 
 function getAuthMode(): AuthMode {
@@ -84,7 +94,10 @@ export async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> 
   if (!response.ok) {
     const method = (opts?.method ?? 'GET').toUpperCase();
     const error = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(error.error ?? `${method} ${path} failed: ${response.status} ${response.statusText}`);
+    throw new ApiError(
+      error.error ?? `${method} ${path} failed: ${response.status} ${response.statusText}`,
+      response.status,
+    );
   }
 
   return response.json();

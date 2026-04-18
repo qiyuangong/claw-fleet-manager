@@ -55,8 +55,8 @@ export function parseNavigationFromUrl(url: URL, fallback: NavigationState): Nav
   return fallback;
 }
 
-export function serializeNavigationToUrl(state: NavigationState): string {
-  const params = new URLSearchParams();
+export function serializeNavigationToUrl(state: NavigationState, existingSearch = ''): string {
+  const params = new URLSearchParams(existingSearch);
 
   params.set('view', state.activeView.type);
 
@@ -64,7 +64,12 @@ export function serializeNavigationToUrl(state: NavigationState): string {
     params.set('id', state.activeView.id);
     if (state.activeTab !== 'overview') {
       params.set('tab', state.activeTab);
+    } else {
+      params.delete('tab');
     }
+  } else {
+    params.delete('id');
+    params.delete('tab');
   }
 
   const query = params.toString();

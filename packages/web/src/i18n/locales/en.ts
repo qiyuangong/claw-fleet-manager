@@ -120,6 +120,7 @@ const en = {
   colLastMessage: 'Last Message',
   colUpdated: 'Updated',
   noSessionsFilter: 'No sessions match the current filters.',
+  sessionHistoryDisabled: 'Session history is disabled in server config.',
 
   // Instance Panel
   instanceNotFound: 'Instance not found',

@@ -36,6 +36,27 @@ function runningInstance(id: string) {
   };
 }
 
+type BackendMock = Pick<DeploymentBackend, 'getCachedStatus' | 'refresh' | 'revealToken'>;
+
+function createBackend(options: {
+  status: { instances: ReturnType<typeof runningInstance>[]; totalRunning?: number };
+  revealToken?: (id: string) => Promise<string>;
+  refreshError?: Error;
+}): BackendMock {
+  const fullStatus = {
+    instances: options.status.instances,
+    totalRunning: options.status.totalRunning ?? options.status.instances.length,
+    updatedAt: Date.now(),
+  };
+  return {
+    getCachedStatus: vi.fn().mockReturnValue(fullStatus),
+    refresh: options.refreshError
+      ? vi.fn().mockRejectedValue(options.refreshError)
+      : vi.fn().mockResolvedValue(fullStatus),
+    revealToken: vi.fn().mockImplementation(options.revealToken ?? (async (id: string) => `${id}-token`)),
+  };
+}
+
 function createHistoryRecorder(): HistoryRecorder & {
   upsertSessions: (input: { instanceId: string; seenAt: number; sessions: InstanceSessionRow[] }) => void;
   pruneOlderThan: (cutoffMs: number) => number;
@@ -70,8 +91,8 @@ describe('SessionCollector', () => {
 
   it('runs an immediate tick, fans out across running openclaw instances, and prunes every cycle', async () => {
     const history = createHistoryRecorder();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
+    const backend = createBackend({
+      status: {
         instances: [
           runningInstance('alpha'),
           runningInstance('beta'),
@@ -87,10 +108,8 @@ describe('SessionCollector', () => {
           },
         ],
         totalRunning: 3,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockImplementation(async (id: string) => `${id}-token`),
-    };
+      },
+    });
     const fetchSessions = vi
       .fn()
       .mockResolvedValueOnce([{ key: 'run-1', status: 'running' } satisfies InstanceSessionRow])
@@ -142,14 +161,10 @@ describe('SessionCollector', () => {
 
   it('skips rewriting keys that were already observed in a terminal state', async () => {
     const history = createHistoryRecorder();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
-        instances: [runningInstance('alpha')],
-        totalRunning: 1,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockResolvedValue('alpha-token'),
-    };
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
     const fetchSessions = vi
       .fn()
       .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow])
@@ -188,14 +203,10 @@ describe('SessionCollector', () => {
 
   it('does not invent a terminal status when a running session disappears on the next tick', async () => {
     const history = createHistoryRecorder();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
-        instances: [runningInstance('alpha')],
-        totalRunning: 1,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockResolvedValue('alpha-token'),
-    };
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
     const fetchSessions = vi
       .fn()
       .mockResolvedValueOnce([{ key: 'run-1', status: 'running' } satisfies InstanceSessionRow])
@@ -222,14 +233,10 @@ describe('SessionCollector', () => {
 
   it('vacuums at most once every 24 hours of ticks', async () => {
     const history = createHistoryRecorder();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
-        instances: [runningInstance('alpha')],
-        totalRunning: 1,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockResolvedValue('alpha-token'),
-    };
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
     const fetchSessions = vi.fn().mockResolvedValue([{ key: 'run-1', status: 'running' } satisfies InstanceSessionRow]);
     const collector = new SessionCollector({
       backend,
@@ -257,14 +264,10 @@ describe('SessionCollector', () => {
   it('evicts cached terminal keys once they age past retention', async () => {
     const history = createHistoryRecorder();
     let now = new Date('2026-04-17T00:00:00.000Z').getTime();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
-        instances: [runningInstance('alpha')],
-        totalRunning: 1,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockResolvedValue('alpha-token'),
-    };
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
     const fetchSessions = vi
       .fn()
       .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow])
@@ -311,14 +314,10 @@ describe('SessionCollector', () => {
       throw new Error('sqlite unavailable');
     });
     let now = new Date('2026-04-17T00:00:00.000Z').getTime();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
-        instances: [runningInstance('alpha')],
-        totalRunning: 1,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockResolvedValue('alpha-token'),
-    };
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
     const fetchSessions = vi
       .fn()
       .mockResolvedValueOnce([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow])
@@ -362,14 +361,10 @@ describe('SessionCollector', () => {
   it('refreshes terminal key age when terminal sessions are repeatedly observed', async () => {
     const history = createHistoryRecorder();
     let now = new Date('2026-04-17T00:00:00.000Z').getTime();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
-        instances: [runningInstance('alpha')],
-        totalRunning: 1,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockResolvedValue('alpha-token'),
-    };
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
     const fetchSessions = vi
       .fn()
       .mockResolvedValue([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow]);
@@ -408,17 +403,85 @@ describe('SessionCollector', () => {
     collector.stop();
   });
 
+  it('does not cache terminal keys when the history write throws', async () => {
+    const history = createHistoryRecorder();
+    history.upsertSessions = vi.fn(() => {
+      throw new Error('sqlite busy');
+    });
+    let now = new Date('2026-04-17T00:00:00.000Z').getTime();
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
+    const fetchSessions = vi
+      .fn()
+      .mockResolvedValue([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow]);
+    const warn = vi.fn();
+    const collector = new SessionCollector({
+      backend,
+      history,
+      collectIntervalMs: 999_999,
+      activeMinutes: 180,
+      retentionDays: 30,
+      fetchSessions,
+      log: { warn } as { warn: (message: string, error?: unknown) => void },
+      now: () => now,
+    });
+
+    await collector.start();
+
+    history.upsertSessions = vi.fn((input) => {
+      history.upsertCalls.push(input);
+    });
+
+    now += 30_000;
+    await collector.tick();
+    expect(history.upsertCalls).toHaveLength(1);
+    expect(history.upsertCalls[0].sessions).toEqual([{ key: 'done-1', status: 'done' }]);
+
+    collector.stop();
+  });
+
+  it('refreshes backend status at the start of each tick and falls back to cached status on error', async () => {
+    const history = createHistoryRecorder();
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+      refreshError: new Error('backend unavailable'),
+    });
+    const fetchSessions = vi
+      .fn()
+      .mockResolvedValue([{ key: 'run-1', status: 'running' } satisfies InstanceSessionRow]);
+    const warn = vi.fn();
+    const collector = new SessionCollector({
+      backend,
+      history,
+      collectIntervalMs: 999_999,
+      activeMinutes: 180,
+      retentionDays: 30,
+      fetchSessions,
+      log: { warn } as { warn: (message: string, error?: unknown) => void },
+    });
+
+    await collector.start();
+
+    expect(backend.refresh).toHaveBeenCalledTimes(1);
+    expect(history.upsertCalls).toHaveLength(1);
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to refresh fleet status before collecting session history',
+      expect.any(Error),
+    );
+
+    collector.stop();
+  });
+
   it('treats keys at the exact retention cutoff as expired', async () => {
     const history = createHistoryRecorder();
     let now = new Date('2026-04-17T00:00:00.000Z').getTime();
-    const backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'> = {
-      getCachedStatus: vi.fn().mockReturnValue({
-        instances: [runningInstance('alpha')],
-        totalRunning: 1,
-        updatedAt: Date.now(),
-      }),
-      revealToken: vi.fn().mockResolvedValue('alpha-token'),
-    };
+    const backend = createBackend({
+      status: { instances: [runningInstance('alpha')] },
+      revealToken: async () => 'alpha-token',
+    });
     const fetchSessions = vi
       .fn()
       .mockResolvedValue([{ key: 'done-1', status: 'done' } satisfies InstanceSessionRow]);

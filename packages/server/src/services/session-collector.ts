@@ -22,7 +22,7 @@ export class SessionCollector {
   private readonly terminalKeys = new Map<string, number>();
 
   constructor(private readonly options: {
-    backend: Pick<DeploymentBackend, 'getCachedStatus' | 'revealToken'>;
+    backend: Pick<DeploymentBackend, 'getCachedStatus' | 'refresh' | 'revealToken'>;
     history: HistoryLike;
     collectIntervalMs: number;
     activeMinutes: number;
@@ -62,7 +62,12 @@ export class SessionCollector {
 
   private async collectOnce() {
     const now = this.options.now?.() ?? Date.now();
-    const status = this.options.backend.getCachedStatus();
+    let status = this.options.backend.getCachedStatus();
+    try {
+      status = await this.options.backend.refresh();
+    } catch (error) {
+      this.options.log.warn('Failed to refresh fleet status before collecting session history', error);
+    }
     const runningInstances = (status?.instances ?? []).filter((instance) =>
       instance.status === 'running'
       && instance.runtime === 'openclaw'
@@ -84,16 +89,16 @@ export class SessionCollector {
         }
         return true;
       });
-      for (const session of nextSessions) {
-        if (session.status && session.status !== 'running') {
-          this.terminalKeys.set(`${instance.id}:${session.key}`, now);
-        }
-      }
       this.options.history.upsertSessions({
         instanceId: instance.id,
         seenAt: now,
         sessions: nextSessions,
       });
+      for (const session of nextSessions) {
+        if (session.status && session.status !== 'running') {
+          this.terminalKeys.set(`${instance.id}:${session.key}`, now);
+        }
+      }
     }));
 
     results.forEach((result, index) => {

@@ -175,7 +175,7 @@ export class ProfileBackend implements DeploymentBackend {
       try {
         child = spawn(
           this.binaryPath,
-          ['--profile', id, 'gateway', '--port', String(entry.port)],
+          ['--profile', id, 'gateway', 'run', '--port', String(entry.port)],
           {
             stdio: ['ignore', logFd, logFd],
             detached: true,
@@ -608,6 +608,7 @@ export class ProfileBackend implements DeploymentBackend {
       ...process.env,
       OPENCLAW_CONFIG_PATH: entry.configPath,
       OPENCLAW_STATE_DIR: entry.stateDir,
+      OPENCLAW_DISABLE_BONJOUR: process.env.OPENCLAW_DISABLE_BONJOUR ?? '1',
     };
   }
 

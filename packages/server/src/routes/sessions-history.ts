@@ -108,9 +108,16 @@ export async function sessionHistoryRoutes(
       });
     }
 
-    let page;
     try {
-      page = options.sessionHistory.listSessions(request.query);
+      const page = options.sessionHistory.listSessions(request.query);
+      const totalEstimate = options.sessionHistory.countSessions(request.query);
+
+      return {
+        instances: page.instances,
+        updatedAt: Date.now(),
+        ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+        ...(totalEstimate > 0 ? { totalEstimate } : {}),
+      };
     } catch (error) {
       if (error instanceof InvalidSessionHistoryCursorError) {
         return reply.status(400).send({
@@ -120,13 +127,5 @@ export async function sessionHistoryRoutes(
       }
       throw error;
     }
-    const totalEstimate = options.sessionHistory.countSessions(request.query);
-
-    return {
-      instances: page.instances,
-      updatedAt: Date.now(),
-      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
-      ...(totalEstimate > 0 ? { totalEstimate } : {}),
-    };
   });
 }

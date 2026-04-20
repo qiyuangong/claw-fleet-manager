@@ -152,6 +152,7 @@ For the full architecture walkthrough, see [docs/arch/README.md](docs/arch/READM
 
 - [docs/guides/installation-guide.md](docs/guides/installation-guide.md)
 - [docs/guides/installation-guide-cn.md](docs/guides/installation-guide-cn.md)
+- [docs/guides/prometheus-monitoring.md](docs/guides/prometheus-monitoring.md)
 - [docs/guides/docker-deployment.md](docs/guides/docker-deployment.md)
 - [docs/guides/admin-guide.md](docs/guides/admin-guide.md)
 - [docs/guides/admin-quick-reference.md](docs/guides/admin-quick-reference.md)

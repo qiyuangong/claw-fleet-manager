@@ -37,7 +37,7 @@ describe('provisionDockerInstance', () => {
     expect(config.gateway.auth.mode).toBe('token');
     expect(config.gateway.auth.token).toBe('a'.repeat(64));
     expect(config.gateway.controlUi.allowedOrigins).toContain('http://127.0.0.1:18789');
-    expect(config.agents.defaults.workspace).toBe('/home/node/.openclaw/workspace');
+    expect(config.agents.defaults.workspace).toBe('/home/node/workspace');
     expect(config.models.providers.default.baseUrl).toBe('https://api.example.com/v1');
     expect(config.models.providers.default.apiKey).toBe('sk-test');
   });

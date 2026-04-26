@@ -66,7 +66,7 @@ export function provisionDockerInstance(input: DockerProvisionInput): void {
     },
     agents: {
       defaults: {
-        workspace: '/home/node/.openclaw/workspace',
+        workspace: '/home/node/workspace',
       },
     },
   };

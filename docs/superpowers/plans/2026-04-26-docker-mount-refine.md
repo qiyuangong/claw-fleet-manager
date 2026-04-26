@@ -1,6 +1,6 @@
 # Docker Mount Refine Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Stop overlaying `/home/node/.openclaw` in docker-mode containers so OpenClaw's image-installed plugins and runtime layout are not shadowed by host bind mounts; redirect state via `OPENCLAW_STATE_DIR` / `OPENCLAW_CONFIG_PATH` and mount the workspace at `/home/node/workspace`.
 
@@ -61,7 +61,7 @@ git commit -m "docs: add docker mount refine plan"
 **Files:**
 - Modify: `packages/server/tests/services/docker.test.ts:153-202`
 
-- [ ] **Step 2.1: Replace the bind/env assertions in the existing test**
+- [x] **Step 2.1: Replace the bind/env assertions in the existing test**
 
 In `packages/server/tests/services/docker.test.ts`, find the test:
 
@@ -106,7 +106,7 @@ with:
         ],
 ```
 
-- [ ] **Step 2.2: Run the test and confirm it fails**
+- [x] **Step 2.2: Run the test and confirm it fails**
 
 Run: `cd packages/server && npx vitest run tests/services/docker.test.ts -t "createManagedContainer creates and starts a hardened managed container"`
 
@@ -119,7 +119,7 @@ Expected: FAIL — the actual `Binds` array still contains `/home/node/.openclaw
 **Files:**
 - Modify: `packages/server/src/services/docker.ts:143-172`
 
-- [ ] **Step 3.1: Replace the default bind targets**
+- [x] **Step 3.1: Replace the default bind targets**
 
 Edit `packages/server/src/services/docker.ts`. Replace:
 
@@ -143,7 +143,7 @@ with:
         ];
 ```
 
-- [ ] **Step 3.2: Inject `OPENCLAW_STATE_DIR`, `OPENCLAW_CONFIG_PATH`, `OPENCLAW_WORKSPACE_DIR`**
+- [x] **Step 3.2: Inject `OPENCLAW_STATE_DIR`, `OPENCLAW_CONFIG_PATH`, `OPENCLAW_WORKSPACE_DIR`**
 
 Still in `docker.ts`, replace:
 
@@ -182,13 +182,13 @@ with:
 
 The `if (!spec.binds)` guard scopes the new env vars to the OpenClaw default-mount path. Hermes containers pass an explicit `binds` array (`hermes-docker-backend.ts:137`) and supply their own `extraEnv`; gating on `!spec.binds` keeps Hermes traffic untouched.
 
-- [ ] **Step 3.3: Run the test and confirm it passes**
+- [x] **Step 3.3: Run the test and confirm it passes**
 
 Run: `cd packages/server && npx vitest run tests/services/docker.test.ts -t "createManagedContainer creates and starts a hardened managed container"`
 
 Expected: PASS.
 
-- [ ] **Step 3.4: Run the rest of `docker.test.ts` and confirm only the rename test still fails**
+- [x] **Step 3.4: Run the rest of `docker.test.ts` and confirm only the rename test still fails**
 
 Run: `cd packages/server && npx vitest run tests/services/docker.test.ts`
 
@@ -204,7 +204,7 @@ If any non-rename test fails, stop and re-read the test before proceeding.
 - Modify: `packages/server/src/services/docker.ts:316-328`
 - Modify: `packages/server/tests/services/docker.test.ts:86-151` (add a sibling test)
 
-- [ ] **Step 4.1: Add a failing test for the new-layout rename path**
+- [x] **Step 4.1: Add a failing test for the new-layout rename path**
 
 In `packages/server/tests/services/docker.test.ts`, immediately after the existing test:
 
@@ -276,13 +276,13 @@ it('recreates a stopped managed container with renamed bind mounts and keeps it 
   });
 ```
 
-- [ ] **Step 4.2: Run the new test and confirm it fails**
+- [x] **Step 4.2: Run the new test and confirm it fails**
 
 Run: `cd packages/server && npx vitest run tests/services/docker.test.ts -t "recreates a stopped managed container preserving new-layout bind targets"`
 
 Expected: FAIL — `rewriteManagedBinds` does not yet recognize the new targets, so it falls through to the `: source` branch and emits the original (pre-rename) host paths.
 
-- [ ] **Step 4.3: Extend `rewriteManagedBinds` to recognize both layouts**
+- [x] **Step 4.3: Extend `rewriteManagedBinds` to recognize both layouts**
 
 In `packages/server/src/services/docker.ts`, replace:
 
@@ -322,7 +322,7 @@ function rewriteManagedBinds(binds: string[], spec: RecreateManagedContainerSpec
 
 This keeps existing legacy containers renaming correctly (their `Binds` still target `/home/node/.openclaw`) while new-layout containers rename correctly too (their `Binds` target `/home/node/openclaw-state`).
 
-- [ ] **Step 4.4: Run both rename tests and confirm both pass**
+- [x] **Step 4.4: Run both rename tests and confirm both pass**
 
 Run: `cd packages/server && npx vitest run tests/services/docker.test.ts -t "recreates a stopped managed container"`
 
@@ -336,7 +336,7 @@ Expected: both rename tests PASS — the legacy one preserves `/home/node/.openc
 - Modify: `packages/server/tests/services/docker-instance-provisioning.test.ts:40`
 - Modify: `packages/server/src/services/docker-instance-provisioning.ts:69`
 
-- [ ] **Step 5.1: Update the assertion**
+- [x] **Step 5.1: Update the assertion**
 
 In `packages/server/tests/services/docker-instance-provisioning.test.ts`, replace:
 
@@ -350,13 +350,13 @@ with:
     expect(config.agents.defaults.workspace).toBe('/home/node/workspace');
 ```
 
-- [ ] **Step 5.2: Run the test and confirm it fails**
+- [x] **Step 5.2: Run the test and confirm it fails**
 
 Run: `cd packages/server && npx vitest run tests/services/docker-instance-provisioning.test.ts`
 
 Expected: FAIL on the updated assertion.
 
-- [ ] **Step 5.3: Update the implementation**
+- [x] **Step 5.3: Update the implementation**
 
 In `packages/server/src/services/docker-instance-provisioning.ts`, replace:
 
@@ -378,7 +378,7 @@ with:
     },
 ```
 
-- [ ] **Step 5.4: Run the test and confirm it passes**
+- [x] **Step 5.4: Run the test and confirm it passes**
 
 Run: `cd packages/server && npx vitest run tests/services/docker-instance-provisioning.test.ts`
 
@@ -392,7 +392,7 @@ Expected: PASS.
 - Modify: `packages/server/tests/services/docker-backend.test.ts:493`
 - Modify: `packages/server/src/services/docker-backend.ts:367`
 
-- [ ] **Step 6.1: Update the assertion**
+- [x] **Step 6.1: Update the assertion**
 
 In `packages/server/tests/services/docker-backend.test.ts`, replace:
 
@@ -406,13 +406,13 @@ with:
     expect(written.agents.defaults.workspace).toBe('/home/node/workspace');
 ```
 
-- [ ] **Step 6.2: Run the test and confirm it fails**
+- [x] **Step 6.2: Run the test and confirm it fails**
 
 Run: `cd packages/server && npx vitest run tests/services/docker-backend.test.ts -t "createInstanceFromMigration() writes Docker openclaw.json"`
 
 Expected: FAIL on the updated assertion.
 
-- [ ] **Step 6.3: Update the implementation**
+- [x] **Step 6.3: Update the implementation**
 
 In `packages/server/src/services/docker-backend.ts`, replace:
 
@@ -430,7 +430,7 @@ with:
       },
 ```
 
-- [ ] **Step 6.4: Run the test and confirm it passes**
+- [x] **Step 6.4: Run the test and confirm it passes**
 
 Run: `cd packages/server && npx vitest run tests/services/docker-backend.test.ts -t "createInstanceFromMigration() writes Docker openclaw.json"`
 
@@ -442,19 +442,19 @@ Expected: PASS.
 
 **Files:** none modified.
 
-- [ ] **Step 7.1: Run the full server vitest suite**
+- [x] **Step 7.1: Run the full server vitest suite**
 
 Run: `cd packages/server && npx vitest run`
 
 Expected: all tests pass, including `fleet.test.ts`, `instances.test.ts`, and the three suites this plan touched.
 
-- [ ] **Step 7.2: Run lint at the workspace root**
+- [x] **Step 7.2: Run lint at the workspace root**
 
 Run: `npm run lint`
 
 Expected: zero errors. If type-only diagnostics appear in unrelated files, stop and surface them — do not paper over them.
 
-- [ ] **Step 7.3: Run the workspace `npm run test` for parity with CI**
+- [x] **Step 7.3: Run the workspace `npm run test` for parity with CI**
 
 Run: `npm run test`
 
@@ -466,7 +466,7 @@ Expected: turbo runs all packages' test scripts and they all pass.
 
 **Files:** none modified.
 
-- [ ] **Step 8.1: Stage the source and test changes**
+- [x] **Step 8.1: Stage the source and test changes**
 
 ```bash
 git add \
@@ -478,7 +478,7 @@ git add \
   packages/server/tests/services/docker-backend.test.ts
 ```
 
-- [ ] **Step 8.2: Create the commit**
+- [x] **Step 8.2: Create the commit**
 
 ```bash
 git commit -m "$(cat <<'EOF'
@@ -494,7 +494,7 @@ EOF
 )"
 ```
 
-- [ ] **Step 8.3: Verify the working tree is clean**
+- [x] **Step 8.3: Verify the working tree is clean**
 
 Run: `git status`
 

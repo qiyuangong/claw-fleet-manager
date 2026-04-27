@@ -364,7 +364,7 @@ export class DockerBackend implements DeploymentBackend {
         },
       },
       agents: {
-        defaults: { workspace: '/home/node/.openclaw/workspace' },
+        defaults: { workspace: '/home/node/workspace' },
       },
     };
 

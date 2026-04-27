@@ -150,6 +150,66 @@ describe('DockerService', () => {
     expect(mockReplacementContainer.start).not.toHaveBeenCalled();
   });
 
+  it('recreates a stopped managed container preserving new-layout bind targets', async () => {
+    mockContainer.inspect.mockResolvedValue({
+      Config: {
+        Image: 'openclaw:local',
+        Labels: {
+          'dev.claw-fleet.managed': 'true',
+          'dev.claw-fleet.instance-index': '2',
+          'dev.claw-fleet.runtime': 'openclaw',
+        },
+        Env: [
+          'HOME=/home/node',
+          'OPENCLAW_GATEWAY_TOKEN=secret-token',
+          'TZ=UTC',
+          'OPENCLAW_STATE_DIR=/home/node/openclaw-state',
+          'OPENCLAW_CONFIG_PATH=/home/node/openclaw-state/openclaw.json',
+          'OPENCLAW_WORKSPACE_DIR=/home/node/workspace',
+        ],
+        Cmd: ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'],
+        ExposedPorts: { '18789/tcp': {} },
+        Healthcheck: { Test: ['CMD', 'true'] },
+      },
+      HostConfig: {
+        AutoRemove: false,
+        Binds: [
+          '/tmp/managed/team-alpha/config:/home/node/openclaw-state',
+          '/tmp/managed/team-alpha/workspace:/home/node/workspace',
+          '/tmp/managed/team-alpha/config/.npm:/home/node/.npm',
+        ],
+        PortBindings: { '18789/tcp': [{ HostPort: '18809' }] },
+        Init: true,
+        RestartPolicy: { Name: 'unless-stopped' },
+        CapDrop: ['ALL'],
+        SecurityOpt: ['no-new-privileges:true'],
+        ReadonlyRootfs: true,
+        Tmpfs: { '/tmp': 'rw,nosuid,nodev,noexec' },
+        NanoCpus: 1500000000,
+        Memory: 2147483648,
+      },
+    });
+    mockDocker.createContainer = vi.fn().mockResolvedValue(mockReplacementContainer);
+
+    await svc.recreateStoppedManagedContainer({
+      currentName: 'team-alpha',
+      nextName: 'team-renamed',
+      configDir: '/tmp/managed/team-renamed/config',
+      workspaceDir: '/tmp/managed/team-renamed/workspace',
+      npmDir: '/tmp/managed/team-renamed/config/.npm',
+    });
+
+    expect(mockDocker.createContainer).toHaveBeenCalledWith(expect.objectContaining({
+      HostConfig: expect.objectContaining({
+        Binds: [
+          '/tmp/managed/team-renamed/config:/home/node/openclaw-state',
+          '/tmp/managed/team-renamed/workspace:/home/node/workspace',
+          '/tmp/managed/team-renamed/config/.npm:/home/node/.npm',
+        ],
+      }),
+    }));
+  });
+
   it('createManagedContainer creates and starts a hardened managed container with npm cache mount', async () => {
     const createdContainer = { start: vi.fn().mockResolvedValue(undefined) };
     mockDocker.listContainers.mockResolvedValue([]);
@@ -182,11 +242,14 @@ describe('DockerService', () => {
         'TERM=xterm-256color',
         'OPENCLAW_GATEWAY_TOKEN=secret-token',
         'TZ=UTC',
+        'OPENCLAW_STATE_DIR=/home/node/openclaw-state',
+        'OPENCLAW_CONFIG_PATH=/home/node/openclaw-state/openclaw.json',
+        'OPENCLAW_WORKSPACE_DIR=/home/node/workspace',
       ]),
       HostConfig: expect.objectContaining({
         Binds: [
-          '/tmp/config/team-alpha:/home/node/.openclaw',
-          '/tmp/workspace/team-alpha:/home/node/.openclaw/workspace',
+          '/tmp/config/team-alpha:/home/node/openclaw-state',
+          '/tmp/workspace/team-alpha:/home/node/workspace',
           '/tmp/config/team-alpha/.npm:/home/node/.npm',
         ],
         PortBindings: {

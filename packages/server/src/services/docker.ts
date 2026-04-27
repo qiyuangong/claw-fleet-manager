@@ -143,8 +143,8 @@ export class DockerService {
     const binds = spec.binds
       ? [...spec.binds]
       : [
-          `${spec.configDir}:/home/node/.openclaw`,
-          `${spec.workspaceDir}:/home/node/.openclaw/workspace`,
+          `${spec.configDir}:/home/node/openclaw-state`,
+          `${spec.workspaceDir}:/home/node/workspace`,
         ];
     if (!spec.binds && spec.npmDir) {
       binds.push(`${spec.npmDir}:/home/node/.npm`);
@@ -169,6 +169,13 @@ export class DockerService {
     ];
     if (!spec.extraEnv?.some((entry) => entry.startsWith('OPENCLAW_GATEWAY_TOKEN=')) && spec.token) {
       env.splice(2, 0, `OPENCLAW_GATEWAY_TOKEN=${spec.token}`);
+    }
+    if (!spec.binds) {
+      env.push(
+        'OPENCLAW_STATE_DIR=/home/node/openclaw-state',
+        'OPENCLAW_CONFIG_PATH=/home/node/openclaw-state/openclaw.json',
+        'OPENCLAW_WORKSPACE_DIR=/home/node/workspace',
+      );
     }
     const cmd = spec.command ?? ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'];
     const healthcheck = spec.healthcheck === undefined ? defaultOpenClawHealthcheck() : spec.healthcheck;
@@ -316,9 +323,9 @@ function parseContainerRuntime(container: {
 function rewriteManagedBinds(binds: string[], spec: RecreateManagedContainerSpec): string[] {
   return binds.map((bind) => {
     const [source, target, ...rest] = bind.split(':');
-    const nextSource = target === '/home/node/.openclaw'
+    const nextSource = target === '/home/node/openclaw-state' || target === '/home/node/.openclaw'
       ? spec.configDir
-      : target === '/home/node/.openclaw/workspace'
+      : target === '/home/node/workspace' || target === '/home/node/.openclaw/workspace'
         ? spec.workspaceDir
         : target === '/home/node/.npm' && spec.npmDir
           ? spec.npmDir

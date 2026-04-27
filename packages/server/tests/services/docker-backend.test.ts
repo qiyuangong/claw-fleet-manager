@@ -490,7 +490,7 @@ describe('DockerBackend', () => {
     const configWrite = writeCalls.find(([p]) => String(p).includes('openclaw.json'));
     expect(configWrite).toBeDefined();
     const written = JSON.parse(String(configWrite![1]));
-    expect(written.agents.defaults.workspace).toBe('/home/node/.openclaw/workspace');
+    expect(written.agents.defaults.workspace).toBe('/home/node/workspace');
     expect(written.gateway.auth.token).toBe('tok');
   });
 

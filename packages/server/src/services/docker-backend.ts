@@ -285,7 +285,7 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async execInstanceCommand(id: string, args: string[]): Promise<string> {
-    const { stdout } = await execFileAsync('docker', ['exec', id, 'node', 'dist/index.js', ...args]);
+    const { stdout } = await execFileAsync('docker', ['exec', id, 'openclaw', ...args]);
     return stdout;
   }
 

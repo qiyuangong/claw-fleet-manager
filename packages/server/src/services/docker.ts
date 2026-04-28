@@ -177,7 +177,7 @@ export class DockerService {
         'OPENCLAW_WORKSPACE_DIR=/home/node/workspace',
       );
     }
-    const cmd = spec.command ?? ['node', 'dist/index.js', 'gateway', '--bind', 'lan', '--port', '18789'];
+    const cmd = spec.command ?? ['openclaw', 'gateway', 'run', '--bind', 'lan', '--port', '18789'];
     const healthcheck = spec.healthcheck === undefined ? defaultOpenClawHealthcheck() : spec.healthcheck;
 
     const container = await this.docker.createContainer({

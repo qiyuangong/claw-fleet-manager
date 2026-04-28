@@ -297,15 +297,8 @@ export class HermesDockerBackend implements DeploymentBackend {
     await mkdir(workspaceDir, { recursive: true });
 
     const configPath = join(homeDir, 'config.yaml');
-    if (!readable(configPath)) {
-      const scaffold = {
-        agent: {},
-        gateway: {
-          auth: {},
-        },
-      };
-      const nextConfig = config ? { ...scaffold, ...(config as Record<string, unknown>) } : scaffold;
-      writeFileSync(configPath, yaml.stringify(nextConfig));
+    if (!readable(configPath) && config) {
+      writeFileSync(configPath, yaml.stringify(config as Record<string, unknown>));
     }
   }
 

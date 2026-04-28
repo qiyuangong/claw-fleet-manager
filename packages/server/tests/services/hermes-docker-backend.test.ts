@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as yaml from 'yaml';
@@ -88,7 +88,7 @@ describe('HermesDockerBackend', () => {
       healthcheck: null,
     }));
 
-    expect(readFileSync(join(rootDir, 'hermes-lab', 'config.yaml'), 'utf-8')).toContain('gateway:');
+    expect(existsSync(join(rootDir, 'hermes-lab', 'config.yaml'))).toBe(false);
     expect(instance.runtime).toBe('hermes');
     expect(instance.mode).toBe('docker');
   });
@@ -157,7 +157,7 @@ describe('HermesDockerBackend', () => {
 
     await backend.createInstance({ runtime: 'hermes', kind: 'docker', name: 'hermes-lab' });
 
-    expect(readFileSync(join(nextRootDir, 'hermes-lab', 'config.yaml'), 'utf-8')).toContain('gateway:');
+    expect(existsSync(join(nextRootDir, 'hermes-lab', 'config.yaml'))).toBe(false);
     expect(mockDocker.createManagedContainer).toHaveBeenCalledWith(expect.objectContaining({
       configDir: join(nextRootDir, 'hermes-lab'),
       workspaceDir: join(nextRootDir, 'hermes-lab', 'workspace'),

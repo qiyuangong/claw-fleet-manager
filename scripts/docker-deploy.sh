@@ -42,8 +42,9 @@ IMAGE_TAG=${IMAGE_TAG:-claw-fleet-manager:local}
 CONTAINER_NAME=${CONTAINER_NAME:-claw-fleet-manager}
 MANAGER_PORT=${MANAGER_PORT:-3001}
 ADMIN_USER=${ADMIN_USER:-admin}
+ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
 if [[ "${FLEET_ALLOW_DEFAULT_PASSWORD:-}" != "1" ]]; then
-  ADMIN_PASSWORD_TRIMMED=$(printf '%s' "${ADMIN_PASSWORD:-}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+  ADMIN_PASSWORD_TRIMMED=$(printf '%s' "$ADMIN_PASSWORD" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
   case "$ADMIN_PASSWORD_TRIMMED" in
     ""|changeme|"<change-me-before-starting>")
       printf 'ADMIN_PASSWORD is empty or a known default/placeholder value.\n' >&2

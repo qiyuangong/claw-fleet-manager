@@ -9,12 +9,18 @@ chmod +x scripts/docker-deploy.sh
 ./scripts/docker-deploy.sh
 ```
 
+必须设置 `ADMIN_PASSWORD` 为强密码后再运行脚本：
+
+```bash
+ADMIN_PASSWORD='<your-strong-password>' ./scripts/docker-deploy.sh
+```
+
 默认结果：
 
 | 默认值 | 内容 |
 |---|---|
 | 管理面板地址 | `http://localhost:3001` |
-| 管理员登录 | `admin` / `changeme` |
+| 管理员登录 | `admin` / `$ADMIN_PASSWORD` |
 | 数据目录 | `.docker-data/claw-fleet-manager` |
 
 ## 注意事项

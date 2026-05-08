@@ -42,7 +42,11 @@ IMAGE_TAG=${IMAGE_TAG:-claw-fleet-manager:local}
 CONTAINER_NAME=${CONTAINER_NAME:-claw-fleet-manager}
 MANAGER_PORT=${MANAGER_PORT:-3001}
 ADMIN_USER=${ADMIN_USER:-admin}
-ADMIN_PASSWORD=${ADMIN_PASSWORD:-changeme}
+if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+  printf 'ADMIN_PASSWORD is required. Set it to a strong password before re-running.\n' >&2
+  printf 'Example: ADMIN_PASSWORD='\''<your-strong-password>'\'' %s\n' "$0" >&2
+  exit 1
+fi
 OPENCLAW_IMAGE=${OPENCLAW_IMAGE:-openclaw:local}
 ENABLE_NPM_PACKAGES=${ENABLE_NPM_PACKAGES:-false}
 PORT_STEP=${PORT_STEP:-20}

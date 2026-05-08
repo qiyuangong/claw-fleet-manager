@@ -72,3 +72,27 @@ export function loadConfig(): ServerConfig {
 
   return parsed;
 }
+
+const FORBIDDEN_AUTH_PASSWORDS = new Set([
+  'changeme',
+  '<change-me-before-starting>',
+]);
+
+export class InsecureDefaultPasswordError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InsecureDefaultPasswordError';
+  }
+}
+
+export function assertSafeAuthPassword(password: string): void {
+  if (process.env.FLEET_ALLOW_DEFAULT_PASSWORD === '1') return;
+  const trimmed = password.trim();
+  if (!trimmed || FORBIDDEN_AUTH_PASSWORDS.has(trimmed)) {
+    throw new InsecureDefaultPasswordError(
+      `auth.password is set to a default/placeholder value. ` +
+      `Edit ${resolveConfigPath()} and set a strong password before starting. ` +
+      `Set FLEET_ALLOW_DEFAULT_PASSWORD=1 to bypass for testing only.`,
+    );
+  }
+}

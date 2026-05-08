@@ -9,12 +9,18 @@ chmod +x scripts/docker-deploy.sh
 ./scripts/docker-deploy.sh
 ```
 
+`ADMIN_PASSWORD` is required — set it to a strong password before running the script:
+
+```bash
+ADMIN_PASSWORD='<your-strong-password>' ./scripts/docker-deploy.sh
+```
+
 Default result:
 
 | Default | Value |
 |---|---|
 | Manager URL | `http://localhost:3001` |
-| Admin login | `admin` / `changeme` |
+| Admin login | `admin` / `$ADMIN_PASSWORD` |
 | Data root | `.docker-data/claw-fleet-manager` |
 
 ## Constraints

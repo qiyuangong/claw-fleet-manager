@@ -6,7 +6,7 @@ import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyWebsocket from '@fastify/websocket';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { loadConfig, resolveConfigPath } from './config.js';
+import { assertSafeAuthPassword, InsecureDefaultPasswordError, loadConfig, resolveConfigPath } from './config.js';
 import { registerAuth } from './auth.js';
 import { configRoutes } from './routes/config.js';
 import { fleetRoutes } from './routes/fleet.js';
@@ -34,6 +34,17 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const config = loadConfig();
+
+// ── Auth password guard ─────────────────────────────────────────────────────
+try {
+  assertSafeAuthPassword(config.auth.password);
+} catch (error) {
+  if (error instanceof InsecureDefaultPasswordError) {
+    console.error(`ERROR: ${error.message}`);
+    process.exit(1);
+  }
+  throw error;
+}
 
 // ── Tailscale preflight (Docker mode only) ──────────────────────────────────
 let tailscale: TailscaleService | null = null;

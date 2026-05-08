@@ -7,6 +7,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { assertSafeAuthPassword, InsecureDefaultPasswordError, loadConfig, resolveConfigPath } from './config.js';
+import { PreflightError, runPreflight } from './preflight.js';
 import { registerAuth } from './auth.js';
 import { configRoutes } from './routes/config.js';
 import { fleetRoutes } from './routes/fleet.js';
@@ -40,6 +41,17 @@ try {
   assertSafeAuthPassword(config.auth.password);
 } catch (error) {
   if (error instanceof InsecureDefaultPasswordError) {
+    console.error(`ERROR: ${error.message}`);
+    process.exit(1);
+  }
+  throw error;
+}
+
+// ── Startup preflight (fleetDir, TLS files, openclaw binary) ────────────────
+try {
+  await runPreflight(config);
+} catch (error) {
+  if (error instanceof PreflightError) {
     console.error(`ERROR: ${error.message}`);
     process.exit(1);
   }

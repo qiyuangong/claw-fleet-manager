@@ -1,6 +1,6 @@
 // packages/server/src/preflight.ts
 import { execFile } from 'node:child_process';
-import { accessSync, constants as fsConstants, mkdirSync } from 'node:fs';
+import { accessSync, constants as fsConstants, mkdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { ServerConfig } from './types.js';
@@ -39,6 +39,12 @@ export function checkTlsFiles(tls: { cert: string; key: string }): void {
       throw new PreflightError(
         `TLS ${name} not readable: ${resolved}. ` +
         `Generate certs or remove the "tls" block from server.config.json.`,
+      );
+    }
+    if (!statSync(resolved).isFile()) {
+      throw new PreflightError(
+        `TLS ${name} is not a regular file: ${resolved}. ` +
+        `Point ${name} at the PEM file, not a directory.`,
       );
     }
   }

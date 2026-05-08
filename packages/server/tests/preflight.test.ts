@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -69,6 +69,22 @@ describe('checkTlsFiles', () => {
     const cert = join(dir, 'cert.pem');
     const key = join(dir, 'missing.pem');
     writeFileSync(cert, 'x');
+    expect(() => checkTlsFiles({ cert, key })).toThrow(PreflightError);
+  });
+
+  it('throws when the cert path resolves to a directory', () => {
+    const cert = join(dir, 'cert-dir');
+    mkdirSync(cert);
+    const key = join(dir, 'key.pem');
+    writeFileSync(key, 'x');
+    expect(() => checkTlsFiles({ cert, key })).toThrow(PreflightError);
+  });
+
+  it('throws when the key path resolves to a directory', () => {
+    const cert = join(dir, 'cert.pem');
+    const key = join(dir, 'key-dir');
+    writeFileSync(cert, 'x');
+    mkdirSync(key);
     expect(() => checkTlsFiles({ cert, key })).toThrow(PreflightError);
   });
 });

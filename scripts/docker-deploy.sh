@@ -43,7 +43,8 @@ CONTAINER_NAME=${CONTAINER_NAME:-claw-fleet-manager}
 MANAGER_PORT=${MANAGER_PORT:-3001}
 ADMIN_USER=${ADMIN_USER:-admin}
 if [[ "${FLEET_ALLOW_DEFAULT_PASSWORD:-}" != "1" ]]; then
-  case "${ADMIN_PASSWORD:-}" in
+  ADMIN_PASSWORD_TRIMMED=$(printf '%s' "${ADMIN_PASSWORD:-}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+  case "$ADMIN_PASSWORD_TRIMMED" in
     ""|changeme|"<change-me-before-starting>")
       printf 'ADMIN_PASSWORD is empty or a known default/placeholder value.\n' >&2
       printf 'Set it to a strong password and re-run.\n' >&2
@@ -51,6 +52,7 @@ if [[ "${FLEET_ALLOW_DEFAULT_PASSWORD:-}" != "1" ]]; then
       exit 1
       ;;
   esac
+  unset ADMIN_PASSWORD_TRIMMED
 fi
 OPENCLAW_IMAGE=${OPENCLAW_IMAGE:-openclaw:local}
 ENABLE_NPM_PACKAGES=${ENABLE_NPM_PACKAGES:-false}

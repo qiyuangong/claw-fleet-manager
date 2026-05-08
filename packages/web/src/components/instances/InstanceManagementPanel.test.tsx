@@ -85,4 +85,27 @@ describe('InstanceManagementPanel', () => {
     expect(screen.getByRole('button', { name: 'createHermesDockerInstance' })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'createHermesProfileInstance' })).toBeNull();
   });
+
+  it('renders the backend error banner when fleet.backendError is present', () => {
+    useFleetMock.mockReturnValue({
+      data: {
+        instances: [],
+        backendError: {
+          code: 'DOCKER_UNREACHABLE',
+          message: 'Docker daemon is unreachable: ECONNREFUSED',
+          since: Date.now(),
+        },
+      },
+      isLoading: false,
+    });
+
+    renderPanel();
+    expect(screen.getByRole('alert')).not.toBeNull();
+    expect(screen.getByText('backendErrorDockerUnreachable')).not.toBeNull();
+  });
+
+  it('does not render the backend error banner when fleet.backendError is absent', () => {
+    renderPanel();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

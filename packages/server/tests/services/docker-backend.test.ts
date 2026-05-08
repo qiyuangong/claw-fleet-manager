@@ -314,6 +314,46 @@ describe('DockerBackend', () => {
     expect(backend.getCachedStatus()).not.toBeNull();
   });
 
+  it('refresh() returns a backendError when Docker is unreachable', async () => {
+    mockDocker.listFleetContainers.mockRejectedValue(new Error('connect ECONNREFUSED'));
+    const status = await backend.refresh();
+    expect(status.backendError).toBeDefined();
+    expect(status.backendError?.code).toBe('DOCKER_UNREACHABLE');
+    expect(status.backendError?.message).toContain('ECONNREFUSED');
+    expect(status.instances).toEqual([]);
+  });
+
+  it('refresh() preserves last instances and stable since when Docker stays unreachable', async () => {
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1, runtime: 'openclaw' },
+    ]);
+    await backend.refresh();
+    expect(backend.getCachedStatus()?.instances).toHaveLength(1);
+
+    mockDocker.listFleetContainers.mockRejectedValue(new Error('socket hang up'));
+    const first = await backend.refresh();
+    expect(first.instances).toHaveLength(1);
+    expect(first.backendError?.code).toBe('DOCKER_UNREACHABLE');
+    const sinceFirst = first.backendError!.since;
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const second = await backend.refresh();
+    expect(second.backendError?.since).toBe(sinceFirst);
+  });
+
+  it('refresh() clears backendError on a successful subsequent refresh', async () => {
+    mockDocker.listFleetContainers.mockRejectedValueOnce(new Error('boom'));
+    const failing = await backend.refresh();
+    expect(failing.backendError).toBeDefined();
+
+    mockDocker.listFleetContainers.mockResolvedValue([
+      { name: 'openclaw-1', id: 'abc', state: 'running', index: 1, runtime: 'openclaw' },
+    ]);
+    const recovered = await backend.refresh();
+    expect(recovered.backendError).toBeUndefined();
+    expect(recovered.instances).toHaveLength(1);
+  });
+
   it('createInstance() uses the next available slot index for named instances', async () => {
     mockDocker.listFleetContainers
       .mockResolvedValueOnce([

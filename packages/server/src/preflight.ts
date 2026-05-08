@@ -17,11 +17,12 @@ export class PreflightError extends Error {
 export function checkFleetDirWritable(fleetDir: string): void {
   try {
     mkdirSync(fleetDir, { recursive: true });
-    accessSync(fleetDir, fsConstants.W_OK);
+    accessSync(fleetDir, fsConstants.W_OK | fsConstants.X_OK);
   } catch {
     throw new PreflightError(
-      `fleetDir '${fleetDir}' is not writable. ` +
-      `Check the path in server.config.json and your filesystem permissions.`,
+      `fleetDir '${fleetDir}' is not writable or not traversable. ` +
+      `Check the path in server.config.json and your filesystem permissions ` +
+      `(directories need both write and execute/search bits).`,
     );
   }
 }

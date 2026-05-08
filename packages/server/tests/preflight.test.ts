@@ -37,6 +37,12 @@ describe('checkFleetDirWritable', () => {
     chmodSync(dir, 0o500);
     expect(() => checkFleetDirWritable(dir)).toThrow(PreflightError);
   });
+
+  it('throws PreflightError when the dir is writable but not traversable', () => {
+    if (process.getuid?.() === 0) return; // root bypasses access checks; skip
+    chmodSync(dir, 0o200);
+    expect(() => checkFleetDirWritable(dir)).toThrow(PreflightError);
+  });
 });
 
 describe('checkTlsFiles', () => {

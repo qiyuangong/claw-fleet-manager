@@ -37,3 +37,47 @@ describe('loadConfig', () => {
     expect(config.baseDir).toContain('custom-openclaw-instances');
   });
 });
+
+describe('assertSafeAuthPassword', () => {
+  let previousBypass: string | undefined;
+
+  beforeEach(() => {
+    previousBypass = process.env.FLEET_ALLOW_DEFAULT_PASSWORD;
+    delete process.env.FLEET_ALLOW_DEFAULT_PASSWORD;
+  });
+
+  afterEach(() => {
+    if (previousBypass === undefined) {
+      delete process.env.FLEET_ALLOW_DEFAULT_PASSWORD;
+    } else {
+      process.env.FLEET_ALLOW_DEFAULT_PASSWORD = previousBypass;
+    }
+  });
+
+  it('rejects the legacy "changeme" default', async () => {
+    const { assertSafeAuthPassword, InsecureDefaultPasswordError } = await import('../src/config.js');
+    expect(() => assertSafeAuthPassword('changeme')).toThrow(InsecureDefaultPasswordError);
+  });
+
+  it('rejects the example placeholder', async () => {
+    const { assertSafeAuthPassword, InsecureDefaultPasswordError } = await import('../src/config.js');
+    expect(() => assertSafeAuthPassword('<change-me-before-starting>')).toThrow(InsecureDefaultPasswordError);
+  });
+
+  it('rejects empty/whitespace passwords', async () => {
+    const { assertSafeAuthPassword, InsecureDefaultPasswordError } = await import('../src/config.js');
+    expect(() => assertSafeAuthPassword('')).toThrow(InsecureDefaultPasswordError);
+    expect(() => assertSafeAuthPassword('   ')).toThrow(InsecureDefaultPasswordError);
+  });
+
+  it('accepts a non-default password', async () => {
+    const { assertSafeAuthPassword } = await import('../src/config.js');
+    expect(() => assertSafeAuthPassword('s3cure-pass!')).not.toThrow();
+  });
+
+  it('bypasses the guard when FLEET_ALLOW_DEFAULT_PASSWORD=1', async () => {
+    process.env.FLEET_ALLOW_DEFAULT_PASSWORD = '1';
+    const { assertSafeAuthPassword } = await import('../src/config.js');
+    expect(() => assertSafeAuthPassword('changeme')).not.toThrow();
+  });
+});

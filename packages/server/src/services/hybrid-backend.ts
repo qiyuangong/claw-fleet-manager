@@ -271,10 +271,13 @@ export class HybridBackend implements DeploymentBackend {
       .flatMap((status) => status.instances)
       .sort((left, right) => left.id.localeCompare(right.id));
 
+    const backendError = present.find((status) => status.backendError)?.backendError;
+
     return {
       instances,
       totalRunning: instances.filter((instance) => instance.status === 'running').length,
       updatedAt: Math.max(...present.map((status) => status.updatedAt)),
+      ...(backendError ? { backendError } : {}),
     };
   }
 

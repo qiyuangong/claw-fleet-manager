@@ -5,6 +5,7 @@ import { deleteInstance, startInstance, stopInstance } from '../../api/fleet';
 import { useFleet } from '../../hooks/useFleet';
 import { useAppStore } from '../../store';
 import type { FleetInstance } from '../../types';
+import { BackendErrorBanner } from '../common/BackendErrorBanner';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { AddInstanceDialog } from './AddInstanceDialog';
 import { RenameInstanceDialog } from './RenameInstanceDialog';
@@ -123,6 +124,8 @@ export function InstanceManagementPanel({ onOpenInstance }: Props) {
           <p className="muted">{t('instanceManagementDesc')}</p>
         </div>
       </div>
+
+      {fleet.backendError ? <BackendErrorBanner error={fleet.backendError} /> : null}
 
       <div className="panel-card" style={{ marginBottom: '1.25rem' }}>
         <h3 style={{ marginTop: 0 }}>{t('createInstancePanelTitle')}</h3>

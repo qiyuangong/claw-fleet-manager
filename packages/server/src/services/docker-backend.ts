@@ -63,7 +63,27 @@ export class DockerBackend implements DeploymentBackend {
   }
 
   async refresh(): Promise<FleetStatus> {
-    const containers = await this.listOpenClawContainers();
+    let containers;
+    try {
+      containers = await this.listOpenClawContainers();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.log?.warn({ err: error }, 'Docker backend refresh failed; daemon unreachable');
+      const previousSince = this.cache?.backendError?.since;
+      const status: FleetStatus = {
+        instances: this.cache?.instances ?? [],
+        totalRunning: this.cache?.instances.filter((i) => i.status === 'running').length ?? 0,
+        updatedAt: Date.now(),
+        backendError: {
+          code: 'DOCKER_UNREACHABLE',
+          message: `Docker daemon is unreachable: ${message}`,
+          since: previousSince ?? Date.now(),
+        },
+      };
+      this.cache = status;
+      return status;
+    }
+
     const tokens = this.fleetConfig.readTokens();
     const config = this.fleetConfig.readFleetConfig();
 

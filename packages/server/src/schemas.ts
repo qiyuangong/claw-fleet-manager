@@ -72,6 +72,15 @@ export const fleetStatusSchema = {
     instances: { type: 'array', items: fleetInstanceSchema },
     totalRunning: { type: 'number' },
     updatedAt: { type: 'number' },
+    backendError: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        message: { type: 'string' },
+        since: { type: 'number' },
+      },
+      required: ['code', 'message', 'since'],
+    },
   },
   required: ['instances', 'totalRunning', 'updatedAt'],
 } as const;

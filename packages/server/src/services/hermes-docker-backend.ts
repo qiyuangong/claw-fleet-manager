@@ -60,8 +60,26 @@ export class HermesDockerBackend implements DeploymentBackend {
 
   async refresh(): Promise<FleetStatus> {
     await mkdir(this.resolveBaseDir(), { recursive: true });
-    const containers = (await this.docker.listFleetContainers())
-      .filter((container) => container.runtime === 'hermes');
+    let containers;
+    try {
+      containers = (await this.docker.listFleetContainers())
+        .filter((container) => container.runtime === 'hermes');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const previousSince = this.cache?.backendError?.since;
+      const status: FleetStatus = {
+        instances: this.cache?.instances ?? [],
+        totalRunning: this.cache?.instances.filter((i) => i.status === 'running').length ?? 0,
+        updatedAt: Date.now(),
+        backendError: {
+          code: 'DOCKER_UNREACHABLE',
+          message: `Docker daemon is unreachable: ${message}`,
+          since: previousSince ?? Date.now(),
+        },
+      };
+      this.cache = status;
+      return status;
+    }
     const instances = await Promise.all(
       containers.map((container) => this.buildInstance(container)),
     );

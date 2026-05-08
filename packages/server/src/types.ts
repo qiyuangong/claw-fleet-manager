@@ -74,10 +74,17 @@ export interface FleetInstance {
   pid?: number;            // profile mode only: OS process ID
 }
 
+export interface BackendError {
+  code: string;
+  message: string;
+  since: number;
+}
+
 export interface FleetStatus {
   instances: FleetInstance[];
   totalRunning: number;
   updatedAt: number;
+  backendError?: BackendError;
 }
 
 export interface FleetConfig {

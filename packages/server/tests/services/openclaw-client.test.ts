@@ -54,15 +54,17 @@ function makeServer(
     silentAfterChallenge?: boolean;
     silentPreview?: boolean;
     sessionsListDelayMs?: number;
+    onConnect?: (params: unknown, origin: string | undefined) => void;
   } = {},
 ) {
   const server = new WebSocketServer({ port: PORT, host: '127.0.0.1' });
-  server.on('connection', (ws) => {
+  server.on('connection', (ws, request) => {
     ws.send(JSON.stringify({ type: 'event', event: 'connect.challenge', payload: { nonce: 'n' } }));
     if (opts.silentAfterChallenge) return;
     ws.on('message', (raw: Buffer) => {
       const frame = JSON.parse(String(raw)) as { method: string; id: string; params?: { scopes?: string[] } };
       if (frame.method === 'connect') {
+        opts.onConnect?.(frame.params, request.headers.origin);
         if (opts.rejectConnect) {
           ws.send(JSON.stringify({ type: 'res', id: frame.id, ok: false, error: { code: 'AUTH_FAILED', message: 'bad token' } }));
           return;
@@ -119,6 +121,31 @@ describe('fetchInstanceSessions', () => {
       { role: 'tool', text: 'call npm test' },
       { role: 'assistant', text: 'The test now passes.' },
     ]);
+  });
+
+  networkIt('connects as local backend client across protocol 3 and 4 without browser origin', async () => {
+    const connects: Array<{ params: any; origin: string | undefined }> = [];
+    wss = makeServer({
+      onConnect: (params, origin) => connects.push({ params, origin }),
+    });
+
+    await fetchInstanceSessions(PORT, 'valid-token', 5_000, { status: 'running', previewLimit: 2 });
+
+    expect(connects).toHaveLength(2);
+    for (const connect of connects) {
+      expect(connect.origin).toBeUndefined();
+      expect(connect.params).toMatchObject({
+        minProtocol: 3,
+        maxProtocol: 4,
+        client: {
+          id: 'gateway-client',
+          mode: 'backend',
+          platform: 'node',
+        },
+        role: 'operator',
+        auth: { token: 'valid-token' },
+      });
+    }
   });
 
   networkIt('falls back to last-message sessions when preview connect needs admin scope', async () => {

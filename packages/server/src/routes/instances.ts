@@ -6,7 +6,7 @@ import { safeError } from '../errors.js';
 import { errorResponseSchema, fleetInstanceSchema, instanceIdParamsSchema, okResponseSchema } from '../schemas.js';
 import type { FleetInstance } from '../types.js';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const REQUEST_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const FEISHU_CODE_RE = /^[A-Za-z0-9]{3,32}$/;
 
 const requestIdParamsSchema = {
@@ -123,31 +123,50 @@ function instanceActionSchema(action: 'start' | 'stop' | 'restart') {
   } as const;
 }
 
-function parseFeishuPairing(stdout: string): { code: string; userId?: string }[] {
-  const results: { code: string; userId?: string }[] = [];
-  const headerWords = new Set(['PENDING', 'CODE', 'STATUS', 'USER', 'TIME', 'REQUEST']);
-  for (const line of stdout.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('-') || trimmed.startsWith('=')) continue;
-    const codeMatch = trimmed.match(/\b([A-Z0-9]{4,12})\b/);
-    const userIdMatch = trimmed.match(/\b(ou_[a-zA-Z0-9_]+)\b/);
-    if (codeMatch && !headerWords.has(codeMatch[1])) {
-      results.push({ code: codeMatch[1], userId: userIdMatch?.[1] });
-    }
+function parseCliJson(stdout: string): Record<string, unknown> {
+  const ansiStripped = stdout.replace(/\u001b\[[0-9;]*m/g, '');
+  const jsonStart = ansiStripped.indexOf('{');
+  if (jsonStart < 0) {
+    throw new Error('CLI did not return JSON output');
   }
-  return results;
+  const parsed = JSON.parse(ansiStripped.slice(jsonStart)) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('CLI did not return a JSON object');
+  }
+  return parsed as Record<string, unknown>;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function parseFeishuPairing(stdout: string): { code: string; userId?: string }[] {
+  const payload = parseCliJson(stdout);
+  const requests = Array.isArray(payload.requests) ? payload.requests : [];
+  return requests.flatMap((item) => {
+    const request = asRecord(item);
+    if (!request) return [];
+    const code = typeof request.code === 'string' ? request.code.trim() : '';
+    if (!code) return [];
+    const id = typeof request.id === 'string' ? request.id.trim() : '';
+    return [{ code, ...(id ? { userId: id } : {}) }];
+  });
 }
 
 function parsePendingDevices(output: string): { requestId: string; ip: string }[] {
-  const pendingSection = output.split(/\nPaired/)[0];
-  const devices: { requestId: string; ip: string }[] = [];
-  for (const line of pendingSection.split('\n')) {
-    const uuidMatch = line.match(/│\s+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s+│/);
-    if (!uuidMatch) continue;
-    const ipMatch = line.match(/│[^│]*│[^│]*│[^│]*│\s+([\d.]+)\s+│/);
-    devices.push({ requestId: uuidMatch[1], ip: ipMatch?.[1] ?? 'unknown' });
-  }
-  return devices;
+  const payload = parseCliJson(output);
+  const pending = Array.isArray(payload.pending) ? payload.pending : [];
+  return pending.flatMap((item) => {
+    const device = asRecord(item);
+    if (!device) return [];
+    const requestId = typeof device.requestId === 'string' ? device.requestId.trim() : '';
+    if (!requestId) return [];
+    const remoteIp = typeof device.remoteIp === 'string' ? device.remoteIp.trim() : '';
+    const ip = typeof device.ip === 'string' ? device.ip.trim() : '';
+    return [{ requestId, ip: remoteIp || ip || 'unknown' }];
+  });
 }
 
 export async function instanceRoutes(app: FastifyInstance) {
@@ -229,7 +248,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     const instance = await requireCapability(app, id, reply, (i) => i.runtime === 'openclaw');
     if ('statusCode' in instance) return instance;
     try {
-      const stdout = await app.backend.execInstanceCommand(id, ['devices', 'list']);
+      const stdout = await app.backend.execInstanceCommand(id, ['devices', 'list', '--json']);
       return { pending: parsePendingDevices(stdout) };
     } catch (error: unknown) {
       return reply.status(500).send({ error: `Failed to list devices for instance ${id}: ${safeError(error)}`, code: 'DEVICES_LIST_FAILED' });
@@ -260,7 +279,7 @@ export async function instanceRoutes(app: FastifyInstance) {
       }
       const instance = await requireCapability(app, id, reply, (i) => i.runtime === 'openclaw');
       if ('statusCode' in instance) return instance;
-      if (!UUID_RE.test(requestId)) {
+      if (!REQUEST_ID_RE.test(requestId)) {
         return reply.status(400).send({ error: 'Invalid requestId', code: 'INVALID_REQUEST_ID' });
       }
       try {
@@ -294,7 +313,7 @@ export async function instanceRoutes(app: FastifyInstance) {
     const instance = await requireCapability(app, id, reply, (i) => i.runtime === 'openclaw');
     if ('statusCode' in instance) return instance;
     try {
-      const stdout = await app.backend.execInstanceCommand(id, ['pairing', 'list', 'feishu']);
+      const stdout = await app.backend.execInstanceCommand(id, ['pairing', 'list', 'feishu', '--json']);
       return { pending: parseFeishuPairing(stdout), raw: stdout };
     } catch (error: unknown) {
       return reply.status(500).send({ error: `Failed to list Feishu pairings for instance ${id}: ${safeError(error)}`, code: 'FEISHU_LIST_FAILED' });

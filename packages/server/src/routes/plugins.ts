@@ -65,6 +65,18 @@ const pluginCommandResponseSchema = {
   required: ['ok', 'output'],
 } as const;
 
+const pluginRuntimeInspectionResponseSchema = {
+  type: 'object',
+  properties: {
+    ok: { type: 'boolean' },
+    inspection: {
+      type: 'object',
+      additionalProperties: true,
+    },
+  },
+  required: ['ok', 'inspection'],
+} as const;
+
 function parseCliJson(stdout: string): object {
   const ansiStripped = stdout.replace(/\u001b\[[0-9;]*m/g, '');
   const jsonStart = ansiStripped.indexOf('{');
@@ -178,6 +190,45 @@ export async function pluginRoutes(app: FastifyInstance) {
         return { ok: true, output: stdout };
       } catch (error: any) {
         return reply.status(500).send({ error: error.message, code: 'PLUGIN_INSTALL_FAILED' });
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string; pluginId: string } }>(
+    '/api/fleet/:id/plugins/:pluginId/runtime',
+    {
+      preHandler: requireProfileAccess,
+      schema: {
+        tags: ['Plugins'],
+        summary: 'Inspect plugin runtime registration for an instance',
+        params: pluginIdParamsSchema,
+        response: {
+          200: pluginRuntimeInspectionResponseSchema,
+          400: errorResponseSchema,
+          404: errorResponseSchema,
+          409: errorResponseSchema,
+          500: errorResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { id, pluginId } = request.params;
+      if (!validateInstanceId(id)) {
+        return reply.status(400).send({ error: 'Invalid instance id', code: 'INVALID_ID' });
+      }
+      if (!PLUGIN_ID_RE.test(pluginId)) {
+        return reply.status(400).send({ error: 'Invalid plugin id', code: 'INVALID_PLUGIN_ID' });
+      }
+      const support = await requirePluginSupport(app, id);
+      if (!support.ok) {
+        return reply.status(support.statusCode).send(support.body);
+      }
+
+      try {
+        const stdout = await app.backend.execInstanceCommand(id, ['plugins', 'inspect', pluginId, '--runtime', '--json']);
+        return { ok: true, inspection: parseCliJson(stdout) };
+      } catch (error: any) {
+        return reply.status(500).send({ error: error.message, code: 'PLUGIN_RUNTIME_INSPECT_FAILED' });
       }
     },
   );

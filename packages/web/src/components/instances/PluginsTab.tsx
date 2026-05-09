@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { getProfilePlugins, installProfilePlugin, restartInstance, uninstallProfilePlugin } from '../../api/fleet';
+import {
+  getProfilePlugins,
+  inspectProfilePluginRuntime,
+  installProfilePlugin,
+  restartInstance,
+  uninstallProfilePlugin,
+} from '../../api/fleet';
 import type { FleetInstance } from '../../types';
 import type { ProfilePlugin } from '../../api/fleet';
 import { ConfirmDialog } from '../common/ConfirmDialog';
@@ -19,6 +25,7 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<ProfilePlugin | null>(null);
+  const [inspectingPluginId, setInspectingPluginId] = useState<string | null>(null);
 
   const PAGE_SIZE = 10;
 
@@ -71,6 +78,24 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
     },
     onError: (cause) => {
       setError(cause instanceof Error ? cause.message : t('failedRestartInstance'));
+    },
+  });
+
+  const inspectRuntimeMutation = useMutation({
+    mutationFn: (pluginId: string) => inspectProfilePluginRuntime(instance.id, pluginId),
+    onMutate: (pluginId) => {
+      setInspectingPluginId(pluginId);
+    },
+    onSuccess: (result, pluginId) => {
+      setOutput(`${t('pluginRuntimeVerified', { plugin: pluginId })}\n\n${JSON.stringify(result.inspection, null, 2)}`);
+      setError(null);
+    },
+    onError: (cause) => {
+      setError(cause instanceof Error ? cause.message : t('failedVerifyRuntime'));
+      setOutput(null);
+    },
+    onSettled: () => {
+      setInspectingPluginId(null);
     },
   });
 
@@ -162,14 +187,24 @@ export function PluginsTab({ instance }: { instance: FleetInstance }) {
                 <p className="metric-value" style={{ marginBottom: '0.25rem' }}>{pluginLabel(plugin)}</p>
                 <p className="metric-label mono">{plugin.id}</p>
               </div>
-              <button
-                className="danger-button"
-                style={{ whiteSpace: 'nowrap' }}
-                onClick={() => setPendingRemoval(plugin)}
-                disabled={uninstallMutation.isPending}
-              >
-                {t('remove')}
-              </button>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button
+                  className="secondary-button"
+                  style={{ whiteSpace: 'nowrap' }}
+                  onClick={() => inspectRuntimeMutation.mutate(plugin.id)}
+                  disabled={inspectRuntimeMutation.isPending}
+                >
+                  {inspectingPluginId === plugin.id ? t('verifyingRuntime') : t('verifyRuntime')}
+                </button>
+                <button
+                  className="danger-button"
+                  style={{ whiteSpace: 'nowrap' }}
+                  onClick={() => setPendingRemoval(plugin)}
+                  disabled={uninstallMutation.isPending}
+                >
+                  {t('remove')}
+                </button>
+              </div>
             </div>
             <p className="muted" style={{ marginTop: '0.5rem', minHeight: '2.5rem' }}>
               {plugin.description ?? 'No description'}

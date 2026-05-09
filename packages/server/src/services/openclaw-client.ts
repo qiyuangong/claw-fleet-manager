@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
 import { randomUUID } from 'node:crypto';
-import { getOpenClawHttpOrigin, getOpenClawWsUrl } from './openclaw-upstream.js';
+import { getOpenClawWsUrl } from './openclaw-upstream.js';
 
 export type InstanceSessionRow = {
   key: string;
@@ -43,6 +43,15 @@ type FetchInstanceSessionsOptions = {
 type ResFrame = { type: 'res'; id: string; ok: boolean; payload?: unknown; error?: { code: string; message: string } };
 type EventFrame = { type: 'event'; event: string; payload?: unknown };
 
+const GATEWAY_PROTOCOL_MIN = 3;
+const GATEWAY_PROTOCOL_MAX = 4;
+const GATEWAY_CLIENT = {
+  id: 'gateway-client',
+  version: '1.0.0',
+  platform: 'node',
+  mode: 'backend',
+} as const;
+
 function normalizePreviewItems(items: InstanceSessionPreviewItem[] | undefined, previewLimit: number): InstanceSessionPreviewItem[] {
   if (!items?.length || previewLimit <= 0) return [];
   return items
@@ -62,9 +71,7 @@ async function fetchSessionPreviews(
   previewLimit: number,
 ): Promise<Map<string, InstanceSessionPreviewItem[]>> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(getOpenClawWsUrl(port), {
-      headers: { Origin: getOpenClawHttpOrigin(port) },
-    });
+    const ws = new WebSocket(getOpenClawWsUrl(port));
     const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
     let settled = false;
 
@@ -107,14 +114,9 @@ async function fetchSessionPreviews(
         void (async () => {
           try {
             await request('connect', {
-              minProtocol: 3,
-              maxProtocol: 3,
-              client: {
-                id: 'openclaw-control-ui',
-                version: '1.0.0',
-                platform: 'node',
-                mode: 'ui',
-              },
+              minProtocol: GATEWAY_PROTOCOL_MIN,
+              maxProtocol: GATEWAY_PROTOCOL_MAX,
+              client: GATEWAY_CLIENT,
               role: 'operator',
               scopes: ['operator.read', 'operator.admin'],
               auth: { token },
@@ -154,10 +156,7 @@ export async function fetchInstanceSessions(
   options?: FetchInstanceSessionsOptions,
 ): Promise<InstanceSessionRow[]> {
   return new Promise((resolve, reject) => {
-    // Origin must match gateway.controlUi.allowedOrigins for control-ui client auth
-    const ws = new WebSocket(getOpenClawWsUrl(port), {
-      headers: { Origin: getOpenClawHttpOrigin(port) },
-    });
+    const ws = new WebSocket(getOpenClawWsUrl(port));
     const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
     let settled = false;
 
@@ -202,14 +201,9 @@ export async function fetchInstanceSessions(
           try {
             const previewLimit = Math.max(0, Math.min(Math.trunc(options?.previewLimit ?? 0), 8));
             await request('connect', {
-              minProtocol: 3,
-              maxProtocol: 3,
-              client: {
-                id: 'openclaw-control-ui',
-                version: '1.0.0',
-                platform: 'node',
-                mode: 'ui',
-              },
+              minProtocol: GATEWAY_PROTOCOL_MIN,
+              maxProtocol: GATEWAY_PROTOCOL_MAX,
+              client: GATEWAY_CLIENT,
               role: 'operator',
               scopes: ['operator.read'],
               auth: { token },

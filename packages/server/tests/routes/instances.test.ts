@@ -163,9 +163,37 @@ describe('Instance routes — hybrid fleet', () => {
   });
 
   it('GET /api/fleet/:id/devices/pending allows OpenClaw runtime actions', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce(JSON.stringify({ pending: [], paired: [] }));
     const res = await app.inject({ method: 'GET', url: '/api/fleet/openclaw-1/devices/pending' });
     expect(res.statusCode).toBe(200);
-    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('openclaw-1', ['devices', 'list']);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('openclaw-1', ['devices', 'list', '--json']);
+  });
+
+  it('GET /api/fleet/:id/devices/pending reads JSON output from OpenClaw', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce(JSON.stringify({
+      pending: [
+        { requestId: 'req-abc', remoteIp: 'fd7a:115c:a1e0::1', deviceId: 'macbook' },
+      ],
+      paired: [],
+    }));
+
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/openclaw-1/devices/pending' });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('openclaw-1', ['devices', 'list', '--json']);
+    expect(res.json()).toEqual({
+      pending: [{ requestId: 'req-abc', ip: 'fd7a:115c:a1e0::1' }],
+    });
+  });
+
+  it('POST /api/fleet/:id/devices/:requestId/approve accepts non-UUID OpenClaw request ids', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/fleet/openclaw-1/devices/req-abc/approve',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('openclaw-1', ['devices', 'approve', 'req-abc']);
   });
 
   it('GET /api/fleet/:id/feishu/pairing rejects Hermes runtime actions', async () => {
@@ -174,6 +202,24 @@ describe('Instance routes — hybrid fleet', () => {
     expect(res.json()).toEqual({
       error: 'Instance "hermes-lab" does not support this action',
       code: 'UNSUPPORTED_RUNTIME_ACTION',
+    });
+  });
+
+  it('GET /api/fleet/:id/feishu/pairing reads JSON output from OpenClaw', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce(JSON.stringify({
+      channel: 'feishu',
+      requests: [
+        { code: 'ABCD1234', id: 'ou_feishu_user', meta: { team: 'ops' } },
+      ],
+    }));
+
+    const res = await app.inject({ method: 'GET', url: '/api/fleet/openclaw-1/feishu/pairing' });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('openclaw-1', ['pairing', 'list', 'feishu', '--json']);
+    expect(res.json()).toEqual({
+      pending: [{ code: 'ABCD1234', userId: 'ou_feishu_user' }],
+      raw: expect.any(String),
     });
   });
 

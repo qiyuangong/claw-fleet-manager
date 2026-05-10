@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { requireAdmin } from '../authorize.js';
 import { errorResponseSchema } from '../schemas.js';
-import { fetchInstanceSessions, type InstanceSessionRow } from '../services/openclaw-client.js';
+import { fetchInstanceSessionsForBackend } from '../services/instance-sessions.js';
+import type { InstanceSessionRow } from '../services/openclaw-client.js';
 import type { FleetInstance } from '../types.js';
 import type { DeploymentBackend } from '../services/backend.js';
 
@@ -27,8 +28,7 @@ async function fetchEntry(
   query: FleetSessionsQuery,
 ): Promise<InstanceSessionsEntry> {
   try {
-    const token = await backend.revealToken(instance.id);
-    const sessions = await fetchInstanceSessions(instance.port, token, 5_000, query);
+    const sessions = await fetchInstanceSessionsForBackend(instance, backend, query);
     const filteredSessions = query.status
       ? sessions.filter((session) => session.status === query.status)
       : sessions;

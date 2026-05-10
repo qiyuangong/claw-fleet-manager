@@ -34,7 +34,7 @@ type SessionPreviewResponse = {
   items?: InstanceSessionPreviewItem[];
 };
 
-type FetchInstanceSessionsOptions = {
+export type FetchInstanceSessionsOptions = {
   status?: InstanceSessionRow['status'];
   previewLimit?: number;
   activeMinutes?: number;

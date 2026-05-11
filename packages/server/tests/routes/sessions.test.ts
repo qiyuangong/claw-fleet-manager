@@ -221,6 +221,7 @@ describe('GET /api/fleet/sessions', () => {
       expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('openclaw-1', [
         'sessions',
         '--json',
+        '--all-agents',
         '--active',
         '60',
         '--limit',

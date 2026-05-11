@@ -198,6 +198,7 @@ describe('SessionCollector', () => {
     expect(backend.execInstanceCommand).toHaveBeenCalledWith('alpha', [
       'sessions',
       '--json',
+      '--all-agents',
       '--active',
       '180',
       '--limit',

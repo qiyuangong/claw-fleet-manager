@@ -127,6 +127,7 @@ async function fetchDockerInstanceSessions(
   const stdout = await backend.execInstanceCommand(instance.id, [
     'sessions',
     '--json',
+    '--all-agents',
     '--active',
     String(activeMinutes),
     '--limit',

@@ -230,6 +230,30 @@ describe('GET /api/fleet/sessions', () => {
       expect(fetchInstanceSessions).toHaveBeenCalledWith(18789, 'full-gateway-token', 5000, {});
     });
 
+    it('limits Docker CLI preview items to the requested count', async () => {
+      mockBackend.execInstanceCommand.mockResolvedValueOnce(JSON.stringify({
+        sessions: [
+          {
+            key: 'docker-cli',
+            previewItems: [
+              { role: 'user', text: 'first' },
+              { role: 'assistant', text: 'second' },
+              { role: 'user', text: 'third' },
+            ],
+          },
+        ],
+      }));
+
+      const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions?previewLimit=2' });
+      expect(res.statusCode).toBe(200);
+
+      const body = res.json<{ instances: { instanceId: string; sessions: { previewItems?: { role: string; text: string }[] }[] }[] }>();
+      expect(body.instances.find((entry) => entry.instanceId === 'openclaw-1')?.sessions[0].previewItems).toEqual([
+        { role: 'assistant', text: 'second' },
+        { role: 'user', text: 'third' },
+      ]);
+    });
+
     it('filters response sessions by status query', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions?status=running' });
       expect(res.statusCode).toBe(200);

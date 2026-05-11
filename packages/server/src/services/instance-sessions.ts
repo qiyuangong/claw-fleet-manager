@@ -46,18 +46,22 @@ function statusField(value: unknown): InstanceSessionRow['status'] | undefined {
     : undefined;
 }
 
-function previewItemsField(value: unknown): InstanceSessionPreviewItem[] | undefined {
-  if (!Array.isArray(value)) return undefined;
+function normalizePreviewLimit(value: number | undefined): number {
+  return Math.max(0, Math.min(Math.trunc(value ?? 0), 8));
+}
+
+function previewItemsField(value: unknown, previewLimit: number): InstanceSessionPreviewItem[] | undefined {
+  if (!Array.isArray(value) || previewLimit <= 0) return undefined;
   const items = value.flatMap((item) => {
     const record = asRecord(item);
     const role = stringField(record?.role);
     const text = stringField(record?.text);
     return role && text ? [{ role, text }] : [];
-  });
+  }).slice(-previewLimit);
   return items.length > 0 ? items : undefined;
 }
 
-function parseCliSessionRow(value: unknown): InstanceSessionRow | null {
+function parseCliSessionRow(value: unknown, previewLimit: number): InstanceSessionRow | null {
   const row = asRecord(value);
   const key = stringField(row?.key);
   if (!row || !key) return null;
@@ -80,7 +84,7 @@ function parseCliSessionRow(value: unknown): InstanceSessionRow | null {
   const status = statusField(row.status);
   if (status) session.status = status;
 
-  const previewItems = previewItemsField(row.previewItems);
+  const previewItems = previewItemsField(row.previewItems, previewLimit);
   if (previewItems) session.previewItems = previewItems;
 
   const numberFields = [
@@ -104,8 +108,9 @@ function parseCliSessionRow(value: unknown): InstanceSessionRow | null {
 function parseCliSessions(stdout: string, options?: FetchInstanceSessionsOptions): InstanceSessionRow[] {
   const payload = parseCliJson(stdout);
   const sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+  const previewLimit = normalizePreviewLimit(options?.previewLimit);
   const rows = sessions.flatMap((item) => {
-    const row = parseCliSessionRow(item);
+    const row = parseCliSessionRow(item, previewLimit);
     return row ? [row] : [];
   });
   return options?.status

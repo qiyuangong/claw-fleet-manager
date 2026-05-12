@@ -195,6 +195,27 @@ describe('Plugin routes - hybrid mode', () => {
     expect(res.json().ok).toBe(true);
   });
 
+  it('GET /api/fleet/:id/plugins/:pluginId/runtime verifies runtime registration', async () => {
+    mockBackend.execInstanceCommand.mockResolvedValueOnce(
+      JSON.stringify({ id: 'feishu', runtime: { hooks: [], gatewayMethods: ['feishu.status'] } }),
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/fleet/openclaw-1/plugins/feishu/runtime',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith(
+      'openclaw-1',
+      ['plugins', 'inspect', 'feishu', '--runtime', '--json'],
+    );
+    expect(res.json()).toEqual({
+      ok: true,
+      inspection: { id: 'feishu', runtime: { hooks: [], gatewayMethods: ['feishu.status'] } },
+    });
+  });
+
   it('DELETE /api/fleet/:id/plugins/:pluginId accepts uppercase plugin ids', async () => {
     mockBackend.execInstanceCommand.mockResolvedValueOnce('Removed plugin: FeiShu');
     const res = await app.inject({

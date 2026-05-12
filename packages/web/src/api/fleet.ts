@@ -90,6 +90,11 @@ export interface ProfilePluginList {
   plugins: ProfilePlugin[];
 }
 
+export interface ProfilePluginRuntimeInspection {
+  ok: boolean;
+  inspection: unknown;
+}
+
 export interface FleetSessionsQuery {
   status?: 'running' | 'done' | 'failed' | 'killed' | 'timeout';
   previewLimit?: number;
@@ -129,6 +134,9 @@ export const uninstallProfilePlugin = (id: string, pluginId: string) =>
   apiFetch<{ ok: boolean; output: string }>(`/api/fleet/${id}/plugins/${pluginId}`, {
     method: 'DELETE',
   });
+
+export const inspectProfilePluginRuntime = (id: string, pluginId: string) =>
+  apiFetch<ProfilePluginRuntimeInspection>(`/api/fleet/${id}/plugins/${pluginId}/runtime`);
 
 export const getFleetSessions = (query?: FleetSessionsQuery) => {
   const params = new URLSearchParams();

@@ -95,6 +95,18 @@ const mockBackend = {
     updatedAt: Date.now(),
   }),
   revealToken: vi.fn().mockResolvedValue('full-gateway-token'),
+  execInstanceCommand: vi.fn().mockResolvedValue(JSON.stringify({
+    sessions: [
+      {
+        key: 'docker-cli',
+        kind: 'direct',
+        updatedAt: 1_715_000_000_000,
+        model: 'gpt-5.5',
+        modelProvider: 'openai',
+        totalTokens: 42,
+      },
+    ],
+  })),
 };
 
 describe('GET /api/fleet/sessions', () => {
@@ -119,14 +131,14 @@ describe('GET /api/fleet/sessions', () => {
       expect(body.updatedAt).toBeGreaterThan(0);
       expect(body.instances).toHaveLength(2);
       expect(body.instances.map((entry) => entry.instanceId)).toEqual(['openclaw-1', 'team-alpha']);
-      expect(body.instances[0].sessions).toHaveLength(2);
+      expect(body.instances[0].sessions).toHaveLength(1);
+      expect(body.instances[1].sessions).toHaveLength(2);
     });
 
-    it('revealToken is called only for running instances that support sessions', async () => {
+    it('revealToken is called only for profile instances that use gateway sessions', async () => {
       mockBackend.revealToken.mockClear();
       await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
-      expect(mockBackend.revealToken).toHaveBeenCalledTimes(2);
-      expect(mockBackend.revealToken).toHaveBeenCalledWith('openclaw-1');
+      expect(mockBackend.revealToken).toHaveBeenCalledTimes(1);
       expect(mockBackend.revealToken).toHaveBeenCalledWith('team-alpha');
     });
 
@@ -136,9 +148,9 @@ describe('GET /api/fleet/sessions', () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
       const body = res.json<{ instances: { instanceId: string; sessions: unknown[]; error?: string }[] }>();
-      expect(body.instances[0].instanceId).toBe('openclaw-1');
-      expect(body.instances[0].sessions).toEqual([]);
-      expect(body.instances[0].error).toContain('connection refused');
+      const profileEntry = body.instances.find((entry) => entry.instanceId === 'team-alpha');
+      expect(profileEntry?.sessions).toEqual([]);
+      expect(profileEntry?.error).toContain('connection refused');
     });
 
     it('returns error string when fetchInstanceSessions rejects with non-Error value', async () => {
@@ -147,8 +159,9 @@ describe('GET /api/fleet/sessions', () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
       const body = res.json<{ instances: { instanceId: string; sessions: unknown[]; error?: string }[] }>();
-      expect(body.instances[0].sessions).toEqual([]);
-      expect(body.instances[0].error).toContain('plain string error');
+      const profileEntry = body.instances.find((entry) => entry.instanceId === 'team-alpha');
+      expect(profileEntry?.sessions).toEqual([]);
+      expect(profileEntry?.error).toContain('plain string error');
     });
 
     it('returns empty instances when no running instances support sessions', async () => {
@@ -173,7 +186,7 @@ describe('GET /api/fleet/sessions', () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
       expect(res.statusCode).toBe(200);
       const body = res.json<{ instances: { instanceId: string; sessions: { totalTokens?: number; estimatedCostUsd?: number; updatedAt?: number; previewItems?: { role: string; text: string }[] }[] }[] }>();
-      const session = body.instances[0].sessions[0];
+      const session = body.instances.find((entry) => entry.instanceId === 'team-alpha')?.sessions[0];
       expect(session.totalTokens).toBe(5000);
       expect(session.estimatedCostUsd).toBe(0.15);
       expect(session.updatedAt).toBeGreaterThan(0);
@@ -193,11 +206,60 @@ describe('GET /api/fleet/sessions', () => {
       });
     });
 
+    it('uses in-container sessions CLI for Docker instances', async () => {
+      const { fetchInstanceSessions } = await import('../../src/services/openclaw-client.js');
+      (fetchInstanceSessions as ReturnType<typeof vi.fn>).mockClear();
+      mockBackend.execInstanceCommand.mockClear();
+
+      const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions' });
+      expect(res.statusCode).toBe(200);
+
+      const body = res.json<{ instances: { instanceId: string; sessions: { key: string; totalTokens?: number }[] }[] }>();
+      expect(body.instances.find((entry) => entry.instanceId === 'openclaw-1')?.sessions).toEqual([
+        expect.objectContaining({ key: 'docker-cli', totalTokens: 42 }),
+      ]);
+      expect(mockBackend.execInstanceCommand).toHaveBeenCalledWith('openclaw-1', [
+        'sessions',
+        '--json',
+        '--all-agents',
+        '--active',
+        '60',
+        '--limit',
+        'all',
+      ]);
+      expect(fetchInstanceSessions).toHaveBeenCalledTimes(1);
+      expect(fetchInstanceSessions).toHaveBeenCalledWith(18789, 'full-gateway-token', 5000, {});
+    });
+
+    it('limits Docker CLI preview items to the requested count', async () => {
+      mockBackend.execInstanceCommand.mockResolvedValueOnce(JSON.stringify({
+        sessions: [
+          {
+            key: 'docker-cli',
+            previewItems: [
+              { role: 'user', text: 'first' },
+              { role: 'assistant', text: 'second' },
+              { role: 'user', text: 'third' },
+            ],
+          },
+        ],
+      }));
+
+      const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions?previewLimit=2' });
+      expect(res.statusCode).toBe(200);
+
+      const body = res.json<{ instances: { instanceId: string; sessions: { previewItems?: { role: string; text: string }[] }[] }[] }>();
+      expect(body.instances.find((entry) => entry.instanceId === 'openclaw-1')?.sessions[0].previewItems).toEqual([
+        { role: 'assistant', text: 'second' },
+        { role: 'user', text: 'third' },
+      ]);
+    });
+
     it('filters response sessions by status query', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/fleet/sessions?status=running' });
       expect(res.statusCode).toBe(200);
-      const body = res.json<{ instances: { sessions: { key: string }[] }[] }>();
-      expect(body.instances[0].sessions.map((session) => session.key)).toEqual(['main']);
+      const body = res.json<{ instances: { instanceId: string; sessions: { key: string }[] }[] }>();
+      expect(body.instances.find((entry) => entry.instanceId === 'team-alpha')?.sessions.map((session) => session.key)).toEqual(['main']);
     });
   });
 

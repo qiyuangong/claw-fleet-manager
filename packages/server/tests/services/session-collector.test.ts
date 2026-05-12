@@ -13,7 +13,7 @@ function runningInstance(id: string) {
   return {
     id,
     runtime: 'openclaw' as const,
-    mode: 'docker' as const,
+    mode: 'profile' as const,
     runtimeCapabilities: {
       configEditor: true,
       logs: true,
@@ -36,7 +36,7 @@ function runningInstance(id: string) {
   };
 }
 
-type BackendMock = Pick<DeploymentBackend, 'getCachedStatus' | 'refresh' | 'revealToken'>;
+type BackendMock = Pick<DeploymentBackend, 'getCachedStatus' | 'refresh' | 'revealToken' | 'execInstanceCommand'>;
 
 function createBackend(options: {
   status: { instances: ReturnType<typeof runningInstance>[]; totalRunning?: number };
@@ -54,6 +54,7 @@ function createBackend(options: {
       ? vi.fn().mockRejectedValue(options.refreshError)
       : vi.fn().mockResolvedValue(fullStatus),
     revealToken: vi.fn().mockImplementation(options.revealToken ?? (async (id: string) => `${id}-token`)),
+    execInstanceCommand: vi.fn().mockResolvedValue(JSON.stringify({ sessions: [] })),
   };
 }
 
@@ -155,6 +156,61 @@ describe('SessionCollector', () => {
       sessions: [{ key: 'run-1', status: 'running' }],
     });
     expect(history.pruneCalls).toHaveLength(2);
+
+    collector.stop();
+  });
+
+  it('collects Docker sessions through the in-container OpenClaw CLI', async () => {
+    const history = createHistoryRecorder();
+    const backend = createBackend({
+      status: {
+        instances: [
+          {
+            ...runningInstance('alpha'),
+            mode: 'docker' as const,
+          },
+        ],
+      },
+    });
+    backend.execInstanceCommand = vi.fn().mockResolvedValue(JSON.stringify({
+      sessions: [
+        {
+          key: 'docker-cli',
+          kind: 'direct',
+          updatedAt: 1_715_000_000_000,
+          model: 'gpt-5.5',
+          totalTokens: 42,
+        },
+      ],
+    }));
+    const collector = new SessionCollector({
+      backend,
+      history,
+      collectIntervalMs: 30_000,
+      activeMinutes: 180,
+      retentionDays: 30,
+      log: { warn: vi.fn() } as { warn: (message: string, error?: unknown) => void },
+    });
+
+    await collector.start();
+
+    expect(backend.revealToken).not.toHaveBeenCalled();
+    expect(backend.execInstanceCommand).toHaveBeenCalledWith('alpha', [
+      'sessions',
+      '--json',
+      '--all-agents',
+      '--active',
+      '180',
+      '--limit',
+      'all',
+    ]);
+    expect(history.upsertCalls).toEqual([
+      {
+        instanceId: 'alpha',
+        seenAt: Date.now(),
+        sessions: [expect.objectContaining({ key: 'docker-cli', totalTokens: 42 })],
+      },
+    ]);
 
     collector.stop();
   });

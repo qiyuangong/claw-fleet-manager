@@ -1,4 +1,5 @@
 import type { DeploymentBackend } from './backend.js';
+import { fetchInstanceSessionsForBackend } from './instance-sessions.js';
 import { fetchInstanceSessions, type InstanceSessionRow } from './openclaw-client.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -22,7 +23,7 @@ export class SessionCollector {
   private readonly terminalKeys = new Map<string, number>();
 
   constructor(private readonly options: {
-    backend: Pick<DeploymentBackend, 'getCachedStatus' | 'refresh' | 'revealToken'>;
+    backend: Pick<DeploymentBackend, 'getCachedStatus' | 'refresh' | 'revealToken' | 'execInstanceCommand'>;
     history: HistoryLike;
     collectIntervalMs: number;
     activeMinutes: number;
@@ -76,11 +77,10 @@ export class SessionCollector {
     const fetchSessions = this.options.fetchSessions ?? fetchInstanceSessions;
 
     const results = await Promise.allSettled(runningInstances.map(async (instance) => {
-      const token = await this.options.backend.revealToken(instance.id);
-      const sessions = await fetchSessions(instance.port, token, 5_000, {
+      const sessions = await fetchInstanceSessionsForBackend(instance, this.options.backend, {
         activeMinutes: this.options.activeMinutes,
         previewLimit: 0,
-      });
+      }, fetchSessions);
       const nextSessions = sessions.filter((session) => {
         const key = `${instance.id}:${session.key}`;
         if (this.terminalKeys.has(key)) {
